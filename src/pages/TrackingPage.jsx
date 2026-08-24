@@ -24,7 +24,7 @@ export default function TrackingPage() {
   return (
     <div>
       <h1 className="page-title">Consignment Tracking</h1>
-      <p className="lede">Calls GET /api/tracking/{'{cn}'} on the current PHP API.</p>
+      <p className="lede">Calls GET /api/tracking/{'{cn}'} on the Laravel API.</p>
 
       <form className="toolbar" onSubmit={onSubmit}>
         <input

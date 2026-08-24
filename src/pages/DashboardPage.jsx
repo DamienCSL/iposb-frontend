@@ -27,7 +27,7 @@ export default function DashboardPage() {
     <div>
       <h1 className="page-title">Dashboard</h1>
       <p className="lede">
-        Welcome, {user.name}. Menus match FMS RBAC. Screens marked live call the current PHP{' '}
+        Welcome, {user.name}. Menus match FMS RBAC. Screens marked live call the Laravel{' '}
         <code>/api</code>. Everything else still opens the legacy PHP page until it is ported.
       </p>
 
@@ -35,7 +35,7 @@ export default function DashboardPage() {
         <div className="stat-card">
           <span className="stat-label">API</span>
           <strong>{health.isLoading ? '…' : health.isSuccess ? 'up' : 'down'}</strong>
-          <small>{health.data?.service || 'Start PHP on :8080'}</small>
+          <small>{health.data?.service || 'Start Laravel on :8000'}</small>
         </div>
         <div className="stat-card">
           <span className="stat-label">Backend</span>

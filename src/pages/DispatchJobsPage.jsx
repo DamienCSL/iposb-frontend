@@ -14,7 +14,7 @@ export default function DispatchJobsPage() {
     <div>
       <h1 className="page-title">Driver Assignment</h1>
       <p className="lede">
-        Unassigned jobs from GET /api/dispatch/jobs. Needs PHP API running and{' '}
+        Unassigned jobs from GET /api/dispatch/jobs. Needs Laravel API running and{' '}
         <code>VITE_DISPATCH_KEY</code> (or a dispatcher Bearer token later).
       </p>
 
