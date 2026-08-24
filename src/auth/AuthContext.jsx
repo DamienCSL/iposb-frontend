@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
       },
       logout() {
         localStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem('fms.ops.cn_tracking')
         setUser(null)
       },
     }

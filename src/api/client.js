@@ -27,6 +27,10 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+export function apiError(err) {
+  return err?.response?.data?.error || err?.response?.data?.message || err.message
+}
+
 export async function getHealth() {
   const { data } = await api.get('/health')
   return data
@@ -45,6 +49,36 @@ export async function getDispatchJobs(assigned = false) {
 }
 
 export async function getUncoveredJobs() {
-  const { data } = await api.get('/dispatch/uncovered')
+  const { data } = await api.get('/dispatch/uncovered', { params: { limit: 150 } })
+  return data
+}
+
+export async function getDispatchDrivers() {
+  const { data } = await api.get('/dispatch/drivers', { params: { available: 1 } })
+  return data.drivers || []
+}
+
+export async function get3plPartners() {
+  const { data } = await api.get('/dispatch/3pl-partners')
+  return data.partners || []
+}
+
+export async function assignDriver({ cnNo, driverId, firebaseUid, jobType }) {
+  const { data } = await api.post('/dispatch/assign', {
+    cnNo,
+    driverId,
+    firebaseUid,
+    jobType,
+  })
+  return data
+}
+
+export async function assign3pl({ cnNo, partnerId }) {
+  const { data } = await api.post('/dispatch/assign-3pl', { cnNo, partnerId })
+  return data
+}
+
+export async function planDispatch(cnNo, autoAssign = true) {
+  const { data } = await api.post('/dispatch/plan', { cnNo, autoAssign })
   return data
 }

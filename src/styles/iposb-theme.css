@@ -1,0 +1,172 @@
+/**
+ * IPOSB brand theme — copied from deploy/assets/css/iposb-theme.css
+ */
+:root {
+  --iposb-grey-1: #4D4D4D;
+  --iposb-grey-2: #3A3A3A;
+  --iposb-green-light: #A3F87E;
+  --iposb-green: #5DC95D;
+  --iposb-green-dark: #3FA83F;
+  --iposb-surface: #f5f7f4;
+  --iposb-card: #ffffff;
+  --iposb-border: #e2e8de;
+
+  --bb-primary: var(--iposb-grey-2);
+  --bb-secondary: var(--iposb-grey-1);
+  --bb-accent: var(--iposb-green);
+
+  --bs-primary: #5DC95D;
+  --bs-primary-rgb: 93, 201, 93;
+  --bs-link-color: #3FA83F;
+  --bs-link-hover-color: #2f8a2f;
+  --bs-success: #5DC95D;
+  --bs-success-rgb: 93, 201, 93;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--iposb-grey-2);
+  background: var(--iposb-surface);
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--iposb-green);
+  --bs-btn-border-color: var(--iposb-green);
+  --bs-btn-hover-bg: var(--iposb-green-dark);
+  --bs-btn-hover-border-color: var(--iposb-green-dark);
+  --bs-btn-active-bg: var(--iposb-green-dark);
+  --bs-btn-active-border-color: var(--iposb-green-dark);
+  --bs-btn-disabled-bg: var(--iposb-green);
+  --bs-btn-disabled-border-color: var(--iposb-green);
+  color: #1a2e14;
+  font-weight: 600;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--iposb-green-dark);
+  --bs-btn-border-color: var(--iposb-green);
+  --bs-btn-hover-bg: var(--iposb-green);
+  --bs-btn-hover-border-color: var(--iposb-green);
+  --bs-btn-hover-color: #1a2e14;
+  --bs-btn-active-bg: var(--iposb-green-dark);
+  --bs-btn-active-border-color: var(--iposb-green-dark);
+  --bs-btn-active-color: #fff;
+}
+
+.btn-warning {
+  --bs-btn-bg: var(--iposb-green-light);
+  --bs-btn-border-color: var(--iposb-green-light);
+  --bs-btn-hover-bg: var(--iposb-green);
+  --bs-btn-hover-border-color: var(--iposb-green);
+  --bs-btn-color: var(--iposb-grey-2);
+  --bs-btn-hover-color: var(--iposb-grey-2);
+  font-weight: 700;
+}
+
+.text-primary { color: var(--iposb-green-dark) !important; }
+.bg-primary { background-color: var(--iposb-green) !important; }
+.border-primary { border-color: var(--iposb-green) !important; }
+
+.badge.bg-primary,
+.badge.bg-success {
+  background-color: var(--iposb-green) !important;
+  color: #1a2e14 !important;
+}
+
+.iposb-logo {
+  height: 40px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.iposb-logo-lg {
+  height: 56px;
+  width: auto;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+.sidebar {
+  background: var(--iposb-grey-2) !important;
+}
+.sidebar .brand {
+  padding: 16px 18px;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #2f2f2f;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar .brand img {
+  height: 34px;
+  width: auto;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.sidebar .brand .brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.sidebar .brand .brand-text small {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--iposb-green-light);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sidebar a,
+.sidebar .logout-link {
+  color: #c8c8c8;
+}
+.sidebar a:hover,
+.sidebar a.active,
+.sidebar .logout-link:hover {
+  background: rgba(93, 201, 93, 0.16) !important;
+  color: #fff !important;
+  border-left: 3px solid var(--iposb-green);
+  padding-left: 17px;
+}
+.sidebar .section-title {
+  color: #8a8a8a !important;
+}
+
+.iposb-login-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(163, 248, 126, 0.25), transparent 35%),
+    linear-gradient(160deg, #f7faf5 0%, #eef3ea 45%, #e4ece0 100%);
+  display: flex;
+  align-items: center;
+}
+.iposb-login-card {
+  max-width: 420px;
+  margin: 0 auto;
+  border: 1px solid var(--iposb-border);
+  border-radius: 1rem;
+  box-shadow: 0 12px 32px rgba(58, 58, 58, 0.1);
+}
+.iposb-login-card .card-body {
+  padding: 2rem;
+}
+.iposb-login-brand {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+.iposb-login-brand img {
+  height: 64px;
+  width: auto;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+}

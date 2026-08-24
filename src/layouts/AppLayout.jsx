@@ -1,12 +1,26 @@
+import { useEffect, useRef } from 'react'
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { visibleAdmin, visibleSections } from '../nav/navConfig'
 
-const LEGACY = import.meta.env.VITE_LEGACY_URL || 'http://localhost:8080'
+const SCROLL_KEY = 'fms.sidebar.scrollTop'
 
 export default function AppLayout() {
   const { user, caps, logout } = useAuth()
   const location = useLocation()
+  const sidebarRef = useRef(null)
+
+  useEffect(() => {
+    const el = sidebarRef.current
+    if (!el) return
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved !== null) {
+      el.scrollTop = parseInt(saved, 10) || 0
+    }
+    const onScroll = () => sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop))
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [user])
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
@@ -16,8 +30,8 @@ export default function AppLayout() {
   const admin = visibleAdmin(caps)
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <>
+      <nav className="sidebar" ref={sidebarRef}>
         <div className="brand">
           <img src="/iposb-logo.png" alt="IPOSB" />
           <div className="brand-text">
@@ -27,16 +41,19 @@ export default function AppLayout() {
         </div>
 
         <NavLink to="/" end>
-          Dashboard
+          <i className="bi bi-speedometer2" /> Dashboard
         </NavLink>
 
         {sections.map((section) => (
           <div key={section.id}>
             <div className="section-title">{section.title}</div>
             {section.items.map((item) => (
-              <NavLink key={item.to} to={item.to}>
-                {item.label}
-                {item.live ? <span className="nav-live">live</span> : null}
+              <NavLink key={item.to} to={item.to} onClick={() => {
+                if (sidebarRef.current) {
+                  sessionStorage.setItem(SCROLL_KEY, String(sidebarRef.current.scrollTop))
+                }
+              }}>
+                <i className={`bi ${item.icon || 'bi-circle'}`} /> {item.label}
               </NavLink>
             ))}
           </div>
@@ -47,37 +64,31 @@ export default function AppLayout() {
             <div className="section-title">Administration</div>
             {admin.map((item) => (
               <NavLink key={item.to} to={item.to}>
-                {item.label}
+                <i className={`bi ${item.icon || 'bi-circle'}`} /> {item.label}
               </NavLink>
             ))}
           </div>
         )}
 
         <div className="sidebar-user">
-          <div className="user-meta">
-            <strong>{user.name}</strong>
-            <span>
+          <div className="px-3 text-secondary" style={{ fontSize: '0.8rem', paddingTop: 12 }}>
+            <div>
+              <strong>{user.name}</strong>
+            </div>
+            <div>
               {user.role}
               {user.branchCode ? ` | ${user.branchCode}` : ''}
-            </span>
+            </div>
           </div>
-          <button type="button" className="linkish" onClick={logout}>
-            Logout
+          <button type="button" className="logout-link" onClick={logout}>
+            <i className="bi bi-box-arrow-left" /> Logout
           </button>
         </div>
-      </aside>
+      </nav>
 
-      <main className="main">
-        <header className="topbar">
-          <span className="muted">React back-office · Wave 1 (shell + live tracking/dispatch)</span>
-          <a className="legacy-link" href={`${LEGACY}/FMS/dashboard.php`} target="_blank" rel="noreferrer">
-            Open legacy FMS
-          </a>
-        </header>
-        <div className="page">
-          <Outlet />
-        </div>
-      </main>
-    </div>
+      <div className="main-content">
+        <Outlet />
+      </div>
+    </>
   )
 }

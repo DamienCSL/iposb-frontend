@@ -1,37 +1,30 @@
-import { useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
-import { ADMIN_ITEMS, NAV_SECTIONS } from '../nav/navConfig'
+import { Link, useLocation } from 'react-router-dom'
+import { findNavMeta } from '../nav/navConfig'
 
 const LEGACY = import.meta.env.VITE_LEGACY_URL || 'http://localhost:8080'
 
 export default function PlaceholderPage() {
   const { pathname } = useLocation()
-  const meta = useMemo(() => {
-    for (const s of NAV_SECTIONS) {
-      const hit = s.items.find((i) => i.to === pathname)
-      if (hit) return hit
-    }
-    return ADMIN_ITEMS.find((i) => i.to === pathname)
-  }, [pathname])
-
-  const heading = meta?.label || 'Page'
+  const meta = findNavMeta(pathname)
+  const heading = meta?.label || 'Coming Soon'
   const legacy = meta?.legacy
 
   return (
-    <div>
-      <h1 className="page-title">{heading}</h1>
-      <div className="panel">
-        <p>
-          This screen is not migrated yet. React owns routing and RBAC; the working form still lives in PHP FMS.
+    <div className="card">
+      <div className="card-body text-center py-5">
+        <i className="bi bi-tools text-secondary" style={{ fontSize: '3rem' }} />
+        <h3 className="mt-3">{heading}</h3>
+        <p className="text-muted mb-4">
+          This screen is linked in the menu but has not been fully ported from the legacy system yet.
         </p>
         {legacy ? (
-          <p>
-            <a className="btn-primary inline" href={`${LEGACY}${legacy}`} target="_blank" rel="noreferrer">
-              Open in legacy FMS
-            </a>
-          </p>
+          <a className="btn btn-outline-primary me-2" href={`${LEGACY}${legacy}`} target="_blank" rel="noreferrer">
+            Open in legacy FMS
+          </a>
         ) : null}
-        <p className="muted path">{pathname}</p>
+        <Link to="/" className="btn btn-primary">
+          Back to Dashboard
+        </Link>
       </div>
     </div>
   )
