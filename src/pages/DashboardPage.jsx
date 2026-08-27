@@ -1,19 +1,28 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getOpsDashboard } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { can } from '../auth/rbac'
 
+const EMPTY_STATS = {
+  total_cn: 0,
+  pending_cn: 0,
+  delivered_today: 0,
+  manifested_today: 0,
+  unpaid_invoices: 0,
+  total_revenue: 0,
+  pending_staff: 0,
+}
+
 export default function DashboardPage() {
   const { user, caps } = useAuth()
+  const [stats, setStats] = useState(EMPTY_STATS)
 
-  const stats = {
-    total_cn: 0,
-    pending_cn: 0,
-    delivered_today: 0,
-    manifested_today: 0,
-    unpaid_invoices: 0,
-    total_revenue: 0,
-    pending_staff: 0,
-  }
+  useEffect(() => {
+    getOpsDashboard()
+      .then((d) => setStats({ ...EMPTY_STATS, ...(d.stats || {}) }))
+      .catch(() => setStats(EMPTY_STATS))
+  }, [])
 
   const today = new Date().toISOString().slice(0, 10)
 

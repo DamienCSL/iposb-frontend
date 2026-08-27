@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { apiError, getTracking } from '../api/client'
 
 const SESSION_KEY = 'fms.ops.cn_tracking'
@@ -58,6 +59,7 @@ function formatWhen(value) {
 }
 
 export default function TrackingPage() {
+  const [params] = useSearchParams()
   const initial = useMemo(() => loadSession(), [])
   const [cn, setCn] = useState('')
   const [bulk, setBulk] = useState('')
@@ -67,6 +69,18 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    const fromQuery = parseCnCodes(params.get('cn') || '')
+    const tabHint = String(params.get('tab') || '').toUpperCase()
+    if (fromQuery.length) {
+      const next = []
+      for (const code of fromQuery) {
+        if (!next.includes(code) && next.length < MAX_TABS) next.push(code)
+      }
+      const tab = next.includes(tabHint) ? tabHint : next[next.length - 1]
+      persist(next, tab)
+      loadPanel(tab)
+      return
+    }
     if (initial.tab) {
       loadPanel(initial.tab)
     }

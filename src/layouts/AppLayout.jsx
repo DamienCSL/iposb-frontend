@@ -6,7 +6,7 @@ import { visibleAdmin, visibleSections } from '../nav/navConfig'
 const SCROLL_KEY = 'fms.sidebar.scrollTop'
 
 export default function AppLayout() {
-  const { user, caps, logout } = useAuth()
+  const { user, caps, logout, booting } = useAuth()
   const location = useLocation()
   const sidebarRef = useRef(null)
 
@@ -22,12 +22,20 @@ export default function AppLayout() {
     return () => el.removeEventListener('scroll', onScroll)
   }, [user])
 
+  if (booting) {
+    return <div className="main-content text-muted p-4">Loading session…</div>
+  }
+
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
   const sections = visibleSections(caps)
   const admin = visibleAdmin(caps)
+
+  async function onLogout() {
+    await logout()
+  }
 
   return (
     <>
@@ -48,7 +56,7 @@ export default function AppLayout() {
           <div key={section.id}>
             <div className="section-title">{section.title}</div>
             {section.items.map((item) => (
-              <NavLink key={item.to} to={item.to} onClick={() => {
+              <NavLink key={item.to} to={item.to} end onClick={() => {
                 if (sidebarRef.current) {
                   sessionStorage.setItem(SCROLL_KEY, String(sidebarRef.current.scrollTop))
                 }
@@ -63,7 +71,7 @@ export default function AppLayout() {
           <div>
             <div className="section-title">Administration</div>
             {admin.map((item) => (
-              <NavLink key={item.to} to={item.to}>
+              <NavLink key={item.to} to={item.to} end>
                 <i className={`bi ${item.icon || 'bi-circle'}`} /> {item.label}
               </NavLink>
             ))}
@@ -80,7 +88,7 @@ export default function AppLayout() {
               {user.branchCode ? ` | ${user.branchCode}` : ''}
             </div>
           </div>
-          <button type="button" className="logout-link" onClick={logout}>
+          <button type="button" className="logout-link" onClick={onLogout}>
             <i className="bi bi-box-arrow-left" /> Logout
           </button>
         </div>

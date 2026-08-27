@@ -1,29 +1,40 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { DEMO_USERS } from '../auth/rbac'
 
 export default function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, booting } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  if (booting) {
+    return (
+      <div className="iposb-login-page">
+        <div className="container text-center text-muted py-5">Checking session…</div>
+      </div>
+    )
+  }
 
   if (user) {
     return <Navigate to="/" replace />
   }
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault()
     setError('')
+    setBusy(true)
     try {
-      login(username, password)
+      await login(username, password)
       const to = location.state?.from || '/'
       navigate(to, { replace: true })
     } catch (err) {
       setError(err.message || 'Login failed')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -54,6 +65,7 @@ export default function LoginPage() {
                   autoComplete="username"
                   required
                   autoFocus
+                  disabled={busy}
                 />
               </div>
               <div className="mb-3">
@@ -68,15 +80,17 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   required
+                  disabled={busy}
                 />
               </div>
-              <button type="submit" className="btn btn-primary w-100">
-                Login
+              <button type="submit" className="btn btn-primary w-100" disabled={busy}>
+                {busy ? 'Signing in…' : 'Login'}
               </button>
             </form>
 
             <p className="text-muted small mt-3 mb-0">
-              Demo accounts: {DEMO_USERS.map((u) => u.username).join(', ')} — password is username + 123.
+              Office login against Laravel <code>/api/ops/auth/login</code>. Local seed:{' '}
+              <strong>admin</strong> / <strong>admin123</strong> (also ops01, inv01, agent01).
             </p>
           </div>
         </div>
