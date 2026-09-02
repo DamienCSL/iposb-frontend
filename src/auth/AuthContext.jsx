@@ -15,14 +15,35 @@ function loadSession() {
 }
 
 function sessionFromApi(token, user) {
+  const role = user.role || user.appRole || 'Others'
+  const caps = user.capabilities && typeof user.capabilities === 'object'
+    ? user.capabilities
+    : capabilitiesFor(role)
+
   return {
     id: user.id,
     username: user.username,
     name: user.name || user.fullName || user.username,
-    role: user.role || user.appRole || 'Others',
+    role,
     branchCode: user.branchCode || null,
     token,
     authKind: 'office',
+    capabilities: caps,
+    defaultRoute: user.defaultRoute || '/',
+  }
+}
+
+function demoSession(found) {
+  const caps = capabilitiesFor(found.role)
+  return {
+    username: found.username,
+    name: found.name,
+    role: found.role,
+    branchCode: found.branchCode,
+    token: `demoStaff:${found.username}`,
+    authKind: 'demo',
+    capabilities: caps,
+    defaultRoute: '/',
   }
 }
 
@@ -34,7 +55,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadSession)
   const [booting, setBooting] = useState(Boolean(loadSession()?.token))
 
-  // Re-validate office Bearer on refresh (ignore fake demoStaff tokens).
   useEffect(() => {
     let cancelled = false
     async function hydrate() {
@@ -67,10 +87,11 @@ export function AuthProvider({ children }) {
   }, [])
 
   const value = useMemo(() => {
-    const caps = user ? capabilitiesFor(user.role) : null
+    const caps = user?.capabilities ?? (user ? capabilitiesFor(user.role) : null)
     return {
       user,
       caps,
+      defaultRoute: user?.defaultRoute || '/',
       booting,
       async login(username, password) {
         try {
@@ -83,20 +104,12 @@ export function AuthProvider({ children }) {
           setUser(session)
           return session
         } catch (err) {
-          // Optional local-only fallback (dev). Off by default.
           if (demoFallbackEnabled()) {
             const found = DEMO_USERS.find(
               (u) => u.username === username.trim() && u.password === password,
             )
             if (found) {
-              const session = {
-                username: found.username,
-                name: found.name,
-                role: found.role,
-                branchCode: found.branchCode,
-                token: `demoStaff:${found.username}`,
-                authKind: 'demo',
-              }
+              const session = demoSession(found)
               localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
               setUser(session)
               return session

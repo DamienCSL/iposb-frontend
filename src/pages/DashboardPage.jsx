@@ -40,9 +40,9 @@ export default function DashboardPage() {
     { to: '/admin/users', title: 'User Management', desc: 'Add or edit system users', icon: 'bi-person-gear', color: 'danger', show: can(caps, 'users') },
     { to: '/admin/branches', title: 'Branch Management', desc: 'Maintain branch records', icon: 'bi-building', color: 'danger', show: can(caps, 'branches') },
     { to: '/admin/hubs', title: 'Hub Management', desc: 'Maintain scan hubs (SBH325, 805, …)', icon: 'bi-diagram-3', color: 'danger', show: can(caps, 'hubs') },
-    { to: '/admin/drop-points', title: 'Drop Point Management', desc: 'Pickup / delivery collection points', icon: 'bi-geo-alt', color: 'danger', show: can(caps, 'dropPoints') },
-    { to: '/admin/3pl', title: '3PL Partners', desc: 'Third-party couriers for remote pickup', icon: 'bi-truck-flatbed', color: 'danger', show: can(caps, 'dropPoints') },
-    { to: '/admin/coverage', title: 'Coverage Areas', desc: 'Own DP vs 3PL pickup map (no nearest-DP)', icon: 'bi-map', color: 'danger', show: can(caps, 'dropPoints') },
+    { to: '/drop-points', title: 'Drop Point Management', desc: 'Pickup / delivery collection points', icon: 'bi-geo-alt', color: 'info', show: can(caps, 'dropPoints') },
+    { to: '/drop-points/3pl', title: '3PL Partners', desc: 'Third-party couriers for remote pickup', icon: 'bi-truck-flatbed', color: 'info', show: can(caps, 'dropPoints') },
+    { to: '/drop-points/coverage', title: 'Coverage Areas', desc: 'Own DP vs 3PL pickup map (no nearest-DP)', icon: 'bi-map', color: 'info', show: can(caps, 'dropPoints') },
     {
       to: '/admin/staff',
       title: 'Staff Verification',

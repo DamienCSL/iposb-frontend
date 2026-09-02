@@ -50,6 +50,21 @@ export async function meOffice() {
   return data
 }
 
+export async function getRbacModules() {
+  const { data } = await api.get('/ops/rbac/modules')
+  return data
+}
+
+export async function getRbacRoles() {
+  const { data } = await api.get('/ops/rbac/roles')
+  return data
+}
+
+export async function updateRbacRole(role, body) {
+  const { data } = await api.put(`/ops/rbac/roles/${encodeURIComponent(role)}`, body)
+  return data
+}
+
 export async function getHealth() {
   const { data } = await api.get('/health')
   return data
@@ -120,8 +135,118 @@ export async function saveConsignment(body) {
   return data
 }
 
-export async function cancelConsignment(cn) {
-  const { data } = await api.post(`/ops/consignments/${encodeURIComponent(cn)}/cancel`)
+export async function quoteConsignment(body) {
+  const { data } = await api.post('/ops/consignments/quote', body)
+  return data
+}
+
+export async function previewInvoice(params) {
+  const { data } = await api.get('/ops/billing/invoices/preview', { params })
+  return data
+}
+
+export async function generateInvoice(body) {
+  const { data } = await api.post('/ops/billing/invoices/generate', body)
+  return data
+}
+
+export async function listCodCollections(params) {
+  const { data } = await api.get('/ops/cod', { params })
+  return data
+}
+
+export async function getCodRecord(cn) {
+  const { data } = await api.get(`/ops/cod/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function collectCodAtDropPoint(cn, body) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/collect`, body)
+  return data
+}
+
+export async function remitCod(cn, body) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/remit`, body)
+  return data
+}
+
+export async function settleCod(cn) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/settle`)
+  return data
+}
+
+export async function cancelConsignment(cn, body = {}) {
+  const { data } = await api.post(`/ops/consignments/${encodeURIComponent(cn)}/cancel`, body)
+  return data
+}
+
+export async function previewCancellation(cn) {
+  const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/cancel-preview`)
+  return data
+}
+
+export async function getCancellationConfig() {
+  const { data } = await api.get('/ops/billing/cancellation-config')
+  return data
+}
+
+export async function updateCancellationConfig(body) {
+  const { data } = await api.put('/ops/billing/cancellation-config', body)
+  return data
+}
+
+export async function getCancellationDetail(cn) {
+  const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/cancellation`)
+  return data
+}
+
+export async function listCancellationLog(params = {}) {
+  const { data } = await api.get('/ops/cancellations/log', { params })
+  return data
+}
+
+export async function getWalletLedger(params) {
+  const { data } = await api.get('/ops/billing/wallet', { params })
+  return data
+}
+
+export async function getCommissionConfig() {
+  const { data } = await api.get('/ops/commissions/config')
+  return data
+}
+
+export async function listCommissions(params) {
+  const { data } = await api.get('/ops/commissions', { params })
+  return data
+}
+
+export async function accrueCommission(cn) {
+  const { data } = await api.post(`/ops/commissions/accrue/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function verifyCommission(id) {
+  const { data } = await api.post(`/ops/commissions/${id}/verify`)
+  return data
+}
+
+export async function listPartnerWallets(params) {
+  const { data } = await api.get('/ops/partner-wallets', { params })
+  return data
+}
+
+export async function listCommissionWithdrawals(params) {
+  const { data } = await api.get('/ops/commission-withdrawals', { params })
+  return data
+}
+
+export async function requestCommissionWithdrawal(code, body) {
+  const { data } = await api.post(`/ops/partner-wallets/${encodeURIComponent(code)}/withdraw`, body)
+  return data
+}
+
+export async function advanceCommissionWithdrawal(id, action) {
+  const { data } = await api.post(`/ops/commission-withdrawals/${id}/advance`, { action })
   return data
 }
 

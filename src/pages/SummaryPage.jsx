@@ -6,7 +6,8 @@ import { Alert } from '../ui/bits'
 const TITLES = {
   overall: 'Consignment Status Summary',
   status: 'Summary by Status',
-  agent: 'Summary by Agent',
+  'drop-point': 'Summary by Drop Point',
+  agent: 'Summary by Drop Point',
   consignee: 'Summary by Consignee',
   consigner: 'Summary by Consigner',
   shipper: 'Summary by Shipper',

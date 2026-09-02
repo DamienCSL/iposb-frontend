@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { routeAllowed } from '../auth/routeCaps'
 import { visibleAdmin, visibleSections } from '../nav/navConfig'
 
 const SCROLL_KEY = 'fms.sidebar.scrollTop'
 
 export default function AppLayout() {
-  const { user, caps, logout, booting } = useAuth()
+  const { user, caps, logout, booting, defaultRoute } = useAuth()
   const location = useLocation()
   const sidebarRef = useRef(null)
 
@@ -32,6 +33,11 @@ export default function AppLayout() {
 
   const sections = visibleSections(caps)
   const admin = visibleAdmin(caps)
+  const homeRoute = defaultRoute || '/'
+
+  if (!routeAllowed(location.pathname, caps)) {
+    return <Navigate to={homeRoute} replace />
+  }
 
   async function onLogout() {
     await logout()

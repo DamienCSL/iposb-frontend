@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { apiError, getCnLookups, getConsignment, saveConsignment } from '../api/client'
-import { Alert } from '../ui/bits'
+import { apiError, getCnLookups, getConsignment, quoteConsignment, saveConsignment } from '../api/client'
+import { Alert, money } from '../ui/bits'
 
 export default function ConsignmentEntryPage() {
   const [params] = useSearchParams()
@@ -11,10 +11,42 @@ export default function ConsignmentEntryPage() {
   const [form, setForm] = useState(null)
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
+  const [quote, setQuote] = useState(null)
+  const quoteTimer = useRef(null)
 
   useEffect(() => {
     getCnLookups().then(setLookups).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!form) {
+      setQuote(null)
+      return
+    }
+    const wt = parseFloat(form.cn_wt)
+    if (!form.cust_ac_no || !form.cn_origin || !form.cn_dstn || !wt || wt <= 0) {
+      setQuote(null)
+      return
+    }
+    if (quoteTimer.current) clearTimeout(quoteTimer.current)
+    quoteTimer.current = setTimeout(() => {
+      quoteConsignment({
+        cust_ac_no: form.cust_ac_no,
+        srv_typ: form.srv_typ,
+        pkg_typ: form.pkg_typ,
+        cn_origin: form.cn_origin,
+        cn_dstn: form.cn_dstn,
+        cn_wt: wt,
+        cn_pcs: form.cn_pcs,
+        spec_handle: form.spec_handle,
+        spec_amt: form.spec_amt,
+        pu_dt: form.pu_dt,
+      })
+        .then(setQuote)
+        .catch(() => setQuote(null))
+    }, 400)
+    return () => { if (quoteTimer.current) clearTimeout(quoteTimer.current) }
+  }, [form])
 
   useEffect(() => {
     if (preset) lookup(preset, 'N')
@@ -57,6 +89,8 @@ export default function ConsignmentEntryPage() {
       consignee: existing?.consignee || '',
       consigner: existing?.consigner || '',
       recp_name: existing?.recp_name || '',
+      pay_mode: existing?.ppd_cct === 'COD' ? 'COD' : 'PPD',
+      cash_amt: existing?.cash_amt || '',
     })
   }
 
@@ -66,6 +100,7 @@ export default function ConsignmentEntryPage() {
     try {
       const r = await saveConsignment(form)
       setOk(r.message)
+      if (r.quote) setQuote(r.quote)
     } catch (err) {
       setError(apiError(err))
     }
@@ -216,6 +251,26 @@ export default function ConsignmentEntryPage() {
                   <input type="number" step="0.01" className="form-control" value={form.spec_amt} onChange={(e) => set('spec_amt', e.target.value)} />
                 </div>
                 <div className="col-md-3">
+                  <label className="form-label">Payment Mode</label>
+                  <select className="form-select" value={form.pay_mode || 'PPD'} onChange={(e) => set('pay_mode', e.target.value)}>
+                    <option value="PPD">Prepaid / Account</option>
+                    <option value="COD">Cash on Delivery (COD)</option>
+                  </select>
+                </div>
+                {form.pay_mode === 'COD' && (
+                  <div className="col-md-3">
+                    <label className="form-label">COD Amount (RM)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      value={form.cash_amt}
+                      onChange={(e) => set('cash_amt', e.target.value)}
+                      placeholder={quote?.total != null ? String(quote.total) : 'Uses freight quote if blank'}
+                    />
+                  </div>
+                )}
+                <div className="col-md-3">
                   <label className="form-label">Consignee Name</label>
                   <input className="form-control" value={form.consignee} onChange={(e) => set('consignee', e.target.value)} />
                 </div>
@@ -226,6 +281,21 @@ export default function ConsignmentEntryPage() {
               </div>
             </div>
           </div>
+          {quote ? (
+            <div className="card mb-3 border-success">
+              <div className="card-header bg-success-subtle"><strong>Freight quote</strong> <span className="text-muted small">({quote.rateLabel || quote.source})</span></div>
+              <div className="card-body py-2">
+                <div className="row g-2 small">
+                  {(quote.charges || []).map((c) => (
+                    <div className="col-md-4" key={c.chargeCode}>{c.chargeDesc}: {money(c.amount)}</div>
+                  ))}
+                  <div className="col-md-4"><strong>Subtotal:</strong> {money(quote.subtotal)}</div>
+                  <div className="col-md-4"><strong>SST ({quote.taxRate}%):</strong> {quote.taxRate > 0 ? money(quote.taxAmount) : '—'}</div>
+                  <div className="col-md-4"><strong>Total:</strong> {money(quote.total)}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="text-center">
             <button className="btn btn-primary" type="submit">Save Consignment</button>{' '}
             <button className="btn btn-secondary" type="button" onClick={() => setForm(null)}>Back to Inquiry</button>

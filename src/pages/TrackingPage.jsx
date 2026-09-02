@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { apiError, getTracking } from '../api/client'
+import CancelConsignmentModal from '../components/CancelConsignmentModal'
+import { money } from '../ui/bits'
 
 const SESSION_KEY = 'fms.ops.cn_tracking'
 const MAX_TABS = 50
@@ -67,6 +69,8 @@ export default function TrackingPage() {
   const [active, setActive] = useState(initial.tab)
   const [panels, setPanels] = useState({})
   const [loading, setLoading] = useState(false)
+  const [cancelCn, setCancelCn] = useState(null)
+  const [cancelMsg, setCancelMsg] = useState('')
 
   useEffect(() => {
     const fromQuery = parseCnCodes(params.get('cn') || '')
@@ -154,11 +158,14 @@ export default function TrackingPage() {
 
   const panel = panels[active]
   const data = panel?.data
+  const cancellation = data?.cancellation
   const events = Array.isArray(data?.timeline) ? [...data.timeline].reverse() : []
+  const failedAttempts = Array.isArray(data?.scanAttempts) ? data.scanAttempts : []
 
   return (
     <div>
       <h3 className="mb-3">Consignment Tracking</h3>
+      {cancelMsg ? <div className="alert alert-success">{cancelMsg}</div> : null}
 
       <div className="card mb-3">
         <div className="card-body">
@@ -317,6 +324,37 @@ export default function TrackingPage() {
                 </div>
               </div>
 
+              {cancellation?.cancelled ? (
+                <div className="card mb-3 border-warning">
+                  <div className="card-header d-flex justify-content-between align-items-center">
+                    <strong>Cancellation record</strong>
+                    <span className="badge bg-danger">Cancelled</span>
+                  </div>
+                  <div className="card-body">
+                    <div className="row g-2 small">
+                      <div className="col-md-3">
+                        Processing fee:{' '}
+                        <strong className="text-danger">{money(cancellation.feeAmt)}</strong> ({cancellation.feePct}%)
+                      </div>
+                      <div className="col-md-3">
+                        Wallet refund: <strong className="text-success">{money(cancellation.refundAmt)}</strong>
+                      </div>
+                      <div className="col-md-3">Credit note: {cancellation.creditNoteNo || '—'}</div>
+                      <div className="col-md-3">By: {cancellation.cancelledBy || '—'}</div>
+                      {cancellation.reason ? (
+                        <div className="col-12 text-muted">Reason: {cancellation.reason}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : data.statusCode !== 'CAN' ? (
+                <div className="mb-3">
+                  <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => setCancelCn(active)}>
+                    Cancel this consignment…
+                  </button>
+                </div>
+              ) : null}
+
               <div className="d-flex align-items-center justify-content-between mb-2">
                 <h5 className="mb-0">Tracking Info</h5>
                 <span className="text-muted small">
@@ -350,6 +388,13 @@ export default function TrackingPage() {
                           <td>
                             {ev.trackingRecord || ev.customerLabel || ev.note || '—'}
                             {ev.location ? <div className="text-muted small mt-1">{ev.location}</div> : null}
+                            {ev.evidenceUrl ? (
+                              <div className="mt-1">
+                                <a href={ev.evidenceUrl} target="_blank" rel="noreferrer" className="small">
+                                  <i className="bi bi-image" /> View proof photo
+                                </a>
+                              </div>
+                            ) : null}
                           </td>
                         </tr>
                       ))}
@@ -357,10 +402,60 @@ export default function TrackingPage() {
                   </table>
                 </div>
               )}
+
+              {failedAttempts.length > 0 ? (
+                <>
+                  <h5 className="mb-2 mt-4">Failed scan attempts</h5>
+                  <div className="table-responsive trk-table mb-3">
+                    <table className="table table-sm mb-0">
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Attempted</th>
+                          <th>Error</th>
+                          <th>Proof</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {failedAttempts.map((row) => (
+                          <tr key={row.id || `${row.at}-${row.attemptedStatus}`}>
+                            <td className="text-nowrap">{formatWhen(row.at)}</td>
+                            <td>{row.attemptedStatus || '—'}</td>
+                            <td>
+                              <span className="text-danger">{row.errorMessage || row.errorCode}</span>
+                            </td>
+                            <td>
+                              {row.evidenceUrl ? (
+                                <a href={row.evidenceUrl} target="_blank" rel="noreferrer" className="small">
+                                  View photo
+                                </a>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
             </>
           ) : null}
         </>
       )}
+
+      {cancelCn ? (
+        <CancelConsignmentModal
+          cn={cancelCn}
+          onClose={() => setCancelCn(null)}
+          onDone={(result) => {
+            setCancelMsg(result.message || 'Cancellation updated.')
+            loadPanel(cancelCn)
+            setCancelCn(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

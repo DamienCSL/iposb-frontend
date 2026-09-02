@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { apiError, getBilling, listBilling, saveBilling } from '../api/client'
+import { apiError, generateInvoice, getBilling, listBilling, previewInvoice, saveBilling } from '../api/client'
 import { Alert, Pager, money } from '../ui/bits'
 
-const AGENT_COLS = [
+const DROP_POINT_COLS = [
   ['bilyet_no', 'Bilyet No'],
-  ['agent_cd', 'Agent'],
+  ['agent_cd', 'Drop Point'],
   ['bilyet_dt', 'Date'],
   ['amt', 'Amount', 'money'],
   ['bilyet_status', 'Status'],
 ]
-const AGENT_FILTERS = [
-  { name: 'agent_cd', label: 'Agent' },
+const DROP_POINT_FILTERS = [
+  { name: 'agent_cd', label: 'Drop Point' },
   { name: 'bilyet_no', label: 'Bilyet No' },
 ]
 
@@ -53,10 +53,10 @@ const CONFIG = {
     filters: [{ name: 'debit_note_no', label: 'Note No' }, { name: 'cust_ac_no', label: 'Customer' }],
     columns: [['debit_note_no', 'Note No'], ['cust_ac_no', 'Customer'], ['debit_note_date', 'Date'], ['total_amount', 'Amount', 'money'], ['invoice_no', 'Invoice'], ['reason', 'Reason']],
   },
-  'agent-in': { title: 'Agent Money In List', filters: AGENT_FILTERS, columns: AGENT_COLS },
-  'agent-out': { title: 'Agent Money Out List', filters: AGENT_FILTERS, columns: AGENT_COLS },
-  'agent-credit': { title: 'Agent Credit Note List', filters: AGENT_FILTERS, columns: AGENT_COLS },
-  'agent-debit': { title: 'Agent Debit Note List', filters: AGENT_FILTERS, columns: AGENT_COLS },
+  'agent-in': { title: 'Drop Point Money In List', filters: DROP_POINT_FILTERS, columns: DROP_POINT_COLS },
+  'agent-out': { title: 'Drop Point Money Out List', filters: DROP_POINT_FILTERS, columns: DROP_POINT_COLS },
+  'agent-credit': { title: 'Drop Point Credit Note List', filters: DROP_POINT_FILTERS, columns: DROP_POINT_COLS },
+  'agent-debit': { title: 'Drop Point Debit Note List', filters: DROP_POINT_FILTERS, columns: DROP_POINT_COLS },
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -133,46 +133,46 @@ const ENTRIES = {
     ],
   },
   'agent-in': {
-    title: 'Agent Money In',
-    extra: 'Record a bilyet payment received from an agent.',
+    title: 'Drop Point Money In',
+    extra: 'Record a bilyet payment received from a drop point.',
     submit: 'Save',
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
-      { name: 'agent_cd', label: 'Agent Code', required: true },
+      { name: 'agent_cd', label: 'Drop Point Code', required: true },
       { name: 'bilyet_no', label: 'Bilyet No', required: true },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
   },
   'agent-out': {
-    title: 'Agent Money Out',
-    extra: 'Record a bilyet payment paid out to an agent.',
+    title: 'Drop Point Money Out',
+    extra: 'Record a bilyet payment paid out to a drop point.',
     submit: 'Save',
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
-      { name: 'agent_cd', label: 'Agent Code', required: true },
+      { name: 'agent_cd', label: 'Drop Point Code', required: true },
       { name: 'bilyet_no', label: 'Bilyet No', required: true },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
   },
   'agent-credit': {
-    title: 'Agent Credit Note',
+    title: 'Drop Point Credit Note',
     submit: 'Save',
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
-      { name: 'agent_cd', label: 'Agent Code', required: true },
+      { name: 'agent_cd', label: 'Drop Point Code', required: true },
       { name: 'bilyet_no', label: 'Note No', required: true },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
   },
   'agent-debit': {
-    title: 'Agent Debit Note',
+    title: 'Drop Point Debit Note',
     submit: 'Save',
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
-      { name: 'agent_cd', label: 'Agent Code', required: true },
+      { name: 'agent_cd', label: 'Drop Point Code', required: true },
       { name: 'bilyet_no', label: 'Note No', required: true },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
@@ -183,7 +183,7 @@ const ENTRIES = {
 function cellValue(r, k, kind) {
   if (kind === 'money') return money(r[k])
   if (k === 'cust_ac_no') return `${r.cust_ac_no || ''} ${r.cust_name || ''}`.trim()
-  if (k === 'agent_cd') return `${r.agent_cd || ''} ${r.agent_name || ''}`.trim()
+  if (k === 'agent_cd') return `${r.agent_cd || ''} ${r.drop_name || r.agent_name || ''}`.trim()
   return r[k] ?? ''
 }
 
@@ -241,7 +241,176 @@ export default function BillingListPage({ doc, title }) {
   )
 }
 
+export function InvoiceEntryPage() {
+  const [form, setForm] = useState({ cust_ac_no: '', yr_month: ym(), date_from: '', date_to: '' })
+  const [preview, setPreview] = useState(null)
+  const [selected, setSelected] = useState({})
+  const [error, setError] = useState('')
+  const [ok, setOk] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function loadPreview(e) {
+    e?.preventDefault()
+    setError('')
+    setOk('')
+    if (!form.cust_ac_no.trim()) {
+      setError('Customer account is required.')
+      return
+    }
+    setBusy(true)
+    try {
+      const data = await previewInvoice({
+        cust_ac_no: form.cust_ac_no.trim(),
+        date_from: form.date_from || undefined,
+        date_to: form.date_to || undefined,
+      })
+      setPreview(data)
+      const sel = {}
+      ;(data.rows || []).forEach((r) => { sel[r.cn_no] = true })
+      setSelected(sel)
+    } catch (err) {
+      setError(apiError(err))
+      setPreview(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function toggleAll(on) {
+    if (!preview?.rows) return
+    const sel = {}
+    preview.rows.forEach((r) => { sel[r.cn_no] = on })
+    setSelected(sel)
+  }
+
+  function toggleOne(cnNo) {
+    setSelected((s) => ({ ...s, [cnNo]: !s[cnNo] }))
+  }
+
+  const picked = (preview?.rows || []).filter((r) => selected[r.cn_no])
+  const pickedSubtotal = picked.reduce((sum, r) => sum + Number(r.tot_cn_amt || 0), 0)
+  const pickedTaxable = picked.reduce((sum, r) => sum + (String(r.tax_exempt || 'N').toUpperCase() === 'Y' ? 0 : Number(r.tot_cn_amt || 0)), 0)
+  const taxRate = Number(preview?.taxRate || 0)
+  const pickedTax = taxRate > 0 ? Math.round(pickedTaxable * taxRate) / 100 : 0
+  const pickedTotal = Math.round((pickedSubtotal + pickedTax) * 100) / 100
+
+  async function onGenerate(e) {
+    e.preventDefault()
+    setError('')
+    setOk('')
+    const cnNos = picked.map((r) => r.cn_no)
+    if (cnNos.length === 0) {
+      setError('Select at least one consignment.')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await generateInvoice({
+        cust_ac_no: form.cust_ac_no.trim(),
+        yr_month: form.yr_month,
+        cn_nos: cnNos,
+      })
+      setOk(r.message || `Invoice ${r.invoiceNo || r.id} created.`)
+      await loadPreview()
+    } catch (err) {
+      setError(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="mb-3">Invoice Entry</h3>
+      <p className="text-muted">Generate an on-demand invoice by selecting unbilled consignments for a customer.</p>
+      <Alert error={error} ok={ok} />
+      <div className="card mb-3">
+        <div className="card-body">
+          <form className="row g-3 align-items-end" onSubmit={loadPreview}>
+            <div className="col-md-3">
+              <label className="form-label">Customer Account</label>
+              <input className="form-control" required value={form.cust_ac_no} onChange={(e) => setForm({ ...form, cust_ac_no: e.target.value })} placeholder="e.g. C0001" />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label">Year Month</label>
+              <input className="form-control" required value={form.yr_month} onChange={(e) => setForm({ ...form, yr_month: e.target.value })} />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label">Date From</label>
+              <input type="date" className="form-control" value={form.date_from} onChange={(e) => setForm({ ...form, date_from: e.target.value })} />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label">Date To</label>
+              <input type="date" className="form-control" value={form.date_to} onChange={(e) => setForm({ ...form, date_to: e.target.value })} />
+            </div>
+            <div className="col-md-3">
+              <button className="btn btn-outline-primary" type="submit" disabled={busy}>Load unbilled CNs</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {preview ? (
+        <>
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="text-muted">{preview.count} unbilled consignment(s) — {picked.length} selected</span>
+            <div>
+              <button type="button" className="btn btn-sm btn-outline-secondary me-1" onClick={() => toggleAll(true)}>Select all</button>
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => toggleAll(false)}>Clear</button>
+            </div>
+          </div>
+          <div className="table-responsive mb-3">
+            <table className="table table-sm table-striped table-bordered">
+              <thead className="table-dark">
+                <tr>
+                  <th style={{ width: 40 }} />
+                  <th>CN</th>
+                  <th>Date</th>
+                  <th>Route</th>
+                  <th>Pcs</th>
+                  <th>Wt</th>
+                  <th>Amount</th>
+                  <th>Tax</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(preview.rows || []).map((r) => (
+                  <tr key={r.cn_no}>
+                    <td><input type="checkbox" checked={Boolean(selected[r.cn_no])} onChange={() => toggleOne(r.cn_no)} /></td>
+                    <td>{r.cn_no}</td>
+                    <td>{String(r.cn_dt_tm || '').slice(0, 10)}</td>
+                    <td>{r.cn_origin} → {r.cn_dstn}</td>
+                    <td>{r.cn_pcs}</td>
+                    <td>{r.cn_wt}</td>
+                    <td>{money(r.tot_cn_amt)}</td>
+                    <td>{String(r.tax_exempt || 'N').toUpperCase() === 'Y' ? 'Exempt' : 'Std'}</td>
+                  </tr>
+                ))}
+                {(preview.rows || []).length === 0 ? (
+                  <tr><td colSpan={8} className="text-center text-muted">No unbilled consignments for this customer.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <div className="card mb-3">
+            <div className="card-body row g-2">
+              <div className="col-md-3"><strong>Subtotal:</strong> {money(pickedSubtotal)}</div>
+              <div className="col-md-3"><strong>SST ({taxRate}%):</strong> {taxRate > 0 ? money(pickedTax) : '—'}</div>
+              <div className="col-md-3"><strong>Grand total:</strong> {money(pickedTotal)}</div>
+            </div>
+          </div>
+          <button className="btn btn-primary" type="button" disabled={busy || picked.length === 0} onClick={onGenerate}>Generate Invoice</button>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 export function BillingEntryPage({ doc, title }) {
+  if (doc === 'invoices') {
+    return <InvoiceEntryPage />
+  }
+
   const cfg = ENTRIES[doc]
   const [form, setForm] = useState(() => (cfg?.defaults ? cfg.defaults() : {}))
   const [error, setError] = useState('')

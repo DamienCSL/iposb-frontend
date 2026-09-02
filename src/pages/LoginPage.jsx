@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { routeAllowed } from '../auth/routeCaps'
 
 export default function LoginPage() {
-  const { user, login, booting } = useAuth()
+  const { user, login, booting, defaultRoute } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [username, setUsername] = useState('admin')
@@ -20,7 +21,7 @@ export default function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to="/" replace />
+    return <Navigate to={defaultRoute || '/'} replace />
   }
 
   async function onSubmit(e) {
@@ -28,8 +29,9 @@ export default function LoginPage() {
     setError('')
     setBusy(true)
     try {
-      await login(username, password)
-      const to = location.state?.from || '/'
+      const session = await login(username, password)
+      const from = location.state?.from
+      const to = from && routeAllowed(from, session?.capabilities) ? from : (session?.defaultRoute || '/')
       navigate(to, { replace: true })
     } catch (err) {
       setError(err.message || 'Login failed')

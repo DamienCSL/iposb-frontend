@@ -18,7 +18,6 @@ const EMPTY = {
   dispatch: false,
   summaries: false,
   billing: false,
-  agent: false,
   customerReports: false,
   reports: false,
   users: false,
@@ -28,6 +27,7 @@ const EMPTY = {
   staff: false,
   routing: false,
   customerService: false,
+  roleAccess: false,
 }
 
 export function normalizeRole(role) {
@@ -48,7 +48,6 @@ export function capabilitiesFor(role) {
       dispatch: true,
       summaries: true,
       billing: true,
-      agent: true,
       customerReports: true,
       reports: true,
       branches: true,
@@ -92,7 +91,7 @@ export function capabilitiesFor(role) {
       consignments: true,
       dispatch: true,
       summaries: true,
-      agent: true,
+      dropPoints: true,
       customerReports: true,
       reports: true,
       customerService: true,

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   apiError,
-  cancelConsignment,
   downloadCsv,
   exportConsignments,
   getCnLookups,
   importConsignments,
   listConsignments,
 } from '../api/client'
+import CancelConsignmentModal from '../components/CancelConsignmentModal'
 import { Alert, Pager, money } from '../ui/bits'
 
 const EXPORT_COLS = {
@@ -60,6 +60,7 @@ export default function ConsignmentListPage() {
   const [showImport, setShowImport] = useState(false)
   const [cols, setCols] = useState(Object.keys(EXPORT_COLS))
   const [file, setFile] = useState(null)
+  const [cancelCn, setCancelCn] = useState(null)
 
   useEffect(() => {
     getCnLookups()
@@ -84,16 +85,14 @@ export default function ConsignmentListPage() {
     setParams(next)
   }
 
-  async function onCancel(cn) {
-    if (!window.confirm(`Cancel consignment ${cn}?`)) return
-    try {
-      const r = await cancelConsignment(cn)
-      setOk(r.message)
-      const d = await listConsignments(filters)
-      setData(d)
-    } catch (e) {
-      setError(apiError(e))
-    }
+  function onCancel(cn) {
+    setError('')
+    setCancelCn(cn)
+  }
+
+  function onCancelDone(result) {
+    setOk(result.message || `Cancelled ${cancelCn}`)
+    listConsignments(filters).then(setData).catch((e) => setError(apiError(e)))
   }
 
   function trackSelected() {
@@ -274,6 +273,14 @@ export default function ConsignmentListPage() {
             </form>
           </div>
         </div>
+      ) : null}
+
+      {cancelCn ? (
+        <CancelConsignmentModal
+          cn={cancelCn}
+          onClose={() => setCancelCn(null)}
+          onDone={onCancelDone}
+        />
       ) : null}
     </div>
   )
