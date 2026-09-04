@@ -215,6 +215,11 @@ export async function getCommissionConfig() {
   return data
 }
 
+export async function updateCommissionConfig(body) {
+  const { data } = await api.put('/ops/commissions/config', body)
+  return data
+}
+
 export async function listCommissions(params) {
   const { data } = await api.get('/ops/commissions', { params })
   return data

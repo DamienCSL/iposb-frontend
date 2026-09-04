@@ -16,8 +16,12 @@ const EXPORT_COLS = {
   cust_ac_no: 'Customer Account',
   cust_name: 'Customer Name',
   cn_status: 'Status',
+  pay_mode: 'Payment Mode',
+  cash_amt: 'COD Amount (RM)',
+  cod_status: 'COD Status',
   srv_typ: 'Service Type',
   pkg_typ: 'Package Type',
+  transport_mode: 'Transport Mode',
   cn_origin: 'Origin Branch',
   cn_dstn: 'Destination Branch',
   origin_zone: 'Origin Zone',
@@ -35,6 +39,27 @@ const EXPORT_COLS = {
   remarks: 'Remarks',
 }
 
+function payBadge(row) {
+  if (row.is_cod || row.pay_mode === 'COD' || row.ppd_cct === 'COD') {
+    return <span className="badge text-bg-warning">COD</span>
+  }
+  return <span className="badge text-bg-light border">PPD</span>
+}
+
+function codBadge(status) {
+  if (!status) return '—'
+  const s = String(status).toUpperCase()
+  const cls =
+    s === 'SETTLED' || s === 'COLLECTED' || s === 'REMITTED'
+      ? s === 'SETTLED'
+        ? 'text-bg-success'
+        : s === 'REMITTED'
+          ? 'text-bg-info'
+          : 'text-bg-primary'
+      : 'text-bg-warning'
+  return <span className={`badge ${cls}`}>{s}</span>
+}
+
 export default function ConsignmentListPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -44,6 +69,9 @@ export default function ConsignmentListPage() {
       cust_ac_no: params.get('cust_ac_no') || '',
       cn_status: params.get('cn_status') || '',
       cn_origin: params.get('cn_origin') || '',
+      transport_mode: params.get('transport_mode') || '',
+      pay_mode: params.get('pay_mode') || '',
+      cod_status: params.get('cod_status') || '',
       date_from: params.get('date_from') || '',
       date_to: params.get('date_to') || '',
       page: Number(params.get('page') || 1),
@@ -53,6 +81,12 @@ export default function ConsignmentListPage() {
   const [form, setForm] = useState(filters)
   const [data, setData] = useState({ rows: [], totalPages: 1, page: 1 })
   const [statuses, setStatuses] = useState([])
+  const [transportModes, setTransportModes] = useState([
+    { code: 'road', label: 'Road / Land' },
+    { code: 'sea', label: 'Sea / Ferry' },
+    { code: 'air', label: 'Air' },
+    { code: 'multi', label: 'Multimodal' },
+  ])
   const [selected, setSelected] = useState([])
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
@@ -64,7 +98,10 @@ export default function ConsignmentListPage() {
 
   useEffect(() => {
     getCnLookups()
-      .then((d) => setStatuses(d.statuses || []))
+      .then((d) => {
+        setStatuses(d.statuses || [])
+        if (d.transportModes?.length) setTransportModes(d.transportModes)
+      })
       .catch(() => {})
   }, [])
 
@@ -156,6 +193,33 @@ export default function ConsignmentListPage() {
               <label className="form-label">Origin Branch</label>
               <input className="form-control form-control-sm" maxLength={3} value={form.cn_origin} onChange={(e) => setForm({ ...form, cn_origin: e.target.value })} />
             </div>
+            <div className="col-md-2">
+              <label className="form-label">Transport Mode</label>
+              <select className="form-select form-select-sm" value={form.transport_mode || ''} onChange={(e) => setForm({ ...form, transport_mode: e.target.value })}>
+                <option value="">All modes</option>
+                {transportModes.map((m) => (
+                  <option key={m.code} value={m.code}>{m.label || m.code}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-1">
+              <label className="form-label">Pay</label>
+              <select className="form-select form-select-sm" value={form.pay_mode || ''} onChange={(e) => setForm({ ...form, pay_mode: e.target.value })}>
+                <option value="">All</option>
+                <option value="PPD">PPD</option>
+                <option value="COD">COD</option>
+              </select>
+            </div>
+            <div className="col-md-1">
+              <label className="form-label">COD status</label>
+              <select className="form-select form-select-sm" value={form.cod_status || ''} onChange={(e) => setForm({ ...form, cod_status: e.target.value })}>
+                <option value="">All</option>
+                <option value="PENDING">Pending</option>
+                <option value="COLLECTED">Collected</option>
+                <option value="REMITTED">Remitted</option>
+                <option value="SETTLED">Settled</option>
+              </select>
+            </div>
             <div className="col-md-1">
               <label className="form-label">Date From</label>
               <input type="date" className="form-control form-control-sm" value={form.date_from} onChange={(e) => setForm({ ...form, date_from: e.target.value })} />
@@ -189,9 +253,9 @@ export default function ConsignmentListPage() {
               <th style={{ width: '2.2rem' }}>
                 <input className="form-check-input" type="checkbox" checked={allChecked} onChange={(e) => setSelected(e.target.checked ? rows.map((r) => r.cn_no) : [])} />
               </th>
-              <th>Consignment Number</th><th>Customer</th><th>Status</th><th>Service Type</th><th>Package Type</th>
+              <th>Consignment Number</th><th>Customer</th><th>Status</th><th>Pay</th><th>COD</th><th>Mode</th><th>Service Type</th>
               <th>Origin Branch</th><th>Destination Branch</th><th>Pieces</th><th>Weight (kg)</th>
-              <th>Pickup Date</th><th>Total Amount (RM)</th><th>Invoice Number</th><th>Actions</th>
+              <th>Total Amount (RM)</th><th>Invoice Number</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -207,18 +271,29 @@ export default function ConsignmentListPage() {
                 <td>{row.cn_no}</td>
                 <td>{row.cust_ac_no} {row.cust_name || ''}</td>
                 <td><span className="badge bg-secondary">{row.cn_status}</span></td>
+                <td>{payBadge(row)}</td>
+                <td>
+                  {row.is_cod || row.pay_mode === 'COD' ? (
+                    <div className="small">
+                      <div>{codBadge(row.cod_status)}</div>
+                      <div className="text-muted">{money(row.cash_amt || row.cod_expected_amt)}</div>
+                    </div>
+                  ) : '—'}
+                </td>
+                <td>{row.transport_mode_label || row.transport_mode || '—'}</td>
                 <td>{row.srv_typ}</td>
-                <td>{row.pkg_typ === 'D' ? 'Document' : row.pkg_typ === 'P' ? 'Parcel' : row.pkg_typ}</td>
                 <td>{row.cn_origin}</td>
                 <td>{row.cn_dstn}</td>
                 <td>{row.cn_pcs}</td>
                 <td>{row.cn_wt}</td>
-                <td>{row.pu_dt || ''}</td>
                 <td>{money(row.tot_cn_amt)}</td>
                 <td>{row.inv_no || ''}</td>
                 <td className="text-nowrap">
                   <Link className="btn btn-sm btn-outline-primary" to={`/consignments/tracking?cn=${encodeURIComponent(row.cn_no)}`}>Track</Link>{' '}
                   <Link className="btn btn-sm btn-outline-secondary" to={`/consignments/new?cn=${encodeURIComponent(row.cn_no)}`}>Edit</Link>{' '}
+                  {(row.is_cod || row.pay_mode === 'COD') ? (
+                    <Link className="btn btn-sm btn-outline-warning" to={`/billing/cod?cn=${encodeURIComponent(row.cn_no)}`}>COD</Link>
+                  ) : null}{' '}
                   {row.cn_status !== 'CAN' && row.cn_inv_flg !== 'B' ? (
                     <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => onCancel(row.cn_no)}>Cancel</button>
                   ) : null}

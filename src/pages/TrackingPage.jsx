@@ -314,6 +314,30 @@ export default function TrackingPage() {
                             </td>
                           </tr>
                           <tr>
+                            <th>Payment</th>
+                            <td>
+                              {data.isCod || data.payMode === 'COD' ? (
+                                <span className="badge text-bg-warning">COD</span>
+                              ) : (
+                                <span className="badge text-bg-light border">{data.payMode || 'PPD'}</span>
+                              )}
+                              {(data.isCod || data.payMode === 'COD') ? (
+                                <div className="small mt-1">
+                                  Status: <strong>{data.codStatus || 'PENDING'}</strong>
+                                  {data.expectedAmt != null ? <> · Due {money(data.expectedAmt)}</> : null}
+                                  {data.collectedAmt != null && Number(data.collectedAmt) > 0 ? (
+                                    <> · Collected {money(data.collectedAmt)}</>
+                                  ) : null}
+                                  <div className="mt-1">
+                                    <Link to={`/billing/cod?cn=${encodeURIComponent(data.cnNo || active)}`}>
+                                      Open COD outstanding
+                                    </Link>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                          <tr>
                             <th>Delivery Date</th>
                             <td>{data.podDate || '—'}</td>
                           </tr>

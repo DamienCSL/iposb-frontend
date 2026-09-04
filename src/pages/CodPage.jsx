@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   apiError,
   collectCodAtDropPoint,
@@ -17,9 +17,23 @@ const STATUS_TABS = [
   { key: 'ALL', label: 'All' },
 ]
 
+function statusBadge(status) {
+  const s = String(status || '').toUpperCase()
+  const cls =
+    s === 'SETTLED'
+      ? 'text-bg-success'
+      : s === 'REMITTED'
+        ? 'text-bg-info'
+        : s === 'COLLECTED'
+          ? 'text-bg-primary'
+          : 'text-bg-warning'
+  return <span className={`badge ${cls}`}>{s || '—'}</span>
+}
+
 export default function CodPage() {
+  const [params] = useSearchParams()
   const [status, setStatus] = useState('PENDING')
-  const [cnFilter, setCnFilter] = useState('')
+  const [cnFilter, setCnFilter] = useState((params.get('cn') || '').toUpperCase())
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [error, setError] = useState('')
@@ -43,9 +57,21 @@ export default function CodPage() {
   }
 
   useEffect(() => {
+    const fromQuery = (params.get('cn') || '').toUpperCase()
+    if (fromQuery) setCnFilter(fromQuery)
+  }, [params])
+
+  useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
+  }, [status, params])
+
+  useEffect(() => {
+    if ((params.get('cn') || '') && cnFilter) {
+      load()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnFilter])
 
   async function onCollect(e) {
     e.preventDefault()
@@ -67,8 +93,12 @@ export default function CodPage() {
   }
 
   async function onRemit(cn) {
-    const ref = cn === actionCn ? bilyetNo : prompt('Bilyet number for remittance:')
-    if (!ref) return
+    const ref = cn === actionCn ? bilyetNo : null
+    if (!ref) {
+      setActionCn(cn)
+      setBilyetNo('')
+      return
+    }
     try {
       await remitCod(cn, { bilyet_no: ref })
       setOk(`COD remitted for ${cn}`)
@@ -142,6 +172,8 @@ export default function CodPage() {
             <tr>
               <th>CN</th>
               <th>Customer</th>
+              <th>Recipient</th>
+              <th>Freight</th>
               <th>Expected</th>
               <th>Collected</th>
               <th>Status</th>
@@ -154,16 +186,21 @@ export default function CodPage() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={10} className="text-muted text-center py-4">No COD records</td></tr>
+              <tr><td colSpan={12} className="text-muted text-center py-4">No COD records</td></tr>
             ) : rows.map((r) => (
               <tr key={r.cnNo || r.id}>
                 <td>
                   <Link to={`/consignments/new?cn=${encodeURIComponent(r.cnNo)}`}>{r.cnNo}</Link>
+                  <div className="small">
+                    <Link to={`/consignments/tracking?cn=${encodeURIComponent(r.cnNo)}`}>Track</Link>
+                  </div>
                 </td>
                 <td>{r.custAcNo || '—'}</td>
+                <td>{r.recpName || r.recipientName || '—'}</td>
+                <td>{r.totCnAmt != null ? money(r.totCnAmt) : '—'}</td>
                 <td>{money(r.expectedAmt)}</td>
                 <td>{r.collectedAmt > 0 ? money(r.collectedAmt) : '—'}</td>
-                <td><span className="badge text-bg-secondary">{r.status}</span></td>
+                <td>{statusBadge(r.status)}</td>
                 <td>{r.source || '—'}</td>
                 <td>{r.dropPointCode || '—'}</td>
                 <td>{r.collectedAt ? String(r.collectedAt).slice(0, 16) : '—'}</td>
@@ -175,7 +212,7 @@ export default function CodPage() {
                       setCollectForm({
                         amount: r.expectedAmt || r.cashAmt || '',
                         dropPointCode: r.dropPointCode || '',
-                        recipientName: '',
+                        recipientName: r.recpName || '',
                         note: '',
                       })
                     }}>

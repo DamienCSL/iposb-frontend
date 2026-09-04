@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { apiError, getCnLookups, getConsignment, quoteConsignment, saveConsignment } from '../api/client'
+import { apiError, getCnLookups, getCodRecord, getConsignment, quoteConsignment, saveConsignment } from '../api/client'
 import { Alert, money } from '../ui/bits'
 
 export default function ConsignmentEntryPage() {
   const [params] = useSearchParams()
   const preset = (params.get('cn') || '').toUpperCase()
-  const [lookups, setLookups] = useState({ locations: [], zones: [], dropPoints: [], serviceTypes: [] })
+  const [lookups, setLookups] = useState({ locations: [], zones: [], dropPoints: [], serviceTypes: [], transportModes: [] })
   const [inquiry, setInquiry] = useState({ cn_no: preset, rc: 'N' })
   const [form, setForm] = useState(null)
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [quote, setQuote] = useState(null)
+  const [codInfo, setCodInfo] = useState(null)
+  const [savedFreight, setSavedFreight] = useState(null)
   const quoteTimer = useRef(null)
 
   useEffect(() => {
@@ -91,7 +93,30 @@ export default function ConsignmentEntryPage() {
       recp_name: existing?.recp_name || '',
       pay_mode: existing?.ppd_cct === 'COD' ? 'COD' : 'PPD',
       cash_amt: existing?.cash_amt || '',
+      transport_mode: existing?.transport_mode || 'road',
+      linehaul_mode: existing?.linehaul_mode || '',
+      vessel_name: existing?.vessel_name || '',
+      voyage_ref: existing?.voyage_ref || '',
+      sailing_date: (existing?.sailing_date || '').slice(0, 10) || '',
+      port_origin: existing?.port_origin || '',
+      port_destination: existing?.port_destination || '',
     })
+    setSavedFreight(
+      existing
+        ? {
+            total: existing.tot_cn_amt,
+            tax: existing.cn_tax_amt,
+            invFlag: existing.cn_inv_flg,
+            invNo: existing.inv_no,
+          }
+        : null,
+    )
+    setCodInfo(null)
+    if (existing?.ppd_cct === 'COD') {
+      getCodRecord(cnNo)
+        .then((r) => setCodInfo(r.cod || r))
+        .catch(() => setCodInfo(null))
+    }
   }
 
   async function onSave(e) {
@@ -112,6 +137,15 @@ export default function ConsignmentEntryPage() {
 
   const pickupDrops = (lookups.dropPoints || []).filter((d) => ['pickup', 'both', ''].includes(String(d.drop_type || 'both').toLowerCase()))
   const deliveryDrops = (lookups.dropPoints || []).filter((d) => ['delivery', 'both', ''].includes(String(d.drop_type || 'both').toLowerCase()))
+  const transportModes = lookups.transportModes?.length
+    ? lookups.transportModes
+    : [
+        { code: 'road', label: 'Road / Land' },
+        { code: 'sea', label: 'Sea / Ferry' },
+        { code: 'air', label: 'Air' },
+        { code: 'multi', label: 'Multimodal (combined)' },
+      ]
+  const showSeaFields = form?.transport_mode === 'sea' || (form?.transport_mode === 'multi' && form?.linehaul_mode === 'sea')
 
   return (
     <div>
@@ -171,6 +205,62 @@ export default function ConsignmentEntryPage() {
                     <option value="D">Document</option>
                   </select>
                 </div>
+                <div className="col-md-3">
+                  <label className="form-label">Transport Mode</label>
+                  <select
+                    className="form-select"
+                    value={form.transport_mode || 'road'}
+                    onChange={(e) => {
+                      const mode = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        transport_mode: mode,
+                        linehaul_mode: mode === 'multi' ? (f.linehaul_mode || 'sea') : '',
+                        ...(mode !== 'sea' && !(mode === 'multi' && (f.linehaul_mode || 'sea') === 'sea')
+                          ? { vessel_name: '', voyage_ref: '', sailing_date: '', port_origin: '', port_destination: '' }
+                          : {}),
+                      }))
+                    }}
+                  >
+                    {transportModes.map((m) => (
+                      <option key={m.code} value={m.code}>{m.label || m.cd_desc || m.code}</option>
+                    ))}
+                  </select>
+                </div>
+                {form.transport_mode === 'multi' && (
+                  <div className="col-md-3">
+                    <label className="form-label">Linehaul (trunk) Mode</label>
+                    <select className="form-select" value={form.linehaul_mode || 'sea'} onChange={(e) => set('linehaul_mode', e.target.value)}>
+                      <option value="road">Road / Land</option>
+                      <option value="sea">Sea / Ferry</option>
+                      <option value="air">Air</option>
+                    </select>
+                  </div>
+                )}
+                {showSeaFields && (
+                  <>
+                    <div className="col-md-3">
+                      <label className="form-label">Vessel Name</label>
+                      <input className="form-control" value={form.vessel_name || ''} onChange={(e) => set('vessel_name', e.target.value)} placeholder="e.g. MV Sabah Link" />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Voyage / Sailing Ref</label>
+                      <input className="form-control" value={form.voyage_ref || ''} onChange={(e) => set('voyage_ref', e.target.value)} placeholder="e.g. SL-240901" />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Sailing Date</label>
+                      <input type="date" className="form-control" value={form.sailing_date || ''} onChange={(e) => set('sailing_date', e.target.value)} />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Port Origin</label>
+                      <input className="form-control" value={form.port_origin || ''} onChange={(e) => set('port_origin', e.target.value)} placeholder="e.g. KK Port" />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Port Destination</label>
+                      <input className="form-control" value={form.port_destination || ''} onChange={(e) => set('port_destination', e.target.value)} placeholder="e.g. Labuan" />
+                    </div>
+                  </>
+                )}
                 <div className="col-md-3">
                   <label className="form-label">Origin Branch</label>
                   <select className="form-select" required value={form.cn_origin} onChange={(e) => set('cn_origin', e.target.value)}>
@@ -252,22 +342,35 @@ export default function ConsignmentEntryPage() {
                 </div>
                 <div className="col-md-3">
                   <label className="form-label">Payment Mode</label>
-                  <select className="form-select" value={form.pay_mode || 'PPD'} onChange={(e) => set('pay_mode', e.target.value)}>
+                  <select
+                    className="form-select"
+                    value={form.pay_mode || 'PPD'}
+                    onChange={(e) => {
+                      const mode = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        pay_mode: mode,
+                        cash_amt: mode === 'COD' ? f.cash_amt : '',
+                      }))
+                      if (mode !== 'COD') setCodInfo(null)
+                    }}
+                  >
                     <option value="PPD">Prepaid / Account</option>
                     <option value="COD">Cash on Delivery (COD)</option>
                   </select>
                 </div>
                 {form.pay_mode === 'COD' && (
                   <div className="col-md-3">
-                    <label className="form-label">COD Amount (RM)</label>
+                    <label className="form-label">Collect from consignee (RM)</label>
                     <input
                       type="number"
                       step="0.01"
                       className="form-control"
                       value={form.cash_amt}
                       onChange={(e) => set('cash_amt', e.target.value)}
-                      placeholder={quote?.total != null ? String(quote.total) : 'Uses freight quote if blank'}
+                      placeholder={quote?.total != null ? String(quote.total) : 'Defaults to freight total'}
                     />
+                    <div className="form-text">Cash the courier must collect at POD. Leave blank to use freight quote.</div>
                   </div>
                 )}
                 <div className="col-md-3">
@@ -281,9 +384,37 @@ export default function ConsignmentEntryPage() {
               </div>
             </div>
           </div>
+          {savedFreight?.total != null && Number(savedFreight.total) > 0 ? (
+            <div className="card mb-3 border-secondary">
+              <div className="card-header"><strong>Saved freight on CN</strong></div>
+              <div className="card-body py-2 small">
+                <div className="row g-2">
+                  <div className="col-md-3">Total: <strong>{money(savedFreight.total)}</strong></div>
+                  <div className="col-md-3">Tax: {money(savedFreight.tax || 0)}</div>
+                  <div className="col-md-3">Invoice flag: {savedFreight.invFlag || 'V'}</div>
+                  <div className="col-md-3">Invoice #: {savedFreight.invNo || '—'}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {form.pay_mode === 'COD' && codInfo ? (
+            <div className="card mb-3 border-warning">
+              <div className="card-header d-flex justify-content-between align-items-center">
+                <strong>COD collection</strong>
+                <span className={`badge ${codInfo.status === 'PENDING' ? 'text-bg-warning' : codInfo.status === 'SETTLED' ? 'text-bg-success' : 'text-bg-primary'}`}>
+                  {codInfo.status || 'PENDING'}
+                </span>
+              </div>
+              <div className="card-body py-2 small">
+                Expected {money(codInfo.expectedAmt)} · Collected {codInfo.collectedAmt > 0 ? money(codInfo.collectedAmt) : '—'}
+                {' · '}
+                <Link to={`/billing/cod?cn=${encodeURIComponent(form.cn_no)}`}>Open COD outstanding</Link>
+              </div>
+            </div>
+          ) : null}
           {quote ? (
             <div className="card mb-3 border-success">
-              <div className="card-header bg-success-subtle"><strong>Freight quote</strong> <span className="text-muted small">({quote.rateLabel || quote.source})</span></div>
+              <div className="card-header bg-success-subtle"><strong>Live freight quote</strong> <span className="text-muted small">({quote.rateLabel || quote.source})</span></div>
               <div className="card-body py-2">
                 <div className="row g-2 small">
                   {(quote.charges || []).map((c) => (
@@ -292,6 +423,11 @@ export default function ConsignmentEntryPage() {
                   <div className="col-md-4"><strong>Subtotal:</strong> {money(quote.subtotal)}</div>
                   <div className="col-md-4"><strong>SST ({quote.taxRate}%):</strong> {quote.taxRate > 0 ? money(quote.taxAmount) : '—'}</div>
                   <div className="col-md-4"><strong>Total:</strong> {money(quote.total)}</div>
+                  {form.pay_mode === 'COD' ? (
+                    <div className="col-12 text-muted">
+                      COD collect amount: {money(form.cash_amt || quote.total)} (courier collects at delivery)
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

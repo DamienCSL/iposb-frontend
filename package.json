@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:production": "vite build --mode production",
+    "build:cpanel": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/prepare-cpanel-deploy.ps1 -UseEnvFile",
     "lint": "oxlint",
     "preview": "vite preview"
   },
