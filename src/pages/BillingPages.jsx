@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiError, generateInvoice, getBilling, listBilling, previewInvoice, saveBilling } from '../api/client'
-import { Alert, Pager, money } from '../ui/bits'
+import { Alert, Pager, SystemCodeField, money } from '../ui/bits'
 
 const DROP_POINT_COLS = [
   ['bilyet_no', 'Bilyet No'],
@@ -78,10 +78,10 @@ const ENTRIES = {
     submit: 'Save',
     defaults: () => ({ dn_dt: today(), pkg_typ: 'P', cn_origin: 'BKI', spec_handle: 'N', cn_pcs: '1', cn_wt: '1' }),
     fields: [
-      { name: 'dn_no', label: 'DN Number', required: true },
+      { name: 'dn_no', label: 'DN Number', required: true, generate: 'dn_no' },
       { name: 'cust_ac_no', label: 'Customer Account', required: true },
       { name: 'dn_dt', label: 'Date', type: 'date' },
-      { name: 'batch_no', label: 'Batch No' },
+      { name: 'batch_no', label: 'Batch No', generate: 'batch_no' },
       { name: 'pkg_typ', label: 'Package', type: 'select', options: [['P', 'Parcel'], ['D', 'Document']] },
       { name: 'cn_origin', label: 'Origin' },
       { name: 'cn_dstn', label: 'Destination' },
@@ -111,7 +111,7 @@ const ENTRIES = {
     submit: 'Save',
     defaults: () => ({ credit_note_date: today() }),
     fields: [
-      { name: 'credit_note_no', label: 'Credit Note No', required: true },
+      { name: 'credit_note_no', label: 'Credit Note No', required: true, generate: 'credit_note_no' },
       { name: 'cust_ac_no', label: 'Customer Account', required: true },
       { name: 'credit_note_date', label: 'Date', type: 'date' },
       { name: 'total_amount', label: 'Amount', type: 'number', required: true },
@@ -124,7 +124,7 @@ const ENTRIES = {
     submit: 'Save',
     defaults: () => ({ debit_note_date: today() }),
     fields: [
-      { name: 'debit_note_no', label: 'Debit Note No', required: true },
+      { name: 'debit_note_no', label: 'Debit Note No', required: true, generate: 'debit_note_no' },
       { name: 'cust_ac_no', label: 'Customer Account', required: true },
       { name: 'debit_note_date', label: 'Date', type: 'date' },
       { name: 'total_amount', label: 'Amount', type: 'number', required: true },
@@ -139,7 +139,7 @@ const ENTRIES = {
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
       { name: 'agent_cd', label: 'Drop Point Code', required: true },
-      { name: 'bilyet_no', label: 'Bilyet No', required: true },
+      { name: 'bilyet_no', label: 'Bilyet No', required: true, generate: 'bilyet_no' },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
@@ -151,7 +151,7 @@ const ENTRIES = {
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
       { name: 'agent_cd', label: 'Drop Point Code', required: true },
-      { name: 'bilyet_no', label: 'Bilyet No', required: true },
+      { name: 'bilyet_no', label: 'Bilyet No', required: true, generate: 'bilyet_no' },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
@@ -162,7 +162,7 @@ const ENTRIES = {
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
       { name: 'agent_cd', label: 'Drop Point Code', required: true },
-      { name: 'bilyet_no', label: 'Note No', required: true },
+      { name: 'bilyet_no', label: 'Note No', required: true, generate: 'bilyet_no' },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
@@ -173,7 +173,7 @@ const ENTRIES = {
     defaults: () => ({ bilyet_dt: today() }),
     fields: [
       { name: 'agent_cd', label: 'Drop Point Code', required: true },
-      { name: 'bilyet_no', label: 'Note No', required: true },
+      { name: 'bilyet_no', label: 'Note No', required: true, generate: 'bilyet_no' },
       { name: 'bilyet_dt', label: 'Date', type: 'date' },
       { name: 'amt', label: 'Amount', type: 'number', required: true },
     ],
@@ -445,11 +445,22 @@ export function BillingEntryPage({ doc, title }) {
         <form className="row g-3" onSubmit={onSubmit}>
           {cfg.fields.map((f) => (
             <div className={f.col || 'col-md-3'} key={f.name}>
-              <label className="form-label">{f.label}</label>
+              <label className="form-label">
+                {f.label}
+                {f.generate ? <span className="text-muted fw-normal small ms-1">— or generate</span> : null}
+              </label>
               {f.type === 'select' ? (
                 <select className="form-select" value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}>
                   {(f.options || []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
+              ) : f.generate ? (
+                <SystemCodeField
+                  required={f.required}
+                  value={form[f.name] || ''}
+                  kind={f.generate}
+                  onChange={(v) => setForm({ ...form, [f.name]: v })}
+                  onError={setError}
+                />
               ) : (
                 <input className="form-control" type={f.type || 'text'} required={f.required} value={form[f.name] || ''} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} />
               )}

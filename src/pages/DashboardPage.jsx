@@ -38,9 +38,9 @@ export default function DashboardPage() {
     { to: '/billing/invoices', title: 'Invoice List', desc: 'View and filter invoices', icon: 'bi-list-check', color: 'success', show: can(caps, 'billing') },
     { to: '/billing/credit-notes', title: 'Credit Note', desc: 'Create a customer credit note', icon: 'bi-file-earmark-minus', color: 'dark', show: can(caps, 'billing') },
     { to: '/admin/users', title: 'User Management', desc: 'Add or edit system users', icon: 'bi-person-gear', color: 'danger', show: can(caps, 'users') },
-    { to: '/admin/branches', title: 'Branch Management', desc: 'Maintain branch records', icon: 'bi-building', color: 'danger', show: can(caps, 'branches') },
-    { to: '/admin/hubs', title: 'Hub Management', desc: 'Maintain scan hubs (SBH325, 805, …)', icon: 'bi-diagram-3', color: 'danger', show: can(caps, 'hubs') },
-    { to: '/drop-points', title: 'Drop Point Management', desc: 'Pickup / delivery collection points', icon: 'bi-geo-alt', color: 'info', show: can(caps, 'dropPoints') },
+    { to: '/admin/hubs', title: 'Hub Management', desc: 'Main hub (KK) and mini hubs (other cities)', icon: 'bi-diagram-3', color: 'danger', show: can(caps, 'hubs') },
+    { to: '/admin/delivery-points', title: 'Delivery Points', desc: 'Service areas under each hub (Inanam, Likas, …)', icon: 'bi-geo-alt', color: 'danger', show: can(caps, 'routing') },
+    { to: '/drop-points', title: 'Drop Points', desc: 'Counter stations under a delivery point', icon: 'bi-shop', color: 'info', show: can(caps, 'dropPoints') },
     { to: '/drop-points/3pl', title: '3PL Partners', desc: 'Third-party couriers for remote pickup', icon: 'bi-truck-flatbed', color: 'info', show: can(caps, 'dropPoints') },
     { to: '/drop-points/coverage', title: 'Coverage Areas', desc: 'Own DP vs 3PL pickup map (no nearest-DP)', icon: 'bi-map', color: 'info', show: can(caps, 'dropPoints') },
     {
@@ -53,10 +53,9 @@ export default function DashboardPage() {
       color: 'warning',
       show: can(caps, 'staff'),
     },
-    { to: '/admin/dispatchers', title: 'Dispatcher Management', desc: 'Mobile dispatchers (app login)', icon: 'bi-headset', color: 'danger', show: can(caps, 'staff') },
-    { to: '/admin/drivers', title: 'Driver Management', desc: 'Mobile drivers (app login + zones)', icon: 'bi-truck', color: 'danger', show: can(caps, 'staff') },
-    { to: '/admin/routes', title: 'Route Table', desc: 'Origin→dest hub / route suggestions', icon: 'bi-signpost-2', color: 'danger', show: can(caps, 'routing') },
-    { to: '/admin/zones', title: 'Zone Management', desc: 'Origin / destination service zones', icon: 'bi-map', color: 'danger', show: can(caps, 'routing') },
+    { to: '/admin/dispatchers', title: 'Dispatcher Management', desc: 'Assigned to a delivery point', icon: 'bi-headset', color: 'danger', show: can(caps, 'staff') },
+    { to: '/admin/drivers', title: 'Driver Management', desc: 'Mobile drivers (app login + routes)', icon: 'bi-truck', color: 'danger', show: can(caps, 'staff') },
+    { to: '/admin/routes', title: 'Route Table', desc: 'Origin→dest delivery-point / hub rules', icon: 'bi-signpost-2', color: 'danger', show: can(caps, 'routing') },
     { to: '/admin/route-codes', title: 'Route Codes', desc: 'Preferred driver route pools (BKI001…)', icon: 'bi-sign-turn-right', color: 'danger', show: can(caps, 'routing') },
   ].filter((a) => a.show)
 

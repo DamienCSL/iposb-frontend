@@ -76,37 +76,37 @@ export async function getTracking(cn) {
 }
 
 export async function getDispatchJobs(assigned = false) {
-  const { data } = await api.get('/dispatch/jobs', { params: assigned ? { assigned: '1' } : {} })
+  const { data } = await api.get('/ops/dispatch/jobs', { params: assigned ? { assigned: '1' } : {} })
   return data
 }
 
 export async function getUncoveredJobs() {
-  const { data } = await api.get('/dispatch/uncovered', { params: { limit: 150 } })
+  const { data } = await api.get('/ops/dispatch/uncovered', { params: { limit: 150 } })
   return data
 }
 
 export async function getDispatchDrivers() {
-  const { data } = await api.get('/dispatch/drivers', { params: { available: 1 } })
+  const { data } = await api.get('/ops/dispatch/drivers', { params: { available: 1 } })
   return data.drivers || []
 }
 
 export async function get3plPartners() {
-  const { data } = await api.get('/dispatch/3pl-partners')
+  const { data } = await api.get('/ops/dispatch/3pl-partners')
   return data.partners || []
 }
 
 export async function assignDriver({ cnNo, driverId, firebaseUid, jobType }) {
-  const { data } = await api.post('/dispatch/assign', { cnNo, driverId, firebaseUid, jobType })
+  const { data } = await api.post('/ops/dispatch/assign', { cnNo, driverId, firebaseUid, jobType })
   return data
 }
 
 export async function assign3pl({ cnNo, partnerId }) {
-  const { data } = await api.post('/dispatch/assign-3pl', { cnNo, partnerId })
+  const { data } = await api.post('/ops/dispatch/assign-3pl', { cnNo, partnerId })
   return data
 }
 
 export async function planDispatch(cnNo, autoAssign = true) {
-  const { data } = await api.post('/dispatch/plan', { cnNo, autoAssign })
+  const { data } = await api.post('/ops/dispatch/plan', { cnNo, autoAssign })
   return data
 }
 
@@ -147,6 +147,12 @@ export async function previewInvoice(params) {
 
 export async function generateInvoice(body) {
   const { data } = await api.post('/ops/billing/invoices/generate', body)
+  return data
+}
+
+/** Suggest a unique identity / document code for form fields. */
+export async function generateSystemCode(body) {
+  const { data } = await api.post('/ops/codes/generate', body)
   return data
 }
 

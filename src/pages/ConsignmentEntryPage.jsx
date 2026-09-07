@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { apiError, getCnLookups, getCodRecord, getConsignment, quoteConsignment, saveConsignment } from '../api/client'
-import { Alert, money } from '../ui/bits'
+import { Alert, money, SystemCodeField } from '../ui/bits'
 
 export default function ConsignmentEntryPage() {
   const [params] = useSearchParams()
@@ -162,8 +162,16 @@ export default function ConsignmentEntryPage() {
           <div className="card-body">
             <form className="row g-3 align-items-end" onSubmit={(e) => { e.preventDefault(); lookup(inquiry.cn_no, inquiry.rc) }}>
               <div className="col-md-4">
-                <label className="form-label">Consignment Number</label>
-                <input className="form-control" required maxLength={20} value={inquiry.cn_no} onChange={(e) => setInquiry({ ...inquiry, cn_no: e.target.value })} placeholder="e.g. BBB0810000001" />
+                <label className="form-label">Consignment Number <span className="text-muted fw-normal small">— or generate</span></label>
+                <SystemCodeField
+                  required
+                  maxLength={20}
+                  value={inquiry.cn_no}
+                  kind="cn_no"
+                  placeholder="e.g. BBB0810000001"
+                  onChange={(v) => setInquiry({ ...inquiry, cn_no: String(v || '').toUpperCase() })}
+                  onError={setError}
+                />
               </div>
               <div className="col-md-3">
                 <label className="form-label">Return Consignment to Headquarters</label>
@@ -262,37 +270,47 @@ export default function ConsignmentEntryPage() {
                   </>
                 )}
                 <div className="col-md-3">
-                  <label className="form-label">Origin Branch</label>
+                  <label className="form-label">Origin Hub</label>
                   <select className="form-select" required value={form.cn_origin} onChange={(e) => set('cn_origin', e.target.value)}>
                     <option value="">— select —</option>
                     {(lookups.locations || []).map((l) => <option key={l.loc_id} value={l.loc_id}>{l.loc_id} — {l.loc_name}</option>)}
                   </select>
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Destination Branch</label>
+                  <label className="form-label">Destination Hub</label>
                   <select className="form-select" required value={form.cn_dstn} onChange={(e) => set('cn_dstn', e.target.value)}>
                     <option value="">— select —</option>
                     {(lookups.locations || []).map((l) => <option key={l.loc_id} value={l.loc_id}>{l.loc_id} — {l.loc_name}</option>)}
                   </select>
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Origin Zone</label>
+                  <label className="form-label">Origin Delivery Point</label>
                   <select className="form-select" value={form.origin_zone} onChange={(e) => {
-                    const z = lookups.zones.find((x) => x.zone_code === e.target.value)
-                    setForm((f) => ({ ...f, origin_zone: e.target.value, cn_origin: z?.branch_code || f.cn_origin }))
+                    const code = e.target.value
+                    const z = (lookups.zones || []).find((x) => (x.delivery_point_code || x.zone_code) === code)
+                    setForm((f) => ({ ...f, origin_zone: code, cn_origin: z?.hub_code || z?.branch_code || f.cn_origin }))
                   }}>
                     <option value="">— none —</option>
-                    {(lookups.zones || []).map((z) => <option key={z.zone_code} value={z.zone_code}>{z.zone_code} — {z.zone_name}</option>)}
+                    {(lookups.zones || []).map((z) => {
+                      const code = z.delivery_point_code || z.zone_code
+                      const name = z.delivery_point_name || z.zone_name
+                      return <option key={code} value={code}>{code} — {name}</option>
+                    })}
                   </select>
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Destination Zone</label>
+                  <label className="form-label">Destination Delivery Point</label>
                   <select className="form-select" value={form.destination_zone} onChange={(e) => {
-                    const z = lookups.zones.find((x) => x.zone_code === e.target.value)
-                    setForm((f) => ({ ...f, destination_zone: e.target.value, cn_dstn: z?.branch_code || f.cn_dstn }))
+                    const code = e.target.value
+                    const z = (lookups.zones || []).find((x) => (x.delivery_point_code || x.zone_code) === code)
+                    setForm((f) => ({ ...f, destination_zone: code, cn_dstn: z?.hub_code || z?.branch_code || f.cn_dstn }))
                   }}>
                     <option value="">— none —</option>
-                    {(lookups.zones || []).map((z) => <option key={z.zone_code} value={z.zone_code}>{z.zone_code} — {z.zone_name}</option>)}
+                    {(lookups.zones || []).map((z) => {
+                      const code = z.delivery_point_code || z.zone_code
+                      const name = z.delivery_point_name || z.zone_name
+                      return <option key={code} value={code}>{code} — {name}</option>
+                    })}
                   </select>
                 </div>
                 <div className="col-md-3">

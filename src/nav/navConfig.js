@@ -117,13 +117,12 @@ export const NAV_SECTIONS = [
 export const ADMIN_ITEMS = [
   { cap: 'roleAccess', to: '/admin/role-access', label: 'Staff Access Settings', icon: 'bi-shield-lock', live: true },
   { cap: 'users', to: '/admin/users', label: 'User Management', icon: 'bi-person-gear', live: true },
-  { cap: 'branches', to: '/admin/branches', label: 'Branch Management', icon: 'bi-building', live: true },
   { cap: 'hubs', to: '/admin/hubs', label: 'Hub Management', icon: 'bi-diagram-3', live: true },
+  { cap: 'routing', to: '/admin/delivery-points', label: 'Delivery Points', icon: 'bi-geo-alt', live: true },
   { cap: 'staff', to: '/admin/staff', label: 'Staff Verification', icon: 'bi-shield-check', live: true },
   { cap: 'staff', to: '/admin/dispatchers', label: 'Dispatcher Management', icon: 'bi-headset', live: true },
   { cap: 'staff', to: '/admin/drivers', label: 'Driver Management', icon: 'bi-truck', live: true },
   { cap: 'routing', to: '/admin/routes', label: 'Route Table', icon: 'bi-signpost-2', live: true },
-  { cap: 'routing', to: '/admin/zones', label: 'Zone Management', icon: 'bi-map', live: true },
   { cap: 'routing', to: '/admin/route-codes', label: 'Route Codes', icon: 'bi-sign-turn-right', live: true },
 ]
 

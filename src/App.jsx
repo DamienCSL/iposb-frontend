@@ -109,7 +109,7 @@ export default function App() {
 
               <Route path="/admin/users" element={<AdminCrudPage resource="users" />} />
               <Route path="/admin/role-access" element={<RoleAccessPage />} />
-              <Route path="/admin/branches" element={<AdminCrudPage resource="branches" />} />
+              <Route path="/admin/branches" element={<Navigate to="/admin/hubs" replace />} />
               <Route path="/admin/hubs" element={<AdminCrudPage resource="hubs" />} />
               <Route path="/drop-points" element={<AdminCrudPage resource="drop-points" />} />
               <Route path="/drop-points/3pl" element={<AdminCrudPage resource="3pl" />} />
@@ -121,7 +121,8 @@ export default function App() {
               <Route path="/admin/dispatchers" element={<AdminCrudPage resource="dispatchers" />} />
               <Route path="/admin/drivers" element={<AdminCrudPage resource="drivers" />} />
               <Route path="/admin/routes" element={<AdminCrudPage resource="routes" />} />
-              <Route path="/admin/zones" element={<AdminCrudPage resource="zones" />} />
+              <Route path="/admin/delivery-points" element={<AdminCrudPage resource="delivery-points" />} />
+              <Route path="/admin/zones" element={<Navigate to="/admin/delivery-points" replace />} />
               <Route path="/admin/route-codes" element={<AdminCrudPage resource="route-codes" />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
