@@ -1,21 +1,19 @@
+import React from 'react'
+import { ConfigProvider } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import AppLayout from './layouts/AppLayout'
-import AdminCrudPage from './pages/AdminCrudPage'
-import BillingListPage, { BillingEntryPage, TrackingLookupPage } from './pages/BillingPages'
-import ConsignmentEntryPage from './pages/ConsignmentEntryPage'
-import ConsignmentListPage from './pages/ConsignmentListPage'
-import CsTicketsPage from './pages/CsTicketsPage'
-import DashboardPage from './pages/DashboardPage'
-import DispatchJobsPage from './pages/DispatchJobsPage'
-import ImportLogPage from './pages/ImportLogPage'
 import LoginPage from './pages/LoginPage'
-import RemotePickupPage from './pages/RemotePickupPage'
-import { PrintPage, ReportPage } from './pages/ReportPrintPages'
-import StaffVerifyPage from './pages/StaffVerifyPage'
-import SummaryPage from './pages/SummaryPage'
-import TrackingPage from './pages/TrackingPage'
+import DashboardPage from './modules/dashboard/DashboardPage'
+import ShipmentsPage from './modules/shipments/ShipmentsPage'
+import DispatchPage from './modules/dispatch/DispatchPage'
+import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
+import FinanceBillingPage from './modules/billing/FinanceBillingPage'
+import AgentsPage from './modules/agents/AgentsPage'
+import SupportPage from './modules/support/SupportPage'
+import SettingsPage from './modules/settings/SettingsPage'
+import { iposbTheme } from './theme'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -23,85 +21,81 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<DashboardPage />} />
+    <ConfigProvider theme={iposbTheme}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public Authentication */}
+              <Route path="/login" element={<LoginPage />} />
 
-              <Route path="/consignments" element={<ConsignmentListPage />} />
-              <Route path="/consignments/new" element={<ConsignmentEntryPage />} />
-              <Route path="/consignments/import-log" element={<ImportLogPage />} />
-              <Route path="/consignments/tracking" element={<TrackingPage />} />
+              {/* Authenticated Control Tower Shell */}
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/shipments" element={<ShipmentsPage />} />
+                <Route path="/dispatch" element={<DispatchPage />} />
+                <Route path="/network" element={<NetworkAnalyticsPage />} />
+                <Route path="/billing" element={<FinanceBillingPage />} />
+                <Route path="/agents" element={<AgentsPage />} />
+                <Route path="/support" element={<SupportPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
 
-              <Route path="/dispatch/assign" element={<DispatchJobsPage />} />
-              <Route path="/dispatch/remote" element={<RemotePickupPage />} />
+                {/* Backward-Compatible Redirects for Legacy Submenus */}
+                <Route path="/consignments/new" element={<Navigate to="/shipments?action=new" replace />} />
+                <Route path="/consignments/tracking" element={<Navigate to="/shipments?tab=tracking" replace />} />
+                <Route path="/consignments/import-log" element={<Navigate to="/shipments?tab=import" replace />} />
+                <Route path="/consignments" element={<Navigate to="/shipments" replace />} />
 
-              <Route path="/cs/tickets" element={<CsTicketsPage />} />
+                <Route path="/dispatch/assign" element={<Navigate to="/dispatch?tab=assign" replace />} />
+                <Route path="/dispatch/remote" element={<Navigate to="/dispatch?tab=remote" replace />} />
+                <Route path="/dispatch/drivers" element={<Navigate to="/dispatch?tab=drivers" replace />} />
 
-              <Route path="/summaries" element={<SummaryPage kind="overall" />} />
-              <Route path="/summaries/status" element={<SummaryPage kind="status" />} />
-              <Route path="/summaries/agent" element={<SummaryPage kind="agent" />} />
-              <Route path="/summaries/consignee" element={<SummaryPage kind="consignee" />} />
-              <Route path="/summaries/consigner" element={<SummaryPage kind="consigner" />} />
-              <Route path="/summaries/shipper" element={<SummaryPage kind="shipper" />} />
-              <Route path="/summaries/manifest" element={<SummaryPage kind="manifest" />} />
-              <Route path="/summaries/date" element={<SummaryPage kind="date" />} />
-              <Route path="/summaries/branch" element={<SummaryPage kind="branch" />} />
+                <Route path="/summaries/status" element={<Navigate to="/network?group=status" replace />} />
+                <Route path="/summaries/agent" element={<Navigate to="/network?group=agent" replace />} />
+                <Route path="/summaries/consignee" element={<Navigate to="/network?group=consignee" replace />} />
+                <Route path="/summaries/consigner" element={<Navigate to="/network?group=consigner" replace />} />
+                <Route path="/summaries/shipper" element={<Navigate to="/network?group=shipper" replace />} />
+                <Route path="/summaries/manifest" element={<Navigate to="/network?group=manifest" replace />} />
+                <Route path="/summaries/date" element={<Navigate to="/network?group=date" replace />} />
+                <Route path="/summaries/branch" element={<Navigate to="/network?group=branch" replace />} />
+                <Route path="/summaries" element={<Navigate to="/network" replace />} />
+                <Route path="/summaries/*" element={<Navigate to="/network" replace />} />
 
-              <Route path="/billing/invoices/new" element={<BillingEntryPage doc="invoices" />} />
-              <Route path="/billing/invoices" element={<BillingListPage doc="invoices" />} />
-              <Route path="/billing/invoices/tracking" element={<TrackingLookupPage doc="invoices" title="Invoice Tracking" idKey="Invoice number" />} />
-              <Route path="/billing/do/new" element={<BillingEntryPage doc="do" />} />
-              <Route path="/billing/do" element={<BillingListPage doc="do" />} />
-              <Route path="/billing/do/tracking" element={<TrackingLookupPage doc="do" title="Delivery Order Tracking" idKey="DN number" />} />
-              <Route path="/billing/receipts/new" element={<BillingEntryPage doc="receipts" />} />
-              <Route path="/billing/receipts" element={<BillingListPage doc="receipts" />} />
-              <Route path="/billing/receipts/tracking" element={<TrackingLookupPage doc="receipts" title="Receipt Tracking" idKey="Invoice number" />} />
-              <Route path="/billing/credit-notes" element={<BillingEntryPage doc="credit-notes" />} />
-              <Route path="/billing/credit-notes/list" element={<BillingListPage doc="credit-notes" />} />
-              <Route path="/billing/debit-notes" element={<BillingEntryPage doc="debit-notes" />} />
-              <Route path="/billing/debit-notes/list" element={<BillingListPage doc="debit-notes" />} />
+                <Route path="/billing/invoices" element={<Navigate to="/billing?doc=invoices" replace />} />
+                <Route path="/billing/do" element={<Navigate to="/billing?doc=do" replace />} />
+                <Route path="/billing/receipts" element={<Navigate to="/billing?doc=receipts" replace />} />
+                <Route path="/billing/credit-notes" element={<Navigate to="/billing?doc=credit-notes" replace />} />
+                <Route path="/billing/*" element={<Navigate to="/billing" replace />} />
 
-              <Route path="/agent/bilyet-in" element={<BillingEntryPage doc="agent-in" />} />
-              <Route path="/agent/bilyet-in/list" element={<BillingListPage doc="agent-in" title="Agent Money In List" />} />
-              <Route path="/agent/bilyet-out" element={<BillingEntryPage doc="agent-out" />} />
-              <Route path="/agent/bilyet-out/list" element={<BillingListPage doc="agent-out" title="Agent Money Out List" />} />
-              <Route path="/agent/credit-notes" element={<BillingEntryPage doc="agent-credit" />} />
-              <Route path="/agent/credit-notes/list" element={<BillingListPage doc="agent-credit" title="Agent Credit Note List" />} />
-              <Route path="/agent/debit-notes" element={<BillingEntryPage doc="agent-debit" />} />
-              <Route path="/agent/debit-notes/list" element={<BillingListPage doc="agent-debit" title="Agent Debit Note List" />} />
-              <Route path="/agent/stock" element={<ReportPage kind="agent" title="Agent Stock Record" />} />
+                <Route path="/agent/bilyet-in" element={<Navigate to="/agents?tab=ledger&type=agent-in" replace />} />
+                <Route path="/agent/bilyet-out" element={<Navigate to="/agents?tab=ledger&type=agent-out" replace />} />
+                <Route path="/agent/credit-notes" element={<Navigate to="/agents?tab=ledger&type=agent-credit" replace />} />
+                <Route path="/agent/debit-notes" element={<Navigate to="/agents?tab=ledger&type=agent-debit" replace />} />
+                <Route path="/agent/stock" element={<Navigate to="/agents?tab=overview" replace />} />
+                <Route path="/agent/*" element={<Navigate to="/agents" replace />} />
+                <Route path="/customer/*" element={<Navigate to="/network" replace />} />
+                <Route path="/reports/*" element={<Navigate to="/network" replace />} />
 
-              <Route path="/customer/stock" element={<ReportPage kind="customer" title="Customer Stock Record" />} />
-              <Route path="/customer/summary" element={<ReportPage kind="customer" title="Customer Summary Report" />} />
-              <Route path="/customer/agent-summary" element={<ReportPage kind="agent" title="Agent Summary Report" />} />
+                <Route path="/cs/tickets" element={<Navigate to="/support" replace />} />
+                <Route path="/cs/*" element={<Navigate to="/support" replace />} />
 
-              <Route path="/reports/manifest" element={<PrintPage kind="manifest" title="Print Manifest" idLabel="Manifest number" />} />
-              <Route path="/reports/cn" element={<PrintPage kind="cn" title="Print Consignment" idLabel="Consignment number" />} />
-              <Route path="/reports/invoice" element={<PrintPage kind="invoice" title="Print Invoice" idLabel="Invoice number" />} />
-              <Route path="/reports/do" element={<PrintPage kind="do" title="Print Delivery Order" idLabel="DN number" />} />
-              <Route path="/reports/receipt" element={<PrintPage kind="receipt" title="Print Receipt" idLabel="Invoice number" />} />
+                <Route path="/admin/staff" element={<Navigate to="/settings?tab=staff" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/settings?tab=users" replace />} />
+                <Route path="/admin/branches" element={<Navigate to="/settings?tab=masters&sub=branches" replace />} />
+                <Route path="/admin/hubs" element={<Navigate to="/settings?tab=masters&sub=hubs" replace />} />
+                <Route path="/admin/3pl" element={<Navigate to="/settings?tab=masters&sub=3pl" replace />} />
+                <Route path="/admin/routes" element={<Navigate to="/settings?tab=masters&sub=routes" replace />} />
+                <Route path="/admin/zones" element={<Navigate to="/settings?tab=masters&sub=zones" replace />} />
+                <Route path="/admin/drivers" element={<Navigate to="/dispatch?tab=drivers" replace />} />
+                <Route path="/admin/*" element={<Navigate to="/settings?tab=masters" replace />} />
+              </Route>
 
-              <Route path="/admin/users" element={<AdminCrudPage resource="users" />} />
-              <Route path="/admin/branches" element={<AdminCrudPage resource="branches" />} />
-              <Route path="/admin/hubs" element={<AdminCrudPage resource="hubs" />} />
-              <Route path="/admin/drop-points" element={<AdminCrudPage resource="drop-points" />} />
-              <Route path="/admin/3pl" element={<AdminCrudPage resource="3pl" />} />
-              <Route path="/admin/coverage" element={<AdminCrudPage resource="coverage" />} />
-              <Route path="/admin/staff" element={<StaffVerifyPage />} />
-              <Route path="/admin/dispatchers" element={<AdminCrudPage resource="dispatchers" />} />
-              <Route path="/admin/drivers" element={<AdminCrudPage resource="drivers" />} />
-              <Route path="/admin/routes" element={<AdminCrudPage resource="routes" />} />
-              <Route path="/admin/zones" element={<AdminCrudPage resource="zones" />} />
-              <Route path="/admin/route-codes" element={<AdminCrudPage resource="route-codes" />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+              {/* Catch-all */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ConfigProvider>
   )
 }
