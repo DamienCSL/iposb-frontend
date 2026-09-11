@@ -20,6 +20,7 @@ import {
 } from 'antd'
 import {
   DeleteOutlined,
+  CopyOutlined,
   EyeOutlined,
   FileDoneOutlined,
   FileTextOutlined,
@@ -121,7 +122,12 @@ export default function ManifestsPage() {
     setDetailLoading(true)
     try {
       const res = await getManifest(mfgCode)
-      setDetailData(res?.data || res?.manifest || res || {})
+      const payload = res?.data || res || {}
+      const manifest = payload?.manifest || payload
+      setDetailData({
+        ...manifest,
+        consignments: payload?.consignments || manifest?.consignments || [],
+      })
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -166,12 +172,14 @@ export default function ManifestsPage() {
   }
 
   async function handleAttachConsignment() {
-    const cn = attachCnInput.trim()
-    if (!cn || !activeMfg) return
+    const cns = [...new Set(attachCnInput.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean))]
+    if (cns.length === 0 || !activeMfg) return
     setAttaching(true)
     try {
-      await attachManifestConsignments(activeMfg, { cns: [cn] })
-      message.success(`Consignment ${cn} attached to manifest ${activeMfg}`)
+      for (const cn of cns) {
+        await attachManifestConsignments(activeMfg, { cn_no: cn, cns: [cn] })
+      }
+      message.success(`${cns.length} consignment${cns.length === 1 ? '' : 's'} attached to manifest ${activeMfg}`)
       setAttachCnInput('')
       loadDetail(activeMfg)
       loadManifests()
@@ -331,8 +339,9 @@ export default function ManifestsPage() {
                   Attach Consignment to Manifest
                 </Text>
                 <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder="Scan or enter CN Number (e.g. BKI10028)"
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Paste or type CN numbers separated by lines, spaces, commas, or semicolons"
                     value={attachCnInput}
                     onChange={(e) => setAttachCnInput(e.target.value)}
                     onPressEnter={handleAttachConsignment}

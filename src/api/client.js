@@ -4,7 +4,9 @@ const baseURL = import.meta.env.VITE_API_URL || '/api'
 
 export const api = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 300000,
+  maxBodyLength: Infinity,
+  maxContentLength: Infinity,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -142,8 +144,8 @@ export async function saveConsignment(body) {
   return data
 }
 
-export async function cancelConsignment(cn) {
-  const { data } = await api.post(`/ops/consignments/${encodeURIComponent(cn)}/cancel`)
+export async function cancelConsignment(cn, body = {}) {
+  const { data } = await api.post(`/ops/consignments/${encodeURIComponent(cn)}/cancel`, body)
   return data
 }
 
@@ -157,6 +159,7 @@ export async function importConsignments(file) {
   form.append('file', file)
   const { data } = await api.post('/ops/consignments/import', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
   })
   return data
 }
@@ -429,16 +432,69 @@ export async function initiateReturn(cn, body) {
 }
 
 export function downloadCsv(filename, rows) {
-  const csv = rows
-    .map((r) => r.map((c) => `"${String(c ?? '').replaceAll('"', '""')}"`).join(','))
-    .join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  if (!rows) return
+
+  const normalizedRows = Array.isArray(rows)
+    ? rows
+    : Array.isArray(rows?.data)
+      ? rows.data
+      : Array.isArray(rows?.rows)
+        ? rows.rows
+        : null
+
+  if (!normalizedRows || normalizedRows.length === 0) return
+
+  let csv = ''
+  if (typeof rows === 'string') {
+    csv = rows
+  } else if (Array.isArray(normalizedRows)) {
+    if (!Array.isArray(normalizedRows[0]) && typeof normalizedRows[0] === 'object' && normalizedRows[0] !== null) {
+      const headers = Object.keys(normalizedRows[0])
+      const headerLine = headers.map((h) => `"${String(h ?? '').replaceAll('"', '""')}"`).join(',')
+      const dataLines = normalizedRows.map((r) =>
+        headers.map((h) => `"${String(r?.[h] ?? '').replaceAll('"', '""')}"`).join(',')
+      )
+      csv = [headerLine, ...dataLines].join('\n')
+    } else {
+      csv = normalizedRows
+        .map((r) => (Array.isArray(r) ? r.map((c) => `"${String(c ?? '').replaceAll('"', '""')}"`).join(',') : String(r)))
+        .join('\n')
+    }
+  } else {
+    return
+  }
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || 'export.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadExportJob(jobId, defaultFilename = 'consignments.csv') {
+  const response = await api.get(`/ops/exports/${jobId}/download`, {
+    responseType: 'blob',
+  })
+  let filename = defaultFilename
+  const disposition = response.headers?.['content-disposition']
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/)
+    if (match?.[1]) filename = match[1]
+  }
+  const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return true
 }
 
 // --- System Audit & Activity Logs ---

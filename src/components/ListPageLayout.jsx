@@ -44,6 +44,7 @@ export default function ListPageLayout({
   onNewClick,
   newButtonText = 'New',
   scroll,
+  children,
 }) {
   const [tableSize, setTableSize] = useState('small')
 
@@ -137,6 +138,7 @@ export default function ListPageLayout({
 
       {extraHeader}
 
+      {children ?? <>
       {/* Filter / Search Bar */}
       <Card
         size="small"
@@ -269,6 +271,7 @@ export default function ListPageLayout({
           scroll={scroll || undefined}
         />
       )}
+      </>}
     </div>
   )
 }

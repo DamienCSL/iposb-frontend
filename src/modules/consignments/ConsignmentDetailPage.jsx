@@ -37,6 +37,7 @@ import {
   CheckCircleFilled,
   ClockCircleOutlined,
   CloseCircleOutlined,
+  CopyOutlined,
   CompassOutlined,
   CreditCardOutlined,
   DollarCircleOutlined,
@@ -104,6 +105,8 @@ export default function ConsignmentDetailPage() {
   // Cancel Preview Modal State
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelConfirmed, setCancelConfirmed] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
 
   // Edit Drawer State
   const [editDrawerOpen, setEditDrawerOpen] = useState(false)
@@ -184,11 +187,17 @@ export default function ConsignmentDetailPage() {
 
   // Handle Cancel with confirmation
   async function confirmCancel() {
+    if (!cancelConfirmed) {
+      message.warning('Please confirm this is a cancellation request, not an address change.')
+      return
+    }
     setCancelling(true)
     try {
-      await cancelConsignment(cn)
+      await cancelConsignment(cn, { reason: cancelReason, confirmNotAddressChange: true })
       message.success(`Consignment ${cn} successfully cancelled`)
       setCancelModalOpen(false)
+      setCancelConfirmed(false)
+      setCancelReason('')
       loadDetails()
     } catch (err) {
       message.error(apiError(err))
@@ -258,6 +267,15 @@ export default function ConsignmentDetailPage() {
   }
 
   const activeCn = data.cn_no || data.consignment_no || tracking?.cnNo || cn
+
+  async function copyText(value, label) {
+    try {
+      await navigator.clipboard.writeText(String(value))
+      message.success(`${label} copied`)
+    } catch {
+      message.error(`Unable to copy ${label.toLowerCase()}`)
+    }
+  }
   const status = data.cn_status || data.status || tracking?.statusCode || 'BDE'
   const isCancelled = status === 'CAN'
 
@@ -911,6 +929,14 @@ export default function ConsignmentDetailPage() {
               >
                 {activeCn}
               </span>
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                aria-label="Copy consignment number"
+                title="Copy consignment number"
+                onClick={() => copyText(activeCn, 'Consignment number')}
+              />
               <StatusTag status={status} />
               {isCancelled && <Tag color="red">CANCELLED</Tag>}
               {data.ppd_cct && <Tag color="blue">{data.ppd_cct}</Tag>}
@@ -1010,6 +1036,29 @@ export default function ConsignmentDetailPage() {
           description={`Consignment ${activeCn} will be permanently set to CAN status. Any active courier pickup jobs and sorting manifests referencing this parcel will be unlinked immediately.`}
           style={{ marginBottom: 16 }}
         />
+        <Alert
+          type="info"
+          showIcon
+          message="Cancellation only"
+          description="This request cancels the consignment. It does not change the delivery address. To change the delivery address, create a new order/CN."
+          style={{ marginBottom: 16 }}
+        />
+        <Input.TextArea
+          rows={2}
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+          placeholder="Cancellation reason (optional)"
+          style={{ marginBottom: 12 }}
+        />
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={cancelConfirmed}
+            onChange={(e) => setCancelConfirmed(e.target.checked)}
+            style={{ marginTop: 4 }}
+          />
+          <span>I confirm this is a cancellation request, not an address change.</span>
+        </label>
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label="Consignment Number">{activeCn}</Descriptions.Item>
           <Descriptions.Item label="Customer">{data.cust_name || data.senderName || '—'}</Descriptions.Item>

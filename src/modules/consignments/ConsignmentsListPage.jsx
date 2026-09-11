@@ -31,6 +31,7 @@ import {
   apiError,
   cancelConsignment,
   downloadCsv,
+  downloadExportJob,
   exportConsignments,
   importConsignments,
   listConsignments,
@@ -73,6 +74,8 @@ export default function ConsignmentsListPage() {
   const [uploadFile, setUploadFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [importSummary, setImportSummary] = useState(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importStatusText, setImportStatusText] = useState('')
 
   // Export State
   const [exporting, setExporting] = useState(false)
@@ -133,7 +136,7 @@ export default function ConsignmentsListPage() {
     }
   }
 
-  // Handle Export (Async notification simulation per PRD 6.6)
+  // Handle Export
   async function handleExportSelected() {
     setExporting(true)
     try {
@@ -145,21 +148,34 @@ export default function ConsignmentsListPage() {
       } else {
         if (debouncedSearch) body.search = debouncedSearch
         if (status) body.status = status
+        if (dateRange?.[0] && dateRange?.[1]) {
+          body.date_from = dateRange[0].format('YYYY-MM-DD')
+          body.date_to = dateRange[1].format('YYYY-MM-DD')
+        }
       }
 
       notification.info({
         message: 'Consignment Export Initiated',
-        description: 'Generating spreadsheet in background. Download will begin shortly.',
+        description: 'Generating spreadsheet. Download will begin shortly.',
         placement: 'topRight',
       })
 
       const res = await exportConsignments(body)
-      const exportRows = res?.data || res?.rows
-      if (Array.isArray(exportRows) && exportRows.length > 0) {
-        downloadCsv(`consignments_${new Date().toISOString().slice(0, 10)}.csv`, exportRows)
+      const exportRows = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.rows)
+          ? res.rows
+          : []
+      const filename = res?.filename || `consignments_${new Date().toISOString().slice(0, 10)}.csv`
+
+      if (exportRows.length > 0) {
+        downloadCsv(filename, exportRows)
+        message.success(`Exported ${exportRows.length} consignments successfully`)
+      } else if (res?.job_id) {
+        await downloadExportJob(res.job_id, filename)
         message.success('Export file downloaded successfully')
       } else {
-        message.info('Export request processed. Check back shortly if large.')
+        message.warning('No consignments found matching criteria.')
       }
     } catch (err) {
       message.error(apiError(err))
@@ -174,7 +190,11 @@ export default function ConsignmentsListPage() {
       message.warning('Please select a file to import')
       return
     }
+
     setUploading(true)
+    setImportBusy(true)
+    setImportStatusText('Importing data… this can take a few minutes for 10k rows.')
+
     try {
       const res = await importConsignments(uploadFile)
       setImportSummary({
@@ -183,12 +203,27 @@ export default function ConsignmentsListPage() {
         skipped: res?.skipped_count || 0,
         errors: res?.error_count || res?.errors?.length || 0,
       })
-      message.success('Import batch processed')
+
+      notification.success({
+        message: 'Import complete',
+        description: `Finished processing ${res?.created_count || res?.imported_count || 0} new consignments.`,
+        placement: 'topRight',
+        duration: 6,
+      })
+      setImportStatusText('Import finished successfully.')
       loadData(1)
     } catch (err) {
+      notification.error({
+        message: 'Import failed',
+        description: apiError(err),
+        placement: 'topRight',
+        duration: 8,
+      })
+      setImportStatusText('Import failed. Please try again.')
       message.error(apiError(err))
     } finally {
       setUploading(false)
+      window.setTimeout(() => setImportBusy(false), 1400)
     }
   }
 
@@ -382,6 +417,60 @@ export default function ConsignmentsListPage() {
 
   return (
     <div>
+      <style>{`
+        @keyframes iposb-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {importBusy && (
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '10px 16px',
+            background: 'rgba(239, 246, 255, 0.96)',
+            backdropFilter: 'blur(4px)',
+            borderBottom: '1px solid rgba(148, 163, 184, 0.35)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'rgba(255,255,255,0.7)',
+              border: '1px solid rgba(148,163,184,0.25)',
+              borderRadius: 999,
+              padding: '8px 12px',
+              boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)',
+            }}
+          >
+            <div
+              style={{
+                width: 15,
+                height: 15,
+                borderRadius: '50%',
+                border: '2px solid rgba(27,138,90,0.25)',
+                borderTopColor: '#1B8A5A',
+                animation: 'iposb-spin 0.9s linear infinite',
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 13 }}>{importStatusText}</div>
+              <div style={{ fontSize: 11, color: '#475569' }}>Page remains responsive while import runs.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ListPageLayout
         title="Consignments"
         subtitle="Manage and track the full consignment lifecycle across all branches and hubs."
