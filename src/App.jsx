@@ -9,6 +9,7 @@ import SetupHubPage from './modules/onboarding/SetupHubPage'
 import DashboardPage from './modules/dashboard/DashboardPage'
 import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
 import ConsignmentDetailPage from './modules/consignments/ConsignmentDetailPage'
+import ConsignmentEntryPage from './modules/consignments/ConsignmentEntryPage'
 import PickupsPage from './modules/pickups/PickupsPage'
 import ManifestsPage from './modules/manifests/ManifestsPage'
 import ReturnsPage from './modules/returns/ReturnsPage'
@@ -41,6 +42,7 @@ export default function App() {
                 <Route path="/ops/dashboard" element={<DashboardPage />} />
 
                 <Route path="/ops/consignments" element={<ConsignmentsListPage />} />
+                <Route path="/ops/consignments/new" element={<ConsignmentEntryPage />} />
                 <Route path="/ops/consignments/import" element={<ConsignmentsListPage />} />
                 <Route path="/ops/consignments/:cn" element={<ConsignmentDetailPage />} />
                 <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDetailPage />} />
@@ -77,7 +79,7 @@ export default function App() {
                 <Route path="/support" element={<Navigate to="/ops/cs/tickets" replace />} />
                 <Route path="/settings" element={<Navigate to="/ops/admin/hubs" replace />} />
 
-                <Route path="/consignments/new" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/new" element={<Navigate to="/ops/consignments/new" replace />} />
                 <Route path="/consignments/tracking" element={<Navigate to="/ops/consignments" replace />} />
                 <Route path="/consignments/import-log" element={<Navigate to="/ops/consignments/import" replace />} />
                 <Route path="/consignments/cancellations" element={<Navigate to="/ops/consignments" replace />} />

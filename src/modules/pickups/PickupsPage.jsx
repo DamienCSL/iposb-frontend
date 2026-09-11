@@ -68,10 +68,12 @@ export default function PickupsPage() {
   const [drivers, setDrivers] = useState([])
   const [dropPoints, setDropPoints] = useState([])
   const [zones, setZones] = useState([])
+  const [locations, setLocations] = useState([])
 
   // Manual Assign Modal
   const [manualModalOpen, setManualModalOpen] = useState(false)
   const [selectedCn, setSelectedCn] = useState(null)
+  const [selectedPickup, setSelectedPickup] = useState(null)
   const [assignForm] = Form.useForm()
   const [assigning, setAssigning] = useState(false)
 
@@ -84,19 +86,30 @@ export default function PickupsPage() {
   async function loadData() {
     setLoading(true)
     try {
-      const [waitingRes, queueRes, drvRes, dpRes, zoneRes] = await Promise.all([
+      const [waitingRes, queueRes, drvRes, dpRes, zoneRes, branchRes, hubRes] = await Promise.all([
         getPickupsWaiting().catch(() => ({ data: [] })),
         getPickupsQueue().catch(() => ({ data: [] })),
         getDispatchDrivers().catch(() => []),
         listMaster('drop-points').catch(() => ({ data: [] })),
         listMaster('zones').catch(() => ({ data: [] })),
+        listMaster('branches').catch(() => ({ data: [] })),
+        listMaster('hubs').catch(() => ({ data: [] })),
       ])
 
       setWaitingList(waitingRes?.data || waitingRes?.consignments || waitingRes?.rows || [])
       setQueueList(queueRes?.data || queueRes?.consignments || queueRes?.rows || [])
       setDrivers(Array.isArray(drvRes) ? drvRes : drvRes?.drivers || [])
       setDropPoints(dpRes?.data || dpRes?.rows || [])
-      setZones(zoneRes?.data || zoneRes?.rows || [])
+      const locationRows = [
+        ...(branchRes?.data || branchRes?.rows || []),
+        ...(hubRes?.data || hubRes?.rows || []),
+      ]
+      setLocations(locationRows)
+      const zoneRows = zoneRes?.data || zoneRes?.rows || []
+      setZones(zoneRows.length > 0 ? zoneRows : locationRows.map((location) => ({
+        zone_code: location.branch_code || location.hub_code || location.loc_id || location.code,
+        zone_name: location.branch_name || location.hub_name || location.loc_name || location.name,
+      })))
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -111,6 +124,7 @@ export default function PickupsPage() {
   // Manual Assign
   function openManualAssign(record) {
     setSelectedCn(record.cn_no || record.id)
+    setSelectedPickup(record)
     assignForm.resetFields()
     setManualModalOpen(true)
   }
@@ -129,6 +143,12 @@ export default function PickupsPage() {
       setAssigning(false)
     }
   }
+
+  const compatibleDrivers = drivers.filter((driver) => {
+    const origin = String(selectedPickup?.origin_branch || '').trim().toUpperCase()
+    const driverBranch = String(driver.locId || driver.loc_id || '').trim().toUpperCase()
+    return !origin || !driverBranch || origin === driverBranch
+  })
 
   // Auto-Assign Submit
   async function handleAutoAssignSubmit(values) {
@@ -416,9 +436,9 @@ export default function PickupsPage() {
             <Select
               placeholder="Choose a courier driver"
               allowClear
-              options={drivers.map((d) => ({
-                label: `${d.full_name || d.name} (${d.route_cd || 'Floating'})`,
-                value: d.driver_id || d.id,
+              options={compatibleDrivers.map((d) => ({
+                label: `${d.full_name || d.fullName || d.name || `Driver ${d.driver_id || d.driverId || d.id}`} (${d.route_cd || d.routeCd || 'Floating'}${d.locId || d.loc_id ? ` · ${d.locId || d.loc_id}` : ''})`,
+                value: d.driver_id || d.driverId || d.id,
               }))}
             />
           </Form.Item>
@@ -465,15 +485,33 @@ export default function PickupsPage() {
           </Paragraph>
 
           <Row gutter={12}>
-            <Col span={14}>
+            <Col span={10}>
+              <Form.Item label="Target Branch / Hub" name="branch_code">
+                <Select
+                  placeholder="All locations"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={locations.map((location) => {
+                    const code = location.branch_code || location.hub_code || location.loc_id || location.code
+                    const name = location.branch_name || location.hub_name || location.loc_name || location.name || code
+                    return { label: `${name} (${code})`, value: code }
+                  }).filter((option) => option.value)}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
               <Form.Item label="Target Zone" name="zone_code">
                 <Select
                   placeholder="Select zone (optional)"
                   allowClear
-                  options={zones.map((z) => ({
-                    label: `${z.zone_name || z.zone_code} (${z.zone_code})`,
-                    value: z.zone_code,
-                  }))}
+                  showSearch
+                  optionFilterProp="label"
+                  options={zones.map((z) => {
+                    const code = z.zone_code || z.delivery_point_code || z.area_code
+                    const name = z.zone_name || z.delivery_point_name || z.area_name || code
+                    return { label: `${name} (${code})`, value: code }
+                  }).filter((option) => option.value)}
                 />
               </Form.Item>
             </Col>

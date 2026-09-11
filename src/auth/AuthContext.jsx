@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { message } from 'antd'
 import { apiError, loginOffice, logoutOffice, meOffice } from '../api/client'
-import { capabilitiesFor, DEMO_USERS } from './rbac'
+import { capabilitiesFor, DEMO_USERS, normalizeRole } from './rbac'
 
 const AuthContext = createContext(null)
 const STORAGE_KEY = 'iposb.staff.session'
@@ -22,7 +22,7 @@ function sessionFromApi(token, user, capabilities = null, issuedAt = null) {
     id: user.id,
     username: user.username,
     name: user.name || user.fullName || user.username,
-    role,
+    role: normalizeRole(role),
     branchCode: user.branchCode || null,
     capabilities: caps,
     issuedAt: issuedAt || Date.now(),
@@ -119,7 +119,7 @@ export function AuthProvider({ children }) {
   }, [user])
 
   const value = useMemo(() => {
-    const isAdmin = ['Super Admin', 'Admin'].includes(user?.role)
+    const isAdmin = ['Super Admin', 'Admin'].includes(normalizeRole(user?.role))
     return {
       user,
       caps,
