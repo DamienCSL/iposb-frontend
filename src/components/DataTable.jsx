@@ -9,7 +9,7 @@ export default function DataTable({
   ...restProps
 }) {
   return (
-    <div className={`data-table-card ${className}`} style={cardStyle}>
+    <div className={`data-table-card data-table-${size} ${className}`.trim()} style={cardStyle}>
       <Table
         size={size}
         rowClassName={(record, index) => {

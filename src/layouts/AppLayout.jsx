@@ -20,10 +20,13 @@ import {
   HistoryOutlined,
   InboxOutlined,
   LogoutOutlined,
+  RollbackOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
   TeamOutlined,
   UserOutlined,
+  WalletOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -32,17 +35,40 @@ import { listConsignments } from '../api/client'
 const { Header, Sider, Content } = Layout
 
 const APP_PAGES = [
-  { title: 'Dashboard', path: '/', keywords: ['home', 'overview'] },
-  { title: 'Shipments', path: '/shipments', keywords: ['consignments', 'cn', 'tracking', 'list'] },
-  { title: 'New Consignment Entry', path: '/shipments?action=new', keywords: ['create', 'add', 'shipment'] },
-  { title: 'Consignment Tracking & POD', path: '/shipments?tab=tracking', keywords: ['track', 'pod', 'status'] },
-  { title: 'Dispatch & Fleet', path: '/dispatch', keywords: ['driver', 'vehicle', '3pl', 'manifest'] },
-  { title: 'Analytics', path: '/network', keywords: ['reports', 'summary', 'statistics'] },
-  { title: 'Billing', path: '/billing', keywords: ['invoices', 'do', 'receipts', 'finance'] },
-  { title: 'Agents', path: '/agents', keywords: ['bilyet', 'partners', 'stock', 'topup'] },
-  { title: 'Customer Service', path: '/support', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
-  { title: 'Settings', path: '/settings', keywords: ['admin', 'branches', 'hubs', 'users', 'coverage'] },
-  { title: 'Staff Verification', path: '/settings?tab=staff', keywords: ['staff', 'approval', 'identity'] },
+  { title: 'Dashboard', path: '/ops/dashboard', keywords: ['home', 'overview', 'stats'] },
+  { title: 'Consignments', path: '/ops/consignments', keywords: ['shipments', 'cn', 'tracking', 'list'] },
+  { title: 'Batch Import Consignments', path: '/ops/consignments/import', keywords: ['csv', 'excel', 'bulk', 'import'] },
+  { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign'] },
+  { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
+  { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
+  { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network'] },
+  { title: 'Invoices', path: '/ops/billing/invoices', keywords: ['billing', 'finance', 'tax', 'invoice'] },
+  { title: 'Delivery Orders (DO)', path: '/ops/billing/do', keywords: ['do', 'delivery', 'billing'] },
+  { title: 'Official Receipts', path: '/ops/billing/receipts', keywords: ['or', 'payment', 'receipt'] },
+  { title: 'Credit Notes', path: '/ops/billing/credit-notes', keywords: ['cn', 'credit', 'refund', 'adjustment'] },
+  { title: 'Debit Notes', path: '/ops/billing/debit-notes', keywords: ['dn', 'debit', 'charge'] },
+  { title: 'Agent Money In', path: '/ops/billing/agent-in', keywords: ['agent', 'topup', 'deposit', 'billing'] },
+  { title: 'Agent Money Out', path: '/ops/billing/agent-out', keywords: ['agent', 'payout', 'settle', 'billing'] },
+  { title: 'COD Reconciliation', path: '/ops/cod', keywords: ['cash', 'collect', 'remit', 'settle', 'cod'] },
+  { title: 'Commissions Ledger', path: '/ops/commissions', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
+  { title: 'Partner Wallets & Withdrawals', path: '/ops/partner-wallets', keywords: ['wallets', 'payouts', 'balance'] },
+  { title: 'Commission Rate Rules', path: '/ops/commissions/config', keywords: ['rate', 'config', 'percentage', 'rules'] },
+  { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
+  { title: 'Staff Verification', path: '/ops/staff', keywords: ['staff', 'approval', 'drivers', 'kyc'] },
+  { title: 'Master Data: Branches', path: '/ops/admin/branches', keywords: ['branches', 'branch', 'office'] },
+  { title: 'Master Data: Hubs & Transit', path: '/ops/admin/hubs', keywords: ['hubs', 'gateway', 'transit'] },
+  { title: 'Master Data: Drop Points', path: '/ops/admin/drop-points', keywords: ['drop', 'counter', 'locker'] },
+  { title: 'Master Data: Drivers & Couriers', path: '/ops/admin/drivers', keywords: ['drivers', 'couriers', 'riders'] },
+  { title: 'Master Data: Dispatchers', path: '/ops/admin/dispatchers', keywords: ['dispatchers', 'controllers'] },
+  { title: 'Master Data: 3PL Partners', path: '/ops/admin/3pl', keywords: ['3pl', 'logistics', 'dhl', 'jnt'] },
+  { title: 'Master Data: Coverage Areas', path: '/ops/admin/coverage', keywords: ['coverage', 'areas', 'territory'] },
+  { title: 'Master Data: Routing Rules', path: '/ops/admin/routes', keywords: ['routes', 'rules', 'origin', 'dest'] },
+  { title: 'Master Data: Delivery Zones', path: '/ops/admin/zones', keywords: ['zones', 'coverage', 'postcode'] },
+  { title: 'Master Data: Route Codes', path: '/ops/admin/route-codes', keywords: ['route-codes', 'sector', 'area'] },
+  { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
+  { title: 'Master Data: Agents', path: '/ops/admin/agents', keywords: ['agents', 'resellers', 'partners'] },
+  { title: 'Master Data: Staff Users', path: '/ops/admin/users', keywords: ['users', 'accounts', 'passwords', 'roles'] },
+  { title: 'System Activity & Audit Logs', path: '/ops/logs', keywords: ['logs', 'audit', 'activity', 'history', 'events', 'trail'] },
 ]
 
 function saveRecentSearch(term) {
@@ -73,97 +99,53 @@ function highlightMatch(text, query) {
 }
 
 function getBreadcrumbs(pathname, search) {
-  const params = new URLSearchParams(search || '')
   const items = [
-    { label: 'IPOSB', path: '/' },
-    { label: 'Freight Management System', path: '/' },
+    { label: 'IPOSB', path: '/ops/dashboard' },
+    { label: 'Control Tower', path: '/ops/dashboard' },
   ]
 
-  if (pathname === '/' || pathname === '') {
+  if (pathname === '/' || pathname === '/ops/dashboard' || pathname === '') {
     return items
   }
 
-  if (pathname.startsWith('/shipments')) {
-    items.push({ label: 'Consignments', path: '/shipments' })
-    const tab = params.get('tab')
-    const action = params.get('action')
-    if (action === 'new') {
-      items.push({ label: 'Consignment Entry', path: '/shipments?action=new' })
-    } else if (tab === 'tracking') {
-      items.push({ label: 'Consignment Tracking', path: '/shipments?tab=tracking' })
-    } else if (tab === 'import') {
-      items.push({ label: 'Import Error Log', path: '/shipments?tab=import' })
-    } else {
-      items.push({ label: 'Consignment List', path: '/shipments' })
+  if (pathname.startsWith('/ops/consignments')) {
+    items.push({ label: 'Consignments', path: '/ops/consignments' })
+    const parts = pathname.split('/')
+    if (parts[3] && parts[3] !== 'import') {
+      items.push({ label: parts[3], path: pathname })
+    } else if (parts[3] === 'import') {
+      items.push({ label: 'Batch Import', path: pathname })
     }
-  } else if (pathname.startsWith('/dispatch')) {
-    items.push({ label: 'Dispatch & Fleet', path: '/dispatch' })
-    const tab = params.get('tab')
-    if (tab === 'remote') {
-      items.push({ label: 'Remote / 3PL Pickup', path: '/dispatch?tab=remote' })
-    } else if (tab === 'drivers') {
-      items.push({ label: 'Driver Roster', path: '/dispatch?tab=drivers' })
-    } else {
-      items.push({ label: 'Driver Assignment', path: '/dispatch?tab=assign' })
-    }
+  } else if (pathname.startsWith('/ops/pickups')) {
+    items.push({ label: 'Pickups Queue', path: '/ops/pickups' })
+  } else if (pathname.startsWith('/ops/manifests')) {
+    items.push({ label: 'Manifests & Bags', path: '/ops/manifests' })
+    const parts = pathname.split('/')
+    if (parts[3]) items.push({ label: parts[3], path: pathname })
+  } else if (pathname.startsWith('/ops/returns')) {
+    items.push({ label: 'Returns & RTS', path: '/ops/returns' })
   } else if (pathname.startsWith('/network')) {
-    items.push({ label: 'Status Summaries', path: '/network' })
-    const group = params.get('group')
-    if (group) {
-      const groupNames = {
-        status: 'By Status',
-        agent: 'By Agent',
-        consignee: 'By Consignee',
-        consigner: 'By Consigner',
-        shipper: 'By Shipper',
-        date: 'By Date',
-        branch: 'By Branch',
-      }
-      items.push({ label: groupNames[group] || `Summary (${group})`, path: `/network?group=${group}` })
-    } else {
-      items.push({ label: 'Overall Status Summary', path: '/network' })
-    }
-  } else if (pathname.startsWith('/billing')) {
-    items.push({ label: 'Billing & Invoicing', path: '/billing' })
-    const doc = params.get('doc')
-    if (doc === 'do') {
-      items.push({ label: 'Delivery Orders (DO)', path: '/billing?doc=do' })
-    } else if (doc === 'receipts') {
-      items.push({ label: 'Payment Receipts', path: '/billing?doc=receipts' })
-    } else if (doc === 'credit-notes') {
-      items.push({ label: 'Credit Notes', path: '/billing?doc=credit-notes' })
-    } else {
-      items.push({ label: 'Invoices', path: '/billing?doc=invoices' })
-    }
-  } else if (pathname.startsWith('/agents')) {
-    items.push({ label: 'Agent Operations', path: '/agents' })
-    const tab = params.get('tab')
-    const type = params.get('type')
-    if (tab === 'ledger') {
-      if (type === 'agent-out') items.push({ label: 'Agent Money Out', path: '/agents?tab=ledger&type=agent-out' })
-      else if (type === 'agent-credit') items.push({ label: 'Credit / Debit Notes', path: '/agents?tab=ledger&type=agent-credit' })
-      else items.push({ label: 'Agent Money In', path: '/agents?tab=ledger&type=agent-in' })
-    } else {
-      items.push({ label: 'Agent Balances & Overview', path: '/agents?tab=overview' })
-    }
-  } else if (pathname.startsWith('/support')) {
-    items.push({ label: 'Customer Service', path: '/support' })
-    items.push({ label: 'Tickets Queue', path: '/support' })
-  } else if (pathname.startsWith('/settings')) {
-    items.push({ label: 'Administration & Masters', path: '/settings' })
-    const tab = params.get('tab')
-    const sub = params.get('sub')
-    if (tab === 'staff') {
-      items.push({ label: 'Staff Verification', path: '/settings?tab=staff' })
-    } else if (sub === '3pl') {
-      items.push({ label: '3PL Partners', path: '/settings?tab=masters&sub=3pl' })
-    } else if (sub === 'routes') {
-      items.push({ label: 'Routes & Zones', path: '/settings?tab=masters&sub=routes' })
-    } else if (sub === 'branches' || tab === 'masters') {
-      items.push({ label: 'Hubs & Branches', path: '/settings?tab=masters&sub=branches' })
-    } else {
-      items.push({ label: 'User Management', path: '/settings?tab=users' })
-    }
+    items.push({ label: 'Network Analytics', path: '/network' })
+  } else if (pathname.startsWith('/ops/billing')) {
+    items.push({ label: 'Billing & Invoicing', path: '/ops/billing/invoices' })
+    const parts = pathname.split('/')
+    if (parts[3]) items.push({ label: parts[3].toUpperCase().replace(/-/g, ' '), path: `/ops/billing/${parts[3]}` })
+  } else if (pathname.startsWith('/ops/cod')) {
+    items.push({ label: 'COD Reconciliation', path: '/ops/cod' })
+  } else if (pathname.startsWith('/ops/partner-wallets')) {
+    items.push({ label: 'Commissions', path: '/ops/commissions' })
+    items.push({ label: 'Partner Wallets & Withdrawals', path: '/ops/partner-wallets' })
+  } else if (pathname.startsWith('/ops/commissions')) {
+    items.push({ label: 'Commissions', path: '/ops/commissions' })
+    if (pathname.includes('/config')) items.push({ label: 'Rate Rules Config', path: '/ops/commissions/config' })
+  } else if (pathname.startsWith('/ops/cs')) {
+    items.push({ label: 'Customer Service', path: '/ops/cs/tickets' })
+  } else if (pathname.startsWith('/ops/staff')) {
+    items.push({ label: 'Staff Verification', path: '/ops/staff' })
+  } else if (pathname.startsWith('/ops/admin')) {
+    items.push({ label: 'Master Data Admin', path: '/ops/admin/branches' })
+    const parts = pathname.split('/')
+    if (parts[3]) items.push({ label: parts[3].toUpperCase().replace(/-/g, ' '), path: `/ops/admin/${parts[3]}` })
   } else {
     const name = pathname.replace('/', '')
     items.push({ label: name.charAt(0).toUpperCase() + name.slice(1), path: pathname })
@@ -172,56 +154,35 @@ function getBreadcrumbs(pathname, search) {
   return items
 }
 
-function getSelectedKey(pathname, search) {
-  const params = new URLSearchParams(search || '')
-  if (pathname === '/' || pathname === '') return '/'
-
-  if (pathname.startsWith('/shipments')) {
-    if (params.get('action') === 'new') return '/shipments/new'
-    if (params.get('tab') === 'tracking') return '/shipments/tracking'
-    if (params.get('tab') === 'import') return '/shipments/import'
-    return '/shipments'
+function getSelectedKey(pathname) {
+  if (!pathname || pathname === '/' || pathname === '/ops/dashboard') return '/ops/dashboard'
+  if (pathname.startsWith('/ops/consignments/import')) return '/ops/consignments/import'
+  if (pathname.startsWith('/ops/consignments')) return '/ops/consignments'
+  if (pathname.startsWith('/ops/pickups')) return '/ops/pickups'
+  if (pathname.startsWith('/ops/manifests')) return '/ops/manifests'
+  if (pathname.startsWith('/ops/returns')) return '/ops/returns'
+  if (pathname.startsWith('/network')) return '/network'
+  if (pathname.startsWith('/ops/billing/')) {
+    const parts = pathname.split('/')
+    return `/ops/billing/${parts[3] || 'invoices'}`
   }
-  if (pathname.startsWith('/dispatch')) {
-    if (params.get('tab') === 'remote') return '/dispatch/remote'
-    if (params.get('tab') === 'drivers') return '/dispatch/drivers'
-    return '/dispatch/assign'
+  if (pathname.startsWith('/ops/billing')) return '/ops/billing/invoices'
+  if (pathname.startsWith('/ops/cod')) return '/ops/cod'
+  if (pathname.startsWith('/ops/partner-wallets')) return '/ops/partner-wallets'
+  if (pathname.startsWith('/ops/commissions/config')) return '/ops/commissions/config'
+  if (pathname.startsWith('/ops/commissions')) return '/ops/commissions'
+  if (pathname.startsWith('/ops/cs')) return '/ops/cs/tickets'
+  if (pathname.startsWith('/ops/staff')) return '/ops/staff'
+  if (pathname.startsWith('/ops/admin/')) {
+    const parts = pathname.split('/')
+    return `/ops/admin/${parts[3] || 'branches'}`
   }
-  if (pathname.startsWith('/network')) {
-    const group = params.get('group')
-    if (group) return `/network/${group}`
-    return '/network'
-  }
-  if (pathname.startsWith('/billing')) {
-    const doc = params.get('doc')
-    if (doc) return `/billing/${doc}`
-    return '/billing/invoices'
-  }
-  if (pathname.startsWith('/agents')) {
-    const tab = params.get('tab')
-    const type = params.get('type')
-    if (tab === 'ledger') {
-      if (type === 'agent-out') return '/agents/out'
-      if (type === 'agent-credit') return '/agents/credit'
-      return '/agents/in'
-    }
-    return '/agents/overview'
-  }
-  if (pathname.startsWith('/support')) return '/support'
-  if (pathname.startsWith('/settings')) {
-    const tab = params.get('tab')
-    const sub = params.get('sub')
-    if (tab === 'staff') return '/settings/staff'
-    if (sub === '3pl') return '/settings/3pl'
-    if (sub === 'routes') return '/settings/routes'
-    if (sub === 'branches' || tab === 'masters') return '/settings/branches'
-    return '/settings/users'
-  }
+  if (pathname.startsWith('/ops/admin')) return '/ops/admin/branches'
   return pathname
 }
 
 export default function AppLayout() {
-  const { user, logout, booting } = useAuth()
+  const { user, logout, booting, can, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -256,19 +217,16 @@ export default function AppLayout() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
 
     searchTimerRef.current = setTimeout(async () => {
-      // 1. Matched Pages
-      const matchedPages = APP_PAGES.filter((p) => {
-        const query = trimmed.toLowerCase()
-        return (
-          p.title.toLowerCase().includes(query) ||
-          p.keywords?.some((k) => k.toLowerCase().includes(query))
-        )
-      }).map((p) => ({
+      // 1. Match system pages
+      const matchedPages = APP_PAGES.filter(
+        (p) =>
+          p.title.toLowerCase().includes(trimmed.toLowerCase()) ||
+          p.keywords?.some((k) => k.toLowerCase().includes(trimmed.toLowerCase()))
+      ).map((p) => ({
         value: p.title,
-        key: p.path,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileTextOutlined style={{ color: '#1B8A5A' }} />
+            <span style={{ color: '#1B8A5A', fontSize: 13 }}>●</span>
             <span>{highlightMatch(p.title, trimmed)}</span>
           </div>
         ),
@@ -280,17 +238,17 @@ export default function AppLayout() {
       let matchedCns = []
       let matchedCusts = []
       try {
-        const res = await listConsignments({ q: trimmed, limit: 5 })
-        const rows = res?.rows || []
+        const res = await listConsignments({ search: trimmed, per_page: 5 })
+        const rows = res?.data || res?.rows || []
 
         matchedCns = rows.map((r) => ({
           value: r.cn_no,
           label: (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+              <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#1B8A5A' }}>
                 {highlightMatch(r.cn_no, trimmed)}
               </span>
-              <span style={{ fontSize: 11, color: '#64748B' }}>
+              <span style={{ fontSize: 11, color: '#6B7280' }}>
                 {r.cn_origin} → {r.cn_dstn}
               </span>
             </div>
@@ -299,60 +257,26 @@ export default function AppLayout() {
           cn: r.cn_no,
         }))
 
-        // Deduplicated customers
-        const custMap = new Map()
-        rows.forEach((r) => {
-          if (r.cust_name && !custMap.has(r.cust_name)) {
-            custMap.set(r.cust_name, r)
-          }
-        })
-        matchedCusts = Array.from(custMap.values()).map((r) => ({
-          value: r.cust_name,
+        const uniqueCusts = [...new Set(rows.map((r) => r.cust_name || r.consigner).filter(Boolean))]
+        matchedCusts = uniqueCusts.slice(0, 3).map((cust) => ({
+          value: cust,
           label: (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UserOutlined style={{ color: '#1668DC' }} />
-              <span>{highlightMatch(r.cust_name, trimmed)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#6B7280', fontSize: 12 }}>Customer:</span>
+              <span>{highlightMatch(cust, trimmed)}</span>
             </div>
           ),
           type: 'customer',
-          customer: r.cust_name,
+          customer: cust,
         }))
       } catch {
-        // API fallback
+        /* ignore */
       }
 
       const groups = []
-      if (matchedPages.length > 0) {
-        groups.push({
-          label: (
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-              <FileTextOutlined style={{ marginRight: 6 }} /> System Navigation
-            </span>
-          ),
-          options: matchedPages,
-        })
-      }
-      if (matchedCns.length > 0) {
-        groups.push({
-          label: (
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-              <InboxOutlined style={{ marginRight: 6 }} /> Consignments
-            </span>
-          ),
-          options: matchedCns,
-        })
-      }
-      if (matchedCusts.length > 0) {
-        groups.push({
-          label: (
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-              <UserOutlined style={{ marginRight: 6 }} /> Customers
-            </span>
-          ),
-          options: matchedCusts,
-        })
-      }
-
+      if (matchedPages.length > 0) groups.push({ label: 'Navigation', options: matchedPages })
+      if (matchedCns.length > 0) groups.push({ label: 'Consignments', options: matchedCns })
+      if (matchedCusts.length > 0) groups.push({ label: 'Customers', options: matchedCusts })
       setSearchOptions(groups)
     }, 280)
   }
@@ -383,7 +307,7 @@ export default function AppLayout() {
 
     // 2. Consignment match
     if (targetType === 'consignment' || targetCn) {
-      navigate(`/shipments?tab=tracking&cn=${encodeURIComponent(targetCn || value)}`)
+      navigate(`/ops/consignments/${encodeURIComponent(targetCn || value)}`)
       setSearchText('')
       setSearchOptions([])
       return
@@ -391,14 +315,14 @@ export default function AppLayout() {
 
     // 3. Customer match
     if (targetType === 'customer' || targetCustomer) {
-      navigate(`/shipments?tab=all&customer=${encodeURIComponent(targetCustomer || value)}`)
+      navigate(`/ops/consignments?search=${encodeURIComponent(targetCustomer || value)}`)
       setSearchText('')
       setSearchOptions([])
       return
     }
 
-    // 4. Fallback: navigate to tracking with query
-    navigate(`/shipments?tab=tracking&cn=${encodeURIComponent(value)}`)
+    // 4. Fallback
+    navigate(`/ops/consignments/${encodeURIComponent(value)}`)
     setSearchText('')
     setSearchOptions([])
   }
@@ -423,7 +347,7 @@ export default function AppLayout() {
       return
     }
 
-    navigate(`/shipments?tab=tracking&cn=${encodeURIComponent(trimmed)}`)
+    navigate(`/ops/consignments/${encodeURIComponent(trimmed)}`)
     setSearchText('')
     setSearchOptions([])
   }
@@ -451,88 +375,257 @@ export default function AppLayout() {
   }
 
   // Active menu root key calculation
-  const pathSegment = location.pathname.split('/')[1] || ''
-  const activeRoot = '/' + pathSegment
-  const selectedKey =
-    activeRoot === '/consignments'
-      ? '/shipments'
-      : activeRoot === '/admin'
-      ? '/settings'
-      : activeRoot === '/summaries'
-      ? '/network'
-      : activeRoot || '/'
+  const selectedKey = getSelectedKey(location.pathname)
 
-  // Clean Grouped Navigation: 8 Core Non-Repetitive Modules
-  const menuItems = [
+  // Full Production Navigation: Operations · Finance · Customer Service · Administration
+  const menuGroups = [
     {
       key: 'grp-operations',
       type: 'group',
       label: 'OPERATIONS',
       children: [
         {
-          key: '/',
+          key: '/ops/dashboard',
           icon: <DashboardOutlined />,
-          label: <Link to="/" style={{ display: 'block', width: '100%' }}>Dashboard</Link>,
+          label: <Link to="/ops/dashboard" style={{ display: 'block', width: '100%' }}>Dashboard</Link>,
+          visible: true,
         },
         {
-          key: '/shipments',
+          key: '/ops/consignments',
           icon: <InboxOutlined />,
-          label: <Link to="/shipments" style={{ display: 'block', width: '100%' }}>Shipments</Link>,
+          label: <Link to="/ops/consignments" style={{ display: 'block', width: '100%' }}>Consignments</Link>,
+          visible: can('consignments'),
         },
         {
-          key: '/dispatch',
+          key: '/ops/pickups',
           icon: <CarOutlined />,
-          label: <Link to="/dispatch" style={{ display: 'block', width: '100%' }}>Dispatch & Fleet</Link>,
+          label: <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>Pickups Queue</Link>,
+          visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/manifests',
+          icon: <FileTextOutlined />,
+          label: <Link to="/ops/manifests" style={{ display: 'block', width: '100%' }}>Manifests & Bags</Link>,
+          visible: can('manifests') || can('consignments') || isAdmin,
+        },
+        {
+          key: '/ops/returns',
+          icon: <RollbackOutlined />,
+          label: <Link to="/ops/returns" style={{ display: 'block', width: '100%' }}>RTS & Returns</Link>,
+          visible: can('returns') || can('consignments') || isAdmin,
         },
         {
           key: '/network',
           icon: <BarChartOutlined />,
-          label: <Link to="/network" style={{ display: 'block', width: '100%' }}>Analytics</Link>,
+          label: <Link to="/network" style={{ display: 'block', width: '100%' }}>Network Analytics</Link>,
+          visible: can('reports') || can('analytics') || isAdmin,
         },
       ],
     },
     {
       key: 'grp-finance',
       type: 'group',
-      label: 'FINANCE & PARTNERS',
+      label: 'FINANCE & BILLING',
       children: [
         {
-          key: '/billing',
+          key: 'sub-billing',
           icon: <DollarCircleOutlined />,
-          label: <Link to="/billing" style={{ display: 'block', width: '100%' }}>Billing</Link>,
+          label: 'Billing Documents',
+          visible: can('billing') || isAdmin,
+          children: [
+            {
+              key: '/ops/billing/invoices',
+              label: <Link to="/ops/billing/invoices" style={{ display: 'block', width: '100%' }}>Invoices</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/do',
+              label: <Link to="/ops/billing/do" style={{ display: 'block', width: '100%' }}>Delivery Orders (DO)</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/receipts',
+              label: <Link to="/ops/billing/receipts" style={{ display: 'block', width: '100%' }}>Official Receipts</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/credit-notes',
+              label: <Link to="/ops/billing/credit-notes" style={{ display: 'block', width: '100%' }}>Credit Notes</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/debit-notes',
+              label: <Link to="/ops/billing/debit-notes" style={{ display: 'block', width: '100%' }}>Debit Notes</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/agent-in',
+              label: <Link to="/ops/billing/agent-in" style={{ display: 'block', width: '100%' }}>Agent Money In</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/agent-out',
+              label: <Link to="/ops/billing/agent-out" style={{ display: 'block', width: '100%' }}>Agent Money Out</Link>,
+              visible: can('billing') || isAdmin,
+            },
+          ],
         },
         {
-          key: '/agents',
+          key: '/ops/cod',
+          icon: <WalletOutlined />,
+          label: <Link to="/ops/cod" style={{ display: 'block', width: '100%' }}>COD Reconciliation</Link>,
+          visible: can('cod') || can('billing') || isAdmin,
+        },
+        {
+          key: 'sub-commissions',
           icon: <TeamOutlined />,
-          label: <Link to="/agents" style={{ display: 'block', width: '100%' }}>Agents</Link>,
+          label: 'Commissions & Wallets',
+          visible: can('commissions') || can('agent') || isAdmin,
+          children: [
+            {
+              key: '/ops/commissions',
+              label: <Link to="/ops/commissions" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
+              visible: can('commissions') || can('agent') || isAdmin,
+            },
+            {
+              key: '/ops/partner-wallets',
+              label: <Link to="/ops/partner-wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
+              visible: can('commissions') || can('agent') || isAdmin,
+            },
+            {
+              key: '/ops/commissions/config',
+              label: <Link to="/ops/commissions/config" style={{ display: 'block', width: '100%' }}>Rate Rules Config</Link>,
+              visible: isAdmin,
+            },
+          ],
         },
       ],
     },
     {
       key: 'grp-support',
       type: 'group',
-      label: 'SUPPORT',
+      label: 'CUSTOMER SERVICE',
       children: [
         {
-          key: '/support',
+          key: '/ops/cs/tickets',
           icon: <CustomerServiceOutlined />,
-          label: <Link to="/support" style={{ display: 'block', width: '100%' }}>Customer Service</Link>,
+          label: <Link to="/ops/cs/tickets" style={{ display: 'block', width: '100%' }}>CS Support Tickets</Link>,
+          visible: can('customerService') || isAdmin,
         },
       ],
     },
     {
       key: 'grp-system',
       type: 'group',
-      label: 'SYSTEM',
+      label: 'ADMINISTRATION',
       children: [
         {
-          key: '/settings',
+          key: '/ops/staff',
+          icon: <SafetyCertificateOutlined />,
+          label: <Link to="/ops/staff" style={{ display: 'block', width: '100%' }}>Staff Verification</Link>,
+          visible: can('staff') || isAdmin,
+        },
+        {
+          key: 'sub-master-data',
           icon: <SettingOutlined />,
-          label: <Link to="/settings" style={{ display: 'block', width: '100%' }}>Settings</Link>,
+          label: 'Master Data',
+          visible: can('admin') || can('branches') || isAdmin,
+          children: [
+            {
+              key: '/ops/admin/branches',
+              label: <Link to="/ops/admin/branches" style={{ display: 'block', width: '100%' }}>Branches</Link>,
+              visible: can('admin') || can('branches') || isAdmin,
+            },
+            {
+              key: '/ops/admin/hubs',
+              label: <Link to="/ops/admin/hubs" style={{ display: 'block', width: '100%' }}>Hubs & Transit</Link>,
+              visible: can('admin') || can('branches') || isAdmin,
+            },
+            {
+              key: '/ops/admin/drop-points',
+              label: <Link to="/ops/admin/drop-points" style={{ display: 'block', width: '100%' }}>Drop Points & Counters</Link>,
+              visible: can('admin') || can('branches') || isAdmin,
+            },
+            {
+              key: '/ops/admin/drivers',
+              label: <Link to="/ops/admin/drivers" style={{ display: 'block', width: '100%' }}>Drivers & Couriers</Link>,
+              visible: can('admin') || can('drivers') || isAdmin,
+            },
+            {
+              key: '/ops/admin/dispatchers',
+              label: <Link to="/ops/admin/dispatchers" style={{ display: 'block', width: '100%' }}>Dispatchers</Link>,
+              visible: can('admin') || can('dispatch') || isAdmin,
+            },
+            {
+              key: '/ops/admin/3pl',
+              label: <Link to="/ops/admin/3pl" style={{ display: 'block', width: '100%' }}>3PL Partners</Link>,
+              visible: can('admin') || isAdmin,
+            },
+            {
+              key: '/ops/admin/coverage',
+              label: <Link to="/ops/admin/coverage" style={{ display: 'block', width: '100%' }}>Coverage Areas</Link>,
+              visible: can('admin') || isAdmin,
+            },
+            {
+              key: '/ops/admin/routes',
+              label: <Link to="/ops/admin/routes" style={{ display: 'block', width: '100%' }}>Routing Rules</Link>,
+              visible: can('admin') || isAdmin,
+            },
+            {
+              key: '/ops/admin/zones',
+              label: <Link to="/ops/admin/zones" style={{ display: 'block', width: '100%' }}>Delivery Zones</Link>,
+              visible: can('admin') || isAdmin,
+            },
+            {
+              key: '/ops/admin/route-codes',
+              label: <Link to="/ops/admin/route-codes" style={{ display: 'block', width: '100%' }}>Route Codes</Link>,
+              visible: can('admin') || isAdmin,
+            },
+            {
+              key: '/ops/admin/customers',
+              label: <Link to="/ops/admin/customers" style={{ display: 'block', width: '100%' }}>Corporate Customers</Link>,
+              visible: can('admin') || can('customers') || isAdmin,
+            },
+            {
+              key: '/ops/admin/agents',
+              label: <Link to="/ops/admin/agents" style={{ display: 'block', width: '100%' }}>Operating Agents</Link>,
+              visible: can('admin') || can('agent') || isAdmin,
+            },
+            {
+              key: '/ops/admin/users',
+              label: <Link to="/ops/admin/users" style={{ display: 'block', width: '100%' }}>Staff Users</Link>,
+              visible: isAdmin,
+            },
+          ],
+        },
+        {
+          key: '/ops/logs',
+          icon: <HistoryOutlined />,
+          label: <Link to="/ops/logs" style={{ display: 'block', width: '100%' }}>Activity & System Logs</Link>,
+          visible: true,
         },
       ],
     },
   ]
+
+  function filterMenu(items) {
+    if (!items) return []
+    return items
+      .filter((item) => item.visible !== false)
+      .map((item) => {
+        if (item.children) {
+          const filteredChildren = filterMenu(item.children)
+          return {
+            ...item,
+            children: filteredChildren,
+          }
+        }
+        return item
+      })
+      .filter((item) => !item.children || item.children.length > 0)
+  }
+
+  const menuItems = filterMenu(menuGroups)
 
   const userMenuItems = {
     items: [
@@ -625,8 +718,9 @@ export default function AppLayout() {
             theme="light"
             mode="inline"
             selectedKeys={[selectedKey]}
+            defaultOpenKeys={['sub-billing', 'sub-commissions', 'sub-master-data']}
             onClick={({ key }) => {
-              if (key && !key.startsWith('grp-')) {
+              if (key && !key.startsWith('grp-') && !key.startsWith('sub-')) {
                 navigate(key)
               }
             }}

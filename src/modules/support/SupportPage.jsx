@@ -25,16 +25,19 @@ import {
   SearchOutlined,
   SendOutlined,
 } from '@ant-design/icons'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiError, closeCsTicket, getCsTicket, listCsTickets, replyCsTicket } from '../../api/client'
 
 const { Title, Text } = Typography
 
 export default function SupportPage() {
+  const navigate = useNavigate()
+  const { id: routeId } = useParams()
   const [params, setParams] = useSearchParams()
-  const selectedId = Number(params.get('id') || 0)
+  const selectedId = Number(routeId || params.get('id') || 0)
 
   const [queue, setQueue] = useState(params.get('queue') || 'waiting')
+  const [category, setCategory] = useState(params.get('category') || undefined)
   const [search, setSearch] = useState(params.get('q') || '')
   const [inbox, setInbox] = useState({ tickets: [], summary: {}, categories: {} })
   const [loading, setLoading] = useState(false)
@@ -50,6 +53,7 @@ export default function SupportPage() {
     try {
       const q = { queue }
       if (search) q.q = search
+      if (category) q.category = category
       const res = await listCsTickets(q)
       setInbox(res || { tickets: [], summary: {} })
     } catch (err) {
@@ -72,7 +76,7 @@ export default function SupportPage() {
 
   useEffect(() => {
     fetchTickets()
-  }, [queue])
+  }, [queue, category])
 
   useEffect(() => {
     if (selectedId) openTicket(selectedId)
@@ -135,16 +139,25 @@ export default function SupportPage() {
       title: 'Subject / Issue',
       dataIndex: 'subject',
       key: 'subject',
-      render: (v, r) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{v || r.category || 'Support Inquiry'}</div>
-          {r.awb && (
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#1B8A5A' }}>
-              AWB: {r.awb}
-            </span>
-          )}
-        </div>
-      ),
+      render: (v, r) => {
+        const cn = r.awb || r.cn_no || r.cn
+        return (
+          <div>
+            <div style={{ fontWeight: 500 }}>{v || r.category || 'Support Inquiry'}</div>
+            {cn && (
+              <span
+                style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#1B8A5A', cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate(`/ops/consignments/${encodeURIComponent(cn)}`)
+                }}
+              >
+                CN: {cn} ↗
+              </span>
+            )}
+          </div>
+        )
+      },
     },
     {
       title: 'Queue Status',
@@ -235,16 +248,38 @@ export default function SupportPage() {
             <Radio.Button value="all">All Inquiries</Radio.Button>
           </Radio.Group>
 
-          <Input
-            placeholder="Search by ticket #, customer, AWB…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onPressEnter={fetchTickets}
-            prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
-            style={{ width: 280 }}
-            size="small"
-            allowClear
-          />
+          <Space wrap>
+            <Select
+              placeholder="All Problem Categories"
+              allowClear
+              value={category}
+              onChange={(val) => {
+                setCategory(val)
+                setParams({ queue, category: val || undefined })
+              }}
+              style={{ width: 170 }}
+              size="small"
+              options={[
+                { label: 'All Categories', value: '' },
+                { label: 'Damaged Parcel', value: 'Damaged' },
+                { label: 'Delivery Delay', value: 'Delay' },
+                { label: 'Billing / COD Query', value: 'Billing' },
+                { label: 'Address Correction', value: 'Address' },
+                { label: 'Pickup Request', value: 'Pickup' },
+              ]}
+            />
+
+            <Input
+              placeholder="Search by ticket #, customer, AWB…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onPressEnter={fetchTickets}
+              prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
+              style={{ width: 240 }}
+              size="small"
+              allowClear
+            />
+          </Space>
         </div>
       </Card>
 
@@ -296,8 +331,17 @@ export default function SupportPage() {
               {detail.awb && (
                 <div style={{ fontSize: 12, marginTop: 4 }}>
                   Related Consignment:{' '}
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A' }}>
-                    {detail.awb}
+                  <span
+                    style={{
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontWeight: 600,
+                      color: '#1B8A5A',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                    onClick={() => navigate(`/ops/consignments/${encodeURIComponent(detail.awb)}`)}
+                  >
+                    {detail.awb} ↗
                   </span>
                 </div>
               )}

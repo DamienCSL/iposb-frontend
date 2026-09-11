@@ -170,7 +170,7 @@ export default function SettingsPage() {
             style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
             onClick={() => openEditDrawer()}
           >
-            + New Record
+            New Record
           </Button>
         )}
       </div>

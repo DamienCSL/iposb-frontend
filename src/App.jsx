@@ -5,14 +5,21 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import AppLayout from './layouts/AppLayout'
 import LoginPage from './pages/LoginPage'
+import SetupHubPage from './modules/onboarding/SetupHubPage'
 import DashboardPage from './modules/dashboard/DashboardPage'
-import ShipmentsPage from './modules/shipments/ShipmentsPage'
-import DispatchPage from './modules/dispatch/DispatchPage'
-import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
+import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
+import ConsignmentDetailPage from './modules/consignments/ConsignmentDetailPage'
+import PickupsPage from './modules/pickups/PickupsPage'
+import ManifestsPage from './modules/manifests/ManifestsPage'
+import ReturnsPage from './modules/returns/ReturnsPage'
 import FinanceBillingPage from './modules/billing/FinanceBillingPage'
-import AgentsPage from './modules/agents/AgentsPage'
+import CodPage from './modules/cod/CodPage'
+import CommissionsPage from './modules/commissions/CommissionsPage'
 import SupportPage from './modules/support/SupportPage'
-import SettingsPage from './modules/settings/SettingsPage'
+import StaffPage from './modules/staff/StaffPage'
+import MasterAdminPage from './modules/admin/MasterAdminPage'
+import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
+import SystemLogsPage from './modules/logs/SystemLogsPage'
 import { iposbTheme } from './theme'
 
 const queryClient = new QueryClient({
@@ -29,69 +36,107 @@ export default function App() {
               {/* Public Authentication */}
               <Route path="/login" element={<LoginPage />} />
 
+              {/* First-Run Onboarding Flow (Super Admin) */}
+              <Route path="/onboarding/setup-hub" element={<SetupHubPage />} />
+
               {/* Authenticated Control Tower Shell */}
               <Route element={<AppLayout />}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/shipments" element={<ShipmentsPage />} />
-                <Route path="/dispatch" element={<DispatchPage />} />
+                {/* Default Home / Dashboard */}
+                <Route path="/" element={<Navigate to="/ops/dashboard" replace />} />
+                <Route path="/ops/dashboard" element={<DashboardPage />} />
+
+                {/* Consignments */}
+                <Route path="/ops/consignments" element={<ConsignmentsListPage />} />
+                <Route path="/ops/consignments/import" element={<ConsignmentsListPage />} />
+                <Route path="/ops/consignments/:cn" element={<ConsignmentDetailPage />} />
+                <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDetailPage />} />
+
+                {/* Pickups Assignment Queue */}
+                <Route path="/ops/pickups" element={<PickupsPage />} />
+
+                {/* Manifests */}
+                <Route path="/ops/manifests" element={<ManifestsPage />} />
+                <Route path="/ops/manifests/:mfg" element={<ManifestsPage />} />
+
+                {/* Returns & RTS Management */}
+                <Route path="/ops/returns" element={<ReturnsPage />} />
+
+                {/* Billing */}
+                <Route path="/ops/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/ops/billing/:doc" element={<FinanceBillingPage />} />
+                <Route path="/ops/billing/:doc/:id" element={<FinanceBillingPage />} />
+
+                {/* COD Reconciliation */}
+                <Route path="/ops/cod" element={<CodPage />} />
+
+                {/* Commissions & Partner Wallets */}
+                <Route path="/ops/commissions" element={<CommissionsPage />} />
+                <Route path="/ops/commissions/config" element={<CommissionsPage />} />
+                <Route path="/ops/partner-wallets" element={<CommissionsPage />} />
+
+                {/* Customer Service Tickets */}
+                <Route path="/ops/cs/tickets" element={<SupportPage />} />
+                <Route path="/ops/cs/tickets/:id" element={<SupportPage />} />
+
+                {/* Staff Verification Queue */}
+                <Route path="/ops/staff" element={<StaffPage />} />
+
+                {/* Master Data Admin */}
+                <Route path="/ops/admin" element={<Navigate to="/ops/admin/branches" replace />} />
+                <Route path="/ops/admin/:resource" element={<MasterAdminPage />} />
+
+                {/* System Activity & Audit Logs */}
+                <Route path="/ops/logs" element={<SystemLogsPage />} />
+
+                {/* Network Analytics */}
                 <Route path="/network" element={<NetworkAnalyticsPage />} />
-                <Route path="/billing" element={<FinanceBillingPage />} />
-                <Route path="/agents" element={<AgentsPage />} />
-                <Route path="/support" element={<SupportPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
 
-                {/* Backward-Compatible Redirects for Legacy Submenus */}
-                <Route path="/consignments/new" element={<Navigate to="/shipments?action=new" replace />} />
-                <Route path="/consignments/tracking" element={<Navigate to="/shipments?tab=tracking" replace />} />
-                <Route path="/consignments/import-log" element={<Navigate to="/shipments?tab=import" replace />} />
-                <Route path="/consignments" element={<Navigate to="/shipments" replace />} />
+                {/* Backward-Compatible Redirects for Legacy URLs */}
+                <Route path="/logs" element={<Navigate to="/ops/logs" replace />} />
+                <Route path="/audit-logs" element={<Navigate to="/ops/logs" replace />} />
+                <Route path="/shipments" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/dispatch" element={<Navigate to="/ops/pickups" replace />} />
+                <Route path="/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/agents" element={<Navigate to="/ops/commissions" replace />} />
+                <Route path="/support" element={<Navigate to="/ops/cs/tickets" replace />} />
+                <Route path="/settings" element={<Navigate to="/ops/admin/branches" replace />} />
 
-                <Route path="/dispatch/assign" element={<Navigate to="/dispatch?tab=assign" replace />} />
-                <Route path="/dispatch/remote" element={<Navigate to="/dispatch?tab=remote" replace />} />
-                <Route path="/dispatch/drivers" element={<Navigate to="/dispatch?tab=drivers" replace />} />
+                <Route path="/consignments/new" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/tracking" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/import-log" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/:cn" element={<Navigate to="/ops/consignments/:cn" replace />} />
+                <Route path="/consignments" element={<Navigate to="/ops/consignments" replace />} />
 
-                <Route path="/summaries/status" element={<Navigate to="/network?group=status" replace />} />
-                <Route path="/summaries/agent" element={<Navigate to="/network?group=agent" replace />} />
-                <Route path="/summaries/consignee" element={<Navigate to="/network?group=consignee" replace />} />
-                <Route path="/summaries/consigner" element={<Navigate to="/network?group=consigner" replace />} />
-                <Route path="/summaries/shipper" element={<Navigate to="/network?group=shipper" replace />} />
-                <Route path="/summaries/manifest" element={<Navigate to="/network?group=manifest" replace />} />
-                <Route path="/summaries/date" element={<Navigate to="/network?group=date" replace />} />
-                <Route path="/summaries/branch" element={<Navigate to="/network?group=branch" replace />} />
-                <Route path="/summaries" element={<Navigate to="/network" replace />} />
-                <Route path="/summaries/*" element={<Navigate to="/network" replace />} />
+                <Route path="/dispatch/assign" element={<Navigate to="/ops/pickups?tab=waiting" replace />} />
+                <Route path="/dispatch/remote" element={<Navigate to="/ops/pickups" replace />} />
+                <Route path="/dispatch/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
 
-                <Route path="/billing/invoices" element={<Navigate to="/billing?doc=invoices" replace />} />
-                <Route path="/billing/do" element={<Navigate to="/billing?doc=do" replace />} />
-                <Route path="/billing/receipts" element={<Navigate to="/billing?doc=receipts" replace />} />
-                <Route path="/billing/credit-notes" element={<Navigate to="/billing?doc=credit-notes" replace />} />
-                <Route path="/billing/*" element={<Navigate to="/billing" replace />} />
+                <Route path="/billing/invoices" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/billing/do" element={<Navigate to="/ops/billing/do" replace />} />
+                <Route path="/billing/receipts" element={<Navigate to="/ops/billing/receipts" replace />} />
+                <Route path="/billing/credit-notes" element={<Navigate to="/ops/billing/credit-notes" replace />} />
+                <Route path="/billing/*" element={<Navigate to="/ops/billing/invoices" replace />} />
 
-                <Route path="/agent/bilyet-in" element={<Navigate to="/agents?tab=ledger&type=agent-in" replace />} />
-                <Route path="/agent/bilyet-out" element={<Navigate to="/agents?tab=ledger&type=agent-out" replace />} />
-                <Route path="/agent/credit-notes" element={<Navigate to="/agents?tab=ledger&type=agent-credit" replace />} />
-                <Route path="/agent/debit-notes" element={<Navigate to="/agents?tab=ledger&type=agent-debit" replace />} />
-                <Route path="/agent/stock" element={<Navigate to="/agents?tab=overview" replace />} />
-                <Route path="/agent/*" element={<Navigate to="/agents" replace />} />
-                <Route path="/customer/*" element={<Navigate to="/network" replace />} />
-                <Route path="/reports/*" element={<Navigate to="/network" replace />} />
+                <Route path="/agent/bilyet-in" element={<Navigate to="/ops/billing/agent-in" replace />} />
+                <Route path="/agent/bilyet-out" element={<Navigate to="/ops/billing/agent-out" replace />} />
+                <Route path="/agent/*" element={<Navigate to="/ops/commissions" replace />} />
 
-                <Route path="/cs/tickets" element={<Navigate to="/support" replace />} />
-                <Route path="/cs/*" element={<Navigate to="/support" replace />} />
+                <Route path="/cs/tickets" element={<Navigate to="/ops/cs/tickets" replace />} />
+                <Route path="/cs/*" element={<Navigate to="/ops/cs/tickets" replace />} />
 
-                <Route path="/admin/staff" element={<Navigate to="/settings?tab=staff" replace />} />
-                <Route path="/admin/users" element={<Navigate to="/settings?tab=users" replace />} />
-                <Route path="/admin/branches" element={<Navigate to="/settings?tab=masters&sub=branches" replace />} />
-                <Route path="/admin/hubs" element={<Navigate to="/settings?tab=masters&sub=hubs" replace />} />
-                <Route path="/admin/3pl" element={<Navigate to="/settings?tab=masters&sub=3pl" replace />} />
-                <Route path="/admin/routes" element={<Navigate to="/settings?tab=masters&sub=routes" replace />} />
-                <Route path="/admin/zones" element={<Navigate to="/settings?tab=masters&sub=zones" replace />} />
-                <Route path="/admin/drivers" element={<Navigate to="/dispatch?tab=drivers" replace />} />
-                <Route path="/admin/*" element={<Navigate to="/settings?tab=masters" replace />} />
+                <Route path="/admin/staff" element={<Navigate to="/ops/staff" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/ops/admin/users" replace />} />
+                <Route path="/admin/branches" element={<Navigate to="/ops/admin/branches" replace />} />
+                <Route path="/admin/hubs" element={<Navigate to="/ops/admin/hubs" replace />} />
+                <Route path="/admin/3pl" element={<Navigate to="/ops/admin/3pl" replace />} />
+                <Route path="/admin/routes" element={<Navigate to="/ops/admin/routes" replace />} />
+                <Route path="/admin/zones" element={<Navigate to="/ops/admin/zones" replace />} />
+                <Route path="/admin/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
+                <Route path="/admin/*" element={<Navigate to="/ops/admin/branches" replace />} />
               </Route>
 
               {/* Catch-all */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/ops/dashboard" replace />} />
             </Routes>
           </BrowserRouter>
         </AuthProvider>

@@ -22,14 +22,22 @@ const STATUS_MAP = {
   UND: { label: 'Undelivered', color: '#D4380D' },
   UTL: { label: 'Untraced / Lost', color: '#D4380D' },
   HLD: { label: 'On Hold', color: '#D97706' },
+  DMG: { label: 'Damaged', color: '#D4380D' },
   SHL: { label: 'Short Landing', color: '#D97706' },
   CAN: { label: 'Cancelled', color: '#64748B' },
   RTN: { label: 'Returned', color: '#7C3AED' },
   RTS: { label: 'Return to Shipper', color: '#7C3AED' },
+  PFP: { label: 'Pending Payment / Failed Pickup', color: '#D97706' },
 
-  // General & Billing
+  // General & Billing & COD
   PAID: { label: 'Paid', color: '#1B8A5A' },
   UNPAID: { label: 'Unpaid', color: '#D97706' },
+  PENDING: { label: 'Pending', color: '#D97706' },
+  COLLECTED: { label: 'Collected', color: '#1668DC' },
+  REMITTED: { label: 'Remitted', color: '#0891B2' },
+  SETTLED: { label: 'Settled', color: '#1B8A5A' },
+  VERIFIED: { label: 'Verified', color: '#1B8A5A' },
+  UNVERIFIED: { label: 'Unverified', color: '#D97706' },
   ACTIVE: { label: 'Active', color: '#1B8A5A' },
   INACTIVE: { label: 'Inactive', color: '#64748B' },
   ASSIGNED: { label: 'Assigned', color: '#1668DC' },

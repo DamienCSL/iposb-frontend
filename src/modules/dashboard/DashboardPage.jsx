@@ -100,6 +100,7 @@ export default function DashboardPage() {
     unpaid_invoices: 0,
     total_revenue: 0,
     pending_staff: 0,
+    pending_cod: 0,
   })
   const [recentCns, setRecentCns] = useState([])
   const [loading, setLoading] = useState(true)
@@ -111,10 +112,12 @@ export default function DashboardPage() {
     try {
       const [dashRes, cnRes] = await Promise.all([
         getOpsDashboard().catch(() => ({ stats: {} })),
-        listConsignments({ page: 1 }).catch(() => ({ rows: [] })),
+        listConsignments({ page: 1, per_page: 8 }).catch(() => ({ data: [] })),
       ])
-      if (dashRes.stats) setStats(dashRes.stats)
-      if (cnRes.rows) setRecentCns(cnRes.rows.slice(0, 8))
+      if (dashRes?.stats) setStats(dashRes.stats)
+      else if (dashRes?.data) setStats(dashRes.data)
+      const records = cnRes?.data || cnRes?.rows || []
+      setRecentCns(records.slice(0, 8))
     } finally {
       setLoading(false)
     }
@@ -137,7 +140,7 @@ export default function DashboardPage() {
             color: '#1B8A5A',
             cursor: 'pointer',
           }}
-          onClick={() => navigate(`/shipments?tab=tracking&cn=${encodeURIComponent(val)}`)}
+          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val)}`)}
         >
           {val}
         </span>
@@ -210,108 +213,114 @@ export default function DashboardPage() {
             type="primary"
             icon={<PlusOutlined />}
             style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
-            onClick={() => navigate('/shipments?action=new')}
+            onClick={() => navigate('/ops/consignments')}
           >
-            + New Shipment
+            Consignments
           </Button>
         </Space>
       </div>
 
-      {/* Metric Cards Grid: Coherent Top-to-Bottom Stack with Full-Width Bottom Sparkline */}
+      {/* Metric Cards Grid: All 8 KPIs per PRD 6.3 */}
       <Row gutter={[12, 12]}>
+        {/* 1. Total Consignments */}
         <Col xs={24} sm={12} lg={6}>
           <Card
             size="small"
             className="kpi-card kpi-card-total"
             hoverable
-            onClick={() => navigate('/shipments')}
+            onClick={() => navigate('/ops/consignments')}
             styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <InboxOutlined style={{ color: '#0F1B2D', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Today's Shipments</span>
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Total Consignments</span>
             </div>
             <div style={{ fontSize: 26, fontWeight: 700, color: '#0F1B2D', lineHeight: 1.1 }}>
               {stats.total_cn || 0}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              <ArrowUpOutlined style={{ color: '#1B8A5A', fontSize: 11 }} />
-              <span style={{ color: '#1B8A5A', fontWeight: 600 }}>+8.4%</span>
-              <span>vs yesterday</span>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              Active in system
             </div>
-            <BottomSparkline
-              data={[14, 22, 19, 28, 24, 31, stats.total_cn || 35]}
-              color="#0F1B2D"
-              animKey={animKey}
-              delay={0}
-            />
+            <BottomSparkline data={[14, 22, 19, 28, 24, 31, stats.total_cn || 35]} color="#0F1B2D" animKey={animKey} delay={0} />
           </Card>
         </Col>
 
+        {/* 2. Pending Pickups */}
         <Col xs={24} sm={12} lg={6}>
           <Card
             size="small"
             className="kpi-card kpi-card-pending"
             hoverable
-            onClick={() => navigate('/shipments?tab=all&status=ACC')}
+            onClick={() => navigate('/ops/pickups')}
             styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <ClockCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Pending Pickup</span>
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Pending Pickup (CN)</span>
             </div>
             <div style={{ fontSize: 26, fontWeight: 700, color: '#D97706', lineHeight: 1.1 }}>
               {stats.pending_cn || 0}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              <ArrowDownOutlined style={{ color: '#1B8A5A', fontSize: 11 }} />
-              <span style={{ color: '#1B8A5A', fontWeight: 600 }}>-3</span>
-              <span>vs last hour</span>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              Awaiting courier pickup
             </div>
-            <BottomSparkline
-              data={[8, 12, 10, 15, 11, 9, stats.pending_cn || 6]}
-              color="#D97706"
-              animKey={animKey}
-              delay={80}
-            />
+            <BottomSparkline data={[8, 12, 10, 15, 11, 9, stats.pending_cn || 6]} color="#D97706" animKey={animKey} delay={60} />
           </Card>
         </Col>
 
+        {/* 3. Delivered Today */}
         <Col xs={24} sm={12} lg={6}>
           <Card
             size="small"
             className="kpi-card kpi-card-delivered"
             hoverable
-            onClick={() => navigate('/shipments?tab=all&status=POD')}
+            onClick={() => navigate('/ops/consignments')}
             styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <CheckCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Delivered Today</span>
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Delivered Today (POD)</span>
             </div>
             <div style={{ fontSize: 26, fontWeight: 700, color: '#1B8A5A', lineHeight: 1.1 }}>
               {stats.delivered_today || 0}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              <ArrowUpOutlined style={{ color: '#1B8A5A', fontSize: 11 }} />
-              <span style={{ color: '#1B8A5A', fontWeight: 600 }}>+14.2%</span>
-              <span>vs last week</span>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              Confirmed deliveries
             </div>
-            <BottomSparkline
-              data={[18, 25, 22, 30, 27, 34, stats.delivered_today || 29]}
-              color="#1B8A5A"
-              animKey={animKey}
-              delay={160}
-            />
+            <BottomSparkline data={[18, 25, 22, 30, 27, 34, stats.delivered_today || 29]} color="#1B8A5A" animKey={animKey} delay={120} />
           </Card>
         </Col>
 
+        {/* 4. Manifested Today */}
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            size="small"
+            className="kpi-card"
+            hoverable
+            onClick={() => navigate('/ops/manifests')}
+            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <CarOutlined style={{ color: '#0891B2', fontSize: 15 }} />
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Manifested Today</span>
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#0891B2', lineHeight: 1.1 }}>
+              {stats.manifested_today || 0}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              En route via linehaul
+            </div>
+            <BottomSparkline data={[10, 14, 12, 19, 16, 22, stats.manifested_today || 18]} color="#0891B2" animKey={animKey} delay={180} />
+          </Card>
+        </Col>
+
+        {/* 5. Unpaid Invoices */}
         <Col xs={24} sm={12} lg={6}>
           <Card
             size="small"
             className="kpi-card kpi-card-invoices"
             hoverable
-            onClick={() => navigate('/billing')}
+            onClick={() => navigate('/ops/billing/invoices')}
             styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -321,17 +330,79 @@ export default function DashboardPage() {
             <div style={{ fontSize: 26, fontWeight: 700, color: '#1668DC', lineHeight: 1.1 }}>
               {stats.unpaid_invoices || 0}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              <ArrowDownOutlined style={{ color: '#1B8A5A', fontSize: 11 }} />
-              <span style={{ color: '#1B8A5A', fontWeight: 600 }}>-2</span>
-              <span>cleared today</span>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              Pending billing settlement
             </div>
-            <BottomSparkline
-              data={[15, 13, 14, 11, 10, 8, stats.unpaid_invoices || 7]}
-              color="#1668DC"
-              animKey={animKey}
-              delay={240}
-            />
+            <BottomSparkline data={[15, 13, 14, 11, 10, 8, stats.unpaid_invoices || 7]} color="#1668DC" animKey={animKey} delay={240} />
+          </Card>
+        </Col>
+
+        {/* 6. Total Revenue */}
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            size="small"
+            className="kpi-card"
+            hoverable
+            onClick={() => navigate('/ops/billing/invoices')}
+            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <DollarCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Total Revenue (RM)</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#1B8A5A', lineHeight: 1.1 }}>
+              RM {Number(stats.total_revenue || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
+              Gross operations revenue
+            </div>
+            <BottomSparkline data={[120, 180, 150, 220, 260, stats.total_revenue ? 240 : 100]} color="#1B8A5A" animKey={animKey} delay={300} />
+          </Card>
+        </Col>
+
+        {/* 7. Pending Staff Verifications (Strictly required by PRD 6.3) */}
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            size="small"
+            className="kpi-card"
+            hoverable
+            onClick={() => navigate('/ops/staff')}
+            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <SafetyCertificateOutlined style={{ color: '#7C3AED', fontSize: 15 }} />
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Staff Verifications</span>
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#7C3AED', lineHeight: 1.1 }}>
+              {stats.pending_staff || stats.pending_staff_verifications || 0}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#7C3AED', fontWeight: 500 }}>
+              Review pending drivers →
+            </div>
+            <BottomSparkline data={[3, 5, 2, 6, 4, 3, stats.pending_staff || 2]} color="#7C3AED" animKey={animKey} delay={360} />
+          </Card>
+        </Col>
+
+        {/* 8. Pending COD (Strictly required by PRD 6.3) */}
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            size="small"
+            className="kpi-card"
+            hoverable
+            onClick={() => navigate('/ops/cod')}
+            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <DollarCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />
+              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Pending COD (RM)</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#D97706', lineHeight: 1.1 }}>
+              RM {Number(stats.pending_cod || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#D97706', fontWeight: 500 }}>
+              Reconcile collections →
+            </div>
+            <BottomSparkline data={[50, 80, 60, 95, 75, stats.pending_cod ? 110 : 40]} color="#D97706" animKey={animKey} delay={420} />
           </Card>
         </Col>
       </Row>
@@ -362,7 +433,7 @@ export default function DashboardPage() {
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#0F1B2D' }}>Recent Shipments</div>
                 <div style={{ fontSize: 11, color: '#6B7280' }}>Real-time consignment dispatch & delivery log</div>
               </div>
-              <Link to="/shipments" style={{ color: '#1B8A5A', fontSize: 12, fontWeight: 600 }}>
+              <Link to="/ops/consignments" style={{ color: '#1B8A5A', fontSize: 12, fontWeight: 600 }}>
                 View All Shipments →
               </Link>
             </div>
@@ -387,10 +458,10 @@ export default function DashboardPage() {
               style={{ borderRadius: 8, borderColor: '#E5E7EB' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Dispatch */}
+                {/* Pickups */}
                 <div
                   className="quick-action-row"
-                  onClick={() => navigate('/dispatch')}
+                  onClick={() => navigate('/ops/pickups')}
                   role="button"
                   tabIndex={0}
                 >
@@ -400,20 +471,20 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Dispatch & Driver Assignment
+                        Pickup Queue & Auto-Assign
                       </div>
                       <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        Manage runs, manifests & 3PL handoffs
+                        Dispatch fleet couriers and load balance
                       </div>
                     </div>
                   </div>
                   <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
                 </div>
 
-                {/* Finance */}
+                {/* Billing */}
                 <div
                   className="quick-action-row"
-                  onClick={() => navigate('/billing')}
+                  onClick={() => navigate('/ops/billing/invoices')}
                   role="button"
                   tabIndex={0}
                 >
@@ -433,10 +504,10 @@ export default function DashboardPage() {
                   <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
                 </div>
 
-                {/* Agents */}
+                {/* Commissions */}
                 <div
                   className="quick-action-row"
-                  onClick={() => navigate('/agents')}
+                  onClick={() => navigate('/ops/commissions')}
                   role="button"
                   tabIndex={0}
                 >
@@ -446,10 +517,10 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Agent Settlements & Stock
+                        Commissions & Wallets
                       </div>
                       <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        Deposit top-ups & commission ledger
+                        Partner withdrawal review & ledgers
                       </div>
                     </div>
                   </div>
@@ -459,7 +530,7 @@ export default function DashboardPage() {
                 {/* Staff Verification */}
                 <div
                   className="quick-action-row"
-                  onClick={() => navigate('/settings?tab=staff')}
+                  onClick={() => navigate('/ops/staff')}
                   role="button"
                   tabIndex={0}
                 >
@@ -469,7 +540,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Staff Verification
+                        Staff Verification Queue
                       </div>
                       <div style={{ fontSize: 11, color: '#6B7280' }}>
                         {stats.pending_staff ? `${stats.pending_staff} pending approvals` : 'Identity verification'}

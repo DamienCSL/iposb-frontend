@@ -18,6 +18,7 @@ import {
 } from '@ant-design/icons'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { checkFirstRun } from '../api/client'
 
 const { Title, Text } = Typography
 
@@ -55,8 +56,23 @@ export default function LoginPage() {
     setError('')
     setBusy(true)
     try {
-      await login(values.username, values.password)
-      const to = location.state?.from || '/'
+      const session = await login(values.username, values.password)
+      const isAdminUser = ['Super Admin', 'Admin'].includes(session?.role)
+
+      // First-run detection per PRD 6.1
+      const firstRunInfo = await checkFirstRun().catch(() => ({ isFirstRun: false }))
+      if (firstRunInfo?.isFirstRun) {
+        if (isAdminUser) {
+          navigate('/onboarding/setup-hub', { replace: true })
+          return
+        } else {
+          setError('System setup pending — please contact your system administrator.')
+          setBusy(false)
+          return
+        }
+      }
+
+      const to = location.state?.from || '/ops/dashboard'
       navigate(to, { replace: true })
     } catch (err) {
       setError(err.message || 'Invalid username or password. Please verify your credentials.')
