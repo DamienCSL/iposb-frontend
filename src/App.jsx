@@ -1,27 +1,26 @@
+import React from 'react'
+import { ConfigProvider } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import AppLayout from './layouts/AppLayout'
-import AdminCrudPage from './pages/AdminCrudPage'
-import BillingListPage, { BillingEntryPage, TrackingLookupPage } from './pages/BillingPages'
-import CancellationLogPage from './pages/CancellationLogPage'
-import CancellationPolicyPage from './pages/CancellationPolicyPage'
-import ConsignmentEntryPage from './pages/ConsignmentEntryPage'
-import ConsignmentListPage from './pages/ConsignmentListPage'
-import CodPage from './pages/CodPage'
-import CommissionPage from './pages/CommissionPage'
-import CsTicketsPage from './pages/CsTicketsPage'
-import WalletPage from './pages/WalletPage'
-import DashboardPage from './pages/DashboardPage'
-import DispatchJobsPage from './pages/DispatchJobsPage'
-import ImportLogPage from './pages/ImportLogPage'
 import LoginPage from './pages/LoginPage'
-import RemotePickupPage from './pages/RemotePickupPage'
-import { PrintPage, ReportPage } from './pages/ReportPrintPages'
-import RoleAccessPage from './pages/RoleAccessPage'
-import StaffVerifyPage from './pages/StaffVerifyPage'
-import SummaryPage from './pages/SummaryPage'
-import TrackingPage from './pages/TrackingPage'
+import SetupHubPage from './modules/onboarding/SetupHubPage'
+import DashboardPage from './modules/dashboard/DashboardPage'
+import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
+import ConsignmentDetailPage from './modules/consignments/ConsignmentDetailPage'
+import PickupsPage from './modules/pickups/PickupsPage'
+import ManifestsPage from './modules/manifests/ManifestsPage'
+import ReturnsPage from './modules/returns/ReturnsPage'
+import FinanceBillingPage from './modules/billing/FinanceBillingPage'
+import CodPage from './modules/cod/CodPage'
+import CommissionsPage from './modules/commissions/CommissionsPage'
+import SupportPage from './modules/support/SupportPage'
+import StaffPage from './modules/staff/StaffPage'
+import MasterAdminPage from './modules/admin/MasterAdminPage'
+import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
+import SystemLogsPage from './modules/audit/SystemLogsPage'
+import { iposbTheme } from './theme'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -29,106 +28,104 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<DashboardPage />} />
+    <ConfigProvider theme={iposbTheme}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/onboarding/setup-hub" element={<SetupHubPage />} />
 
-              <Route path="/consignments" element={<ConsignmentListPage />} />
-              <Route path="/consignments/new" element={<ConsignmentEntryPage />} />
-              <Route path="/consignments/import-log" element={<ImportLogPage />} />
-              <Route path="/consignments/tracking" element={<TrackingPage />} />
-              <Route path="/consignments/cancellations" element={<CancellationLogPage />} />
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Navigate to="/ops/dashboard" replace />} />
+                <Route path="/ops/dashboard" element={<DashboardPage />} />
 
-              <Route path="/dispatch/assign" element={<DispatchJobsPage />} />
-              <Route path="/dispatch/remote" element={<RemotePickupPage />} />
+                <Route path="/ops/consignments" element={<ConsignmentsListPage />} />
+                <Route path="/ops/consignments/import" element={<ConsignmentsListPage />} />
+                <Route path="/ops/consignments/:cn" element={<ConsignmentDetailPage />} />
+                <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDetailPage />} />
 
-              <Route path="/cs/tickets" element={<CsTicketsPage />} />
+                <Route path="/ops/pickups" element={<PickupsPage />} />
+                <Route path="/ops/manifests" element={<ManifestsPage />} />
+                <Route path="/ops/manifests/:mfg" element={<ManifestsPage />} />
+                <Route path="/ops/returns" element={<ReturnsPage />} />
 
-              <Route path="/summaries" element={<SummaryPage kind="overall" />} />
-              <Route path="/summaries/status" element={<SummaryPage kind="status" />} />
-              <Route path="/summaries/drop-point" element={<SummaryPage kind="drop-point" />} />
-              <Route path="/summaries/agent" element={<Navigate to="/summaries/drop-point" replace />} />
-              <Route path="/summaries/consignee" element={<SummaryPage kind="consignee" />} />
-              <Route path="/summaries/consigner" element={<SummaryPage kind="consigner" />} />
-              <Route path="/summaries/shipper" element={<SummaryPage kind="shipper" />} />
-              <Route path="/summaries/manifest" element={<SummaryPage kind="manifest" />} />
-              <Route path="/summaries/date" element={<SummaryPage kind="date" />} />
-              <Route path="/summaries/branch" element={<SummaryPage kind="branch" />} />
+                <Route path="/ops/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/ops/billing/:doc" element={<FinanceBillingPage />} />
+                <Route path="/ops/billing/:doc/:id" element={<FinanceBillingPage />} />
 
-              <Route path="/billing/invoices/new" element={<BillingEntryPage doc="invoices" />} />
-              <Route path="/billing/invoices" element={<BillingListPage doc="invoices" />} />
-              <Route path="/billing/invoices/tracking" element={<TrackingLookupPage doc="invoices" title="Invoice Tracking" idKey="Invoice number" />} />
-              <Route path="/billing/do/new" element={<BillingEntryPage doc="do" />} />
-              <Route path="/billing/do" element={<BillingListPage doc="do" />} />
-              <Route path="/billing/do/tracking" element={<TrackingLookupPage doc="do" title="Delivery Order Tracking" idKey="DN number" />} />
-              <Route path="/billing/receipts/new" element={<BillingEntryPage doc="receipts" />} />
-              <Route path="/billing/receipts" element={<BillingListPage doc="receipts" />} />
-              <Route path="/billing/receipts/tracking" element={<TrackingLookupPage doc="receipts" title="Receipt Tracking" idKey="Invoice number" />} />
-              <Route path="/billing/credit-notes" element={<BillingEntryPage doc="credit-notes" />} />
-              <Route path="/billing/credit-notes/list" element={<BillingListPage doc="credit-notes" />} />
-              <Route path="/billing/debit-notes" element={<BillingEntryPage doc="debit-notes" />} />
-              <Route path="/billing/debit-notes/list" element={<BillingListPage doc="debit-notes" />} />
-              <Route path="/billing/cod" element={<CodPage />} />
-              <Route path="/billing/wallet" element={<WalletPage />} />
-              <Route path="/billing/cancellation-settings" element={<CancellationPolicyPage />} />
-              <Route path="/billing/commissions" element={<CommissionPage />} />
+                <Route path="/ops/cod" element={<CodPage />} />
+                <Route path="/ops/commissions" element={<CommissionsPage />} />
+                <Route path="/ops/commissions/config" element={<CommissionsPage />} />
+                <Route path="/ops/partner-wallets" element={<CommissionsPage />} />
 
-              <Route path="/drop-points/bilyet-in" element={<BillingEntryPage doc="agent-in" />} />
-              <Route path="/drop-points/bilyet-in/list" element={<BillingListPage doc="agent-in" title="Drop Point Money In List" />} />
-              <Route path="/drop-points/bilyet-out" element={<BillingEntryPage doc="agent-out" />} />
-              <Route path="/drop-points/bilyet-out/list" element={<BillingListPage doc="agent-out" title="Drop Point Money Out List" />} />
-              <Route path="/drop-points/credit-notes" element={<BillingEntryPage doc="agent-credit" />} />
-              <Route path="/drop-points/credit-notes/list" element={<BillingListPage doc="agent-credit" title="Drop Point Credit Note List" />} />
-              <Route path="/drop-points/debit-notes" element={<BillingEntryPage doc="agent-debit" />} />
-              <Route path="/drop-points/debit-notes/list" element={<BillingListPage doc="agent-debit" title="Drop Point Debit Note List" />} />
-              <Route path="/drop-points/stock" element={<ReportPage kind="drop-point" title="Drop Point Stock Record" />} />
-              <Route path="/agent/bilyet-in" element={<Navigate to="/drop-points/bilyet-in" replace />} />
-              <Route path="/agent/bilyet-in/list" element={<Navigate to="/drop-points/bilyet-in/list" replace />} />
-              <Route path="/agent/bilyet-out" element={<Navigate to="/drop-points/bilyet-out" replace />} />
-              <Route path="/agent/bilyet-out/list" element={<Navigate to="/drop-points/bilyet-out/list" replace />} />
-              <Route path="/agent/credit-notes" element={<Navigate to="/drop-points/credit-notes" replace />} />
-              <Route path="/agent/credit-notes/list" element={<Navigate to="/drop-points/credit-notes/list" replace />} />
-              <Route path="/agent/debit-notes" element={<Navigate to="/drop-points/debit-notes" replace />} />
-              <Route path="/agent/debit-notes/list" element={<Navigate to="/drop-points/debit-notes/list" replace />} />
-              <Route path="/agent/stock" element={<Navigate to="/drop-points/stock" replace />} />
+                <Route path="/ops/cs/tickets" element={<SupportPage />} />
+                <Route path="/ops/cs/tickets/:id" element={<SupportPage />} />
+                <Route path="/ops/staff" element={<StaffPage />} />
 
-              <Route path="/customer/stock" element={<ReportPage kind="customer" title="Customer Stock Record" />} />
-              <Route path="/customer/summary" element={<ReportPage kind="customer" title="Customer Summary Report" />} />
-              <Route path="/customer/drop-point-summary" element={<ReportPage kind="drop-point" title="Drop Point Summary Report" />} />
-              <Route path="/customer/agent-summary" element={<Navigate to="/customer/drop-point-summary" replace />} />
+                <Route path="/ops/admin" element={<Navigate to="/ops/admin/hubs" replace />} />
+                <Route path="/ops/admin/:resource" element={<MasterAdminPage />} />
+                <Route path="/ops/logs" element={<SystemLogsPage />} />
+                <Route path="/network" element={<NetworkAnalyticsPage />} />
 
-              <Route path="/reports/manifest" element={<PrintPage kind="manifest" title="Print Manifest" idLabel="Manifest number" />} />
-              <Route path="/reports/cn" element={<PrintPage kind="cn" title="Print Consignment" idLabel="Consignment number" />} />
-              <Route path="/reports/invoice" element={<PrintPage kind="invoice" title="Print Invoice" idLabel="Invoice number" />} />
-              <Route path="/reports/do" element={<PrintPage kind="do" title="Print Delivery Order" idLabel="DN number" />} />
-              <Route path="/reports/receipt" element={<PrintPage kind="receipt" title="Print Receipt" idLabel="Invoice number" />} />
+                <Route path="/logs" element={<Navigate to="/ops/logs" replace />} />
+                <Route path="/audit-logs" element={<Navigate to="/ops/logs" replace />} />
+                <Route path="/shipments" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/dispatch" element={<Navigate to="/ops/pickups" replace />} />
+                <Route path="/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/agents" element={<Navigate to="/ops/commissions" replace />} />
+                <Route path="/support" element={<Navigate to="/ops/cs/tickets" replace />} />
+                <Route path="/settings" element={<Navigate to="/ops/admin/hubs" replace />} />
 
-              <Route path="/admin/users" element={<AdminCrudPage resource="users" />} />
-              <Route path="/admin/role-access" element={<RoleAccessPage />} />
-              <Route path="/admin/branches" element={<Navigate to="/admin/hubs" replace />} />
-              <Route path="/admin/hubs" element={<AdminCrudPage resource="hubs" />} />
-              <Route path="/drop-points" element={<AdminCrudPage resource="drop-points" />} />
-              <Route path="/drop-points/3pl" element={<AdminCrudPage resource="3pl" />} />
-              <Route path="/drop-points/coverage" element={<AdminCrudPage resource="coverage" />} />
-              <Route path="/admin/drop-points" element={<Navigate to="/drop-points" replace />} />
-              <Route path="/admin/3pl" element={<Navigate to="/drop-points/3pl" replace />} />
-              <Route path="/admin/coverage" element={<Navigate to="/drop-points/coverage" replace />} />
-              <Route path="/admin/staff" element={<StaffVerifyPage />} />
-              <Route path="/admin/dispatchers" element={<AdminCrudPage resource="dispatchers" />} />
-              <Route path="/admin/drivers" element={<AdminCrudPage resource="drivers" />} />
-              <Route path="/admin/routes" element={<AdminCrudPage resource="routes" />} />
-              <Route path="/admin/delivery-points" element={<AdminCrudPage resource="delivery-points" />} />
-              <Route path="/admin/zones" element={<Navigate to="/admin/delivery-points" replace />} />
-              <Route path="/admin/route-codes" element={<AdminCrudPage resource="route-codes" />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+                <Route path="/consignments/new" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/tracking" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments/import-log" element={<Navigate to="/ops/consignments/import" replace />} />
+                <Route path="/consignments/cancellations" element={<Navigate to="/ops/consignments" replace />} />
+                <Route path="/consignments" element={<Navigate to="/ops/consignments" replace />} />
+
+                <Route path="/dispatch/assign" element={<Navigate to="/ops/pickups" replace />} />
+                <Route path="/dispatch/remote" element={<Navigate to="/ops/pickups" replace />} />
+                <Route path="/dispatch/manifests" element={<Navigate to="/ops/manifests" replace />} />
+                <Route path="/dispatch/seals" element={<Navigate to="/ops/manifests" replace />} />
+                <Route path="/dispatch/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
+
+                <Route path="/billing/invoices" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/billing/do" element={<Navigate to="/ops/billing/do" replace />} />
+                <Route path="/billing/receipts" element={<Navigate to="/ops/billing/receipts" replace />} />
+                <Route path="/billing/credit-notes" element={<Navigate to="/ops/billing/credit-notes" replace />} />
+                <Route path="/billing/cod" element={<Navigate to="/ops/cod" replace />} />
+                <Route path="/billing/commissions" element={<Navigate to="/ops/commissions" replace />} />
+                <Route path="/billing/wallet" element={<Navigate to="/ops/partner-wallets" replace />} />
+                <Route path="/billing/cancellation-settings" element={<Navigate to="/ops/commissions/config" replace />} />
+                <Route path="/billing/*" element={<Navigate to="/ops/billing/invoices" replace />} />
+
+                <Route path="/drop-points" element={<Navigate to="/ops/admin/drop-points" replace />} />
+                <Route path="/agent/bilyet-in" element={<Navigate to="/ops/billing/agent-in" replace />} />
+                <Route path="/agent/bilyet-out" element={<Navigate to="/ops/billing/agent-out" replace />} />
+                <Route path="/agent/*" element={<Navigate to="/ops/commissions" replace />} />
+
+                <Route path="/cs/tickets" element={<Navigate to="/ops/cs/tickets" replace />} />
+                <Route path="/cs/*" element={<Navigate to="/ops/cs/tickets" replace />} />
+
+                <Route path="/admin/staff" element={<Navigate to="/ops/staff" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/ops/admin/users" replace />} />
+                <Route path="/admin/role-access" element={<Navigate to="/ops/admin/users" replace />} />
+                <Route path="/admin/branches" element={<Navigate to="/ops/admin/hubs" replace />} />
+                <Route path="/admin/hubs" element={<Navigate to="/ops/admin/hubs" replace />} />
+                <Route path="/admin/delivery-points" element={<Navigate to="/ops/admin/zones" replace />} />
+                <Route path="/admin/zones" element={<Navigate to="/ops/admin/zones" replace />} />
+                <Route path="/admin/areas" element={<Navigate to="/ops/admin/zones" replace />} />
+                <Route path="/admin/3pl" element={<Navigate to="/ops/admin/3pl" replace />} />
+                <Route path="/admin/routes" element={<Navigate to="/ops/admin/routes" replace />} />
+                <Route path="/admin/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
+                <Route path="/admin/*" element={<Navigate to="/ops/admin/hubs" replace />} />
+              </Route>
+
+              <Route path="*" element={<Navigate to="/ops/dashboard" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ConfigProvider>
   )
 }

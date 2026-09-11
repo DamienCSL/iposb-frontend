@@ -4,7 +4,9 @@ const baseURL = import.meta.env.VITE_API_URL || '/api'
 
 export const api = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 300000,
+  maxBodyLength: Infinity,
+  maxContentLength: Infinity,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -27,7 +29,24 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status
+    if (status === 401) {
+      localStorage.removeItem('iposb.staff.session')
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  },
+)
+
 export function apiError(err) {
+  if (err?.response?.status === 403) {
+    return "You don't have permission for this action"
+  }
   return err?.response?.data?.error || err?.response?.data?.message || err.message
 }
 
@@ -71,8 +90,14 @@ export async function getHealth() {
 }
 
 export async function getTracking(cn) {
-  const { data } = await api.get(`/tracking/${encodeURIComponent(cn)}`)
-  return data
+  // FMS uses ops tracking (planned route + assignment). Fall back to public tracking.
+  try {
+    const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/tracking`)
+    return data
+  } catch {
+    const { data } = await api.get(`/tracking/${encodeURIComponent(cn)}`)
+    return data
+  }
 }
 
 export async function getDispatchJobs(assigned = false) {
@@ -130,6 +155,11 @@ export async function getConsignment(cn) {
   return data
 }
 
+export async function getOpsConsignmentTracking(cn) {
+  const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/tracking`)
+  return data
+}
+
 export async function saveConsignment(body) {
   const { data } = await api.post('/ops/consignments', body)
   return data
@@ -153,31 +183,6 @@ export async function generateInvoice(body) {
 /** Suggest a unique identity / document code for form fields. */
 export async function generateSystemCode(body) {
   const { data } = await api.post('/ops/codes/generate', body)
-  return data
-}
-
-export async function listCodCollections(params) {
-  const { data } = await api.get('/ops/cod', { params })
-  return data
-}
-
-export async function getCodRecord(cn) {
-  const { data } = await api.get(`/ops/cod/${encodeURIComponent(cn)}`)
-  return data
-}
-
-export async function collectCodAtDropPoint(cn, body) {
-  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/collect`, body)
-  return data
-}
-
-export async function remitCod(cn, body) {
-  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/remit`, body)
-  return data
-}
-
-export async function settleCod(cn) {
-  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/settle`)
   return data
 }
 
@@ -216,33 +221,8 @@ export async function getWalletLedger(params) {
   return data
 }
 
-export async function getCommissionConfig() {
-  const { data } = await api.get('/ops/commissions/config')
-  return data
-}
-
-export async function updateCommissionConfig(body) {
-  const { data } = await api.put('/ops/commissions/config', body)
-  return data
-}
-
-export async function listCommissions(params) {
-  const { data } = await api.get('/ops/commissions', { params })
-  return data
-}
-
 export async function accrueCommission(cn) {
   const { data } = await api.post(`/ops/commissions/accrue/${encodeURIComponent(cn)}`)
-  return data
-}
-
-export async function verifyCommission(id) {
-  const { data } = await api.post(`/ops/commissions/${id}/verify`)
-  return data
-}
-
-export async function listPartnerWallets(params) {
-  const { data } = await api.get('/ops/partner-wallets', { params })
   return data
 }
 
@@ -271,6 +251,7 @@ export async function importConsignments(file) {
   form.append('file', file)
   const { data } = await api.post('/ops/consignments/import', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
   })
   return data
 }
@@ -362,15 +343,268 @@ export async function closeCsTicket(id) {
   return data
 }
 
+// --- Pickups (v3.5) ---
+export async function getPickupsWaiting(params) {
+  const { data } = await api.get('/ops/pickups/waiting', { params })
+  return data
+}
+
+export async function getPickupsQueue(params) {
+  const { data } = await api.get('/ops/pickups/queue', { params })
+  return data
+}
+
+export async function assignPickup(cn, body) {
+  const { data } = await api.post(`/ops/pickups/${encodeURIComponent(cn)}/assign`, body)
+  return data
+}
+
+export async function autoAssignPickups(body) {
+  const { data } = await api.post('/ops/pickups/auto-assign', body)
+  return data
+}
+
+export async function getPickup(cn) {
+  const { data } = await api.get(`/ops/pickups/${encodeURIComponent(cn)}`)
+  return data
+}
+
+// --- Manifests (v3.5) ---
+export async function listManifests(params) {
+  const { data } = await api.get('/ops/manifests', { params })
+  return data
+}
+
+export async function getManifest(mfg) {
+  const { data } = await api.get(`/ops/manifests/${encodeURIComponent(mfg)}`)
+  return data
+}
+
+export async function createManifest(body) {
+  const { data } = await api.post('/ops/manifests', body)
+  return data
+}
+
+export async function attachManifestConsignments(mfg, body) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfg)}/consignments`, body)
+  return data
+}
+
+export async function detachManifestConsignment(mfg, cn) {
+  const { data } = await api.delete(`/ops/manifests/${encodeURIComponent(mfg)}/consignments/${encodeURIComponent(cn)}`)
+  return data
+}
+
+// --- Billing Void & PDF ---
+export async function voidBilling(doc, id, note) {
+  const { data } = await api.post(`/ops/billing/${doc}/${encodeURIComponent(id)}/void`, { note })
+  return data
+}
+
+export function getBillingPdfUrl(doc, id) {
+  const token = (() => {
+    try {
+      const raw = localStorage.getItem('iposb.staff.session')
+      return raw ? JSON.parse(raw)?.token : ''
+    } catch {
+      return ''
+    }
+  })()
+  const base = import.meta.env.VITE_API_URL || '/api'
+  return `${base}/ops/billing/${doc}/${encodeURIComponent(id)}/pdf?token=${encodeURIComponent(token)}`
+}
+
+// --- COD (v3.5) ---
+export async function listCod(params) {
+  const { data } = await api.get('/ops/cod', { params })
+  return data
+}
+
+export async function getCod(cn) {
+  const { data } = await api.get(`/ops/cod/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function collectCod(cn, body) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/collect`, body)
+  return data
+}
+
+export async function remitCod(cn, body) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/remit`, body)
+  return data
+}
+
+export async function settleCod(cn, body) {
+  const { data } = await api.post(`/ops/cod/${encodeURIComponent(cn)}/settle`, body)
+  return data
+}
+
+// --- Commissions & Partner Wallets (v3.5) ---
+export async function listCommissions(params) {
+  const { data } = await api.get('/ops/commissions', { params })
+  return data
+}
+
+export async function getCommissionConfig() {
+  const { data } = await api.get('/ops/commissions/config')
+  return data
+}
+
+export async function saveCommissionConfig(body) {
+  const { data } = await api.put('/ops/commissions/config', body)
+  return data
+}
+
+export async function updateCommissionConfig(body) {
+  return saveCommissionConfig(body)
+}
+
+export async function verifyCommission(id) {
+  const { data } = await api.post(`/ops/commissions/${encodeURIComponent(id)}/verify`)
+  return data
+}
+
+export async function listPartnerWallets(params) {
+  const { data } = await api.get('/ops/partner-wallets', { params })
+  return data
+}
+
+export async function requestPartnerWalletWithdrawal(body) {
+  const { data } = await api.post('/ops/partner-wallets/withdraw', body)
+  return data
+}
+
+// --- Partner API Key Rotation ---
+export async function rotateApiKey(partnerCode) {
+  const { data } = await api.post(`/ops/admin/api-keys/${encodeURIComponent(partnerCode)}/rotate`)
+  return data
+}
+
+// --- First Run Detection ---
+export async function checkFirstRun() {
+  try {
+    const [hubsRes, branchesRes] = await Promise.all([
+      api.get('/hubs').catch(() => api.get('/ops/admin/hubs')).catch(() => ({ data: [] })),
+      api.get('/branches').catch(() => api.get('/ops/admin/branches')).catch(() => ({ data: [] })),
+    ])
+    const hubs =
+      hubsRes?.data?.hubs ||
+      hubsRes?.data?.data ||
+      hubsRes?.data?.rows ||
+      (Array.isArray(hubsRes?.data) ? hubsRes.data : [])
+    const branches =
+      branchesRes?.data?.branches ||
+      branchesRes?.data?.data ||
+      branchesRes?.data?.rows ||
+      (Array.isArray(branchesRes?.data) ? branchesRes.data : [])
+
+    const hasHubs = Array.isArray(hubs) && hubs.length > 0
+    const hasBranches = Array.isArray(branches) && branches.length > 0
+
+    return {
+      hasHubs,
+      hasBranches,
+      isFirstRun: !hasHubs && !hasBranches,
+    }
+  } catch {
+    return { hasHubs: true, hasBranches: true, isFirstRun: false }
+  }
+}
+
+export async function listReturns(params) {
+  const { data } = await api.get('/ops/returns', { params })
+  return data
+}
+
+export async function getReturn(cn) {
+  const { data } = await api.get(`/ops/returns/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function initiateReturn(cn, body) {
+  const { data } = await api.post(`/ops/returns/${encodeURIComponent(cn)}/initiate`, body)
+  return data
+}
+
 export function downloadCsv(filename, rows) {
-  const csv = rows
-    .map((r) => r.map((c) => `"${String(c ?? '').replaceAll('"', '""')}"`).join(','))
-    .join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  if (!rows) return
+
+  const normalizedRows = Array.isArray(rows)
+    ? rows
+    : Array.isArray(rows?.data)
+      ? rows.data
+      : Array.isArray(rows?.rows)
+        ? rows.rows
+        : null
+
+  if (!normalizedRows || normalizedRows.length === 0) return
+
+  let csv = ''
+  if (typeof rows === 'string') {
+    csv = rows
+  } else if (Array.isArray(normalizedRows)) {
+    if (!Array.isArray(normalizedRows[0]) && typeof normalizedRows[0] === 'object' && normalizedRows[0] !== null) {
+      const headers = Object.keys(normalizedRows[0])
+      const headerLine = headers.map((h) => `"${String(h ?? '').replaceAll('"', '""')}"`).join(',')
+      const dataLines = normalizedRows.map((r) =>
+        headers.map((h) => `"${String(r?.[h] ?? '').replaceAll('"', '""')}"`).join(',')
+      )
+      csv = [headerLine, ...dataLines].join('\n')
+    } else {
+      csv = normalizedRows
+        .map((r) => (Array.isArray(r) ? r.map((c) => `"${String(c ?? '').replaceAll('"', '""')}"`).join(',') : String(r)))
+        .join('\n')
+    }
+  } else {
+    return
+  }
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || 'export.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadExportJob(jobId, defaultFilename = 'consignments.csv') {
+  const response = await api.get(`/ops/exports/${jobId}/download`, {
+    responseType: 'blob',
+  })
+  let filename = defaultFilename
+  const disposition = response.headers?.['content-disposition']
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/)
+    if (match?.[1]) filename = match[1]
+  }
+  const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return true
 }
+
+// --- System Audit & Activity Logs ---
+export async function listSystemLogs(params) {
+  const { data } = await api.get('/ops/logs', { params })
+  return data
+}
+
+export async function getSystemLogStats() {
+  const { data } = await api.get('/ops/logs/stats')
+  return data
+}
+
+export const listCodCollections = listCod
+export const getCodRecord = getCod
+export const collectCodAtDropPoint = collectCod
+

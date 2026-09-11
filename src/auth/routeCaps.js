@@ -3,6 +3,18 @@
  * First match wins — put more specific prefixes first.
  */
 const ROUTE_RULES = [
+  ['/ops/admin', 'admin'],
+  ['/ops/staff', 'staff'],
+  ['/ops/commissions', 'commissions'],
+  ['/ops/partner-wallets', 'commissions'],
+  ['/ops/cod', 'cod'],
+  ['/ops/billing', 'billing'],
+  ['/ops/pickups', 'pickups'],
+  ['/ops/manifests', 'manifests'],
+  ['/ops/returns', 'consignments'],
+  ['/ops/consignments', 'consignments'],
+  ['/ops/cs', 'customerService'],
+  ['/network', 'reports'],
   ['/admin/role-access', 'roleAccess'],
   ['/admin/users', 'users'],
   ['/admin/branches', 'hubs'],
@@ -28,9 +40,8 @@ const ROUTE_RULES = [
   ['/reports/', 'reports'],
 ]
 
-/** Dashboard is always allowed. */
 export function routeRequiredCap(pathname) {
-  if (!pathname || pathname === '/') return null
+  if (!pathname || pathname === '/' || pathname === '/ops/dashboard') return null
   for (const [prefix, cap] of ROUTE_RULES) {
     if (pathname === prefix || pathname.startsWith(prefix)) {
       return cap

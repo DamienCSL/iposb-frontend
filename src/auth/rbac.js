@@ -1,9 +1,26 @@
-/** Mirrors deploy/shared/core/Rbac.php */
+/** Mirrors iposb-api RbacService + FMS staff roles. */
 
 export const SUPER_ADMIN = 'Super Admin'
 export const ADMIN = 'Admin'
 export const HUB_MANAGER = 'Hub Manager'
 export const DROPPOINT_MANAGER = 'Droppoint Manager'
+
+/**
+ * Roles assignable in FMS User Management (t_user).
+ * Seller / Receiver are consignment parties — not login roles.
+ */
+export const STAFF_ASSIGNABLE_ROLES = [
+  SUPER_ADMIN,
+  ADMIN,
+  HUB_MANAGER,
+  DROPPOINT_MANAGER,
+  'Operation',
+  'Agent',
+  'Invoice',
+  'CSL',
+]
+
+export const STAFF_ROLE_OPTIONS = STAFF_ASSIGNABLE_ROLES.map((r) => [r, r])
 
 export const DEMO_USERS = [
   { username: 'admin', password: 'admin123', name: 'Demo Super Admin', role: SUPER_ADMIN, branchCode: 'BKI' },
@@ -15,24 +32,34 @@ export const DEMO_USERS = [
 
 const EMPTY = {
   consignments: false,
+  pickups: false,
+  manifests: false,
+  billing: false,
+  cod: false,
+  commissions: false,
+  customerService: false,
+  staff: false,
+  admin: false,
   dispatch: false,
   summaries: false,
-  billing: false,
+  agent: false,
   customerReports: false,
   reports: false,
   users: false,
   branches: false,
   hubs: false,
   dropPoints: false,
-  staff: false,
   routing: false,
-  customerService: false,
   roleAccess: false,
+  voidBilling: false,
+  rotateApiKey: false,
+  verifyCommission: false,
 }
 
 export function normalizeRole(role) {
   if (role === 'System' || role === 'Supervisor') return ADMIN
   if (role === 'Agent 2') return 'Agent'
+  if (role === 'Finance') return 'Invoice'
   return role || 'Others'
 }
 
@@ -45,71 +72,86 @@ export function capabilitiesFor(role) {
     [ADMIN]: {
       ...EMPTY,
       consignments: true,
+      pickups: true,
+      manifests: true,
+      billing: true,
+      cod: true,
+      commissions: true,
+      customerService: true,
+      staff: true,
+      admin: true,
       dispatch: true,
       summaries: true,
-      billing: true,
+      agent: true,
       customerReports: true,
       reports: true,
+      users: true,
       branches: true,
       hubs: true,
       dropPoints: true,
-      staff: true,
       routing: true,
-      customerService: true,
+      voidBilling: true,
+      rotateApiKey: true,
+      verifyCommission: true,
     },
     [HUB_MANAGER]: {
       ...EMPTY,
       consignments: true,
+      pickups: true,
+      manifests: true,
+      customerService: true,
       dispatch: true,
-      summaries: true,
-      customerReports: true,
-      reports: true,
       hubs: true,
       dropPoints: true,
       routing: true,
-      customerService: true,
+      summaries: true,
+      reports: true,
     },
     [DROPPOINT_MANAGER]: {
       ...EMPTY,
       consignments: true,
-      customerReports: true,
-      reports: true,
+      pickups: true,
+      cod: true,
       dropPoints: true,
       customerService: true,
+      reports: true,
     },
     Operation: {
       ...EMPTY,
       consignments: true,
+      pickups: true,
+      manifests: true,
+      customerService: true,
       dispatch: true,
       summaries: true,
-      customerReports: true,
       reports: true,
-      customerService: true,
-    },
-    Agent: {
-      ...EMPTY,
-      consignments: true,
-      dispatch: true,
-      summaries: true,
-      dropPoints: true,
-      customerReports: true,
-      reports: true,
-      customerService: true,
     },
     Invoice: {
       ...EMPTY,
       consignments: true,
       billing: true,
+      cod: true,
+      commissions: true,
       customerReports: true,
       reports: true,
     },
     CSL: {
       ...EMPTY,
       consignments: true,
+      customerService: true,
       summaries: true,
       customerReports: true,
       reports: true,
+    },
+    Agent: {
+      ...EMPTY,
+      consignments: true,
+      agent: true,
+      dispatch: true,
+      dropPoints: true,
       customerService: true,
+      customerReports: true,
+      reports: true,
     },
   }
   return map[r] ?? { ...EMPTY, consignments: true, customerReports: true, reports: true }
