@@ -31,7 +31,7 @@ import {
   SyncOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { apiError, getReturn, initiateReturn, listReturns } from '../../api/client'
+import { apiError, getReturn, initiateReturn, listReturns, updateReturnStatus } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
 import ListPageLayout from '../../components/ListPageLayout'
@@ -64,6 +64,9 @@ export default function ReturnsPage() {
   const [selectedReturn, setSelectedReturn] = useState(null)
   const [trackingHistory, setTrackingHistory] = useState([])
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [statusUpdating, setStatusUpdating] = useState(false)
+  const [nextStatus, setNextStatus] = useState('')
+  const [statusNote, setStatusNote] = useState('')
 
   async function loadData(page = pagination.current, pageSize = pagination.pageSize) {
     setLoading(true)
@@ -100,10 +103,28 @@ export default function ReturnsPage() {
       const res = await getReturn(cn)
       setSelectedReturn(res?.return || res?.data || res)
       setTrackingHistory(res?.tracking || [])
+      setNextStatus(res?.return?.status || res?.data?.status || res?.status || '')
     } catch (err) {
       message.error(apiError(err))
     } finally {
       setLoadingDetail(false)
+    }
+  }
+
+  async function handleStatusUpdate() {
+    const cn = selectedReturn?.cn_no || selectedReturn?.cn
+    if (!cn || !nextStatus) return
+    setStatusUpdating(true)
+    try {
+      await updateReturnStatus(cn, { status: nextStatus, note: statusNote })
+      message.success(`Return status updated to ${nextStatus}`)
+      setStatusNote('')
+      await handleOpenDetail(cn)
+      loadData(1)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setStatusUpdating(false)
     }
   }
 
@@ -435,6 +456,35 @@ export default function ReturnsPage() {
                 {selectedReturn.created_at || '—'}
               </Descriptions.Item>
             </Descriptions>
+
+            {canManageReturns && !['RETURNED', 'CANCELLED'].includes(selectedReturn.status) && (
+              <Card size="small" title="Advance Return Status">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Select
+                    value={nextStatus || selectedReturn.status}
+                    onChange={setNextStatus}
+                    style={{ width: '100%' }}
+                    options={[
+                      { value: 'INITIATED', label: 'INITIATED — Return initiated' },
+                      { value: 'IN_TRANSIT', label: 'IN_TRANSIT — Moving back to sender' },
+                      { value: 'ARRIVED_HUB', label: 'ARRIVED_HUB — Arrived at return hub' },
+                      { value: 'OUT_FOR_RETURN', label: 'OUT_FOR_RETURN — Out for return delivery' },
+                      { value: 'RETURNED', label: 'RETURNED — Returned to sender' },
+                      { value: 'CANCELLED', label: 'CANCELLED — Return aborted' },
+                    ]}
+                  />
+                  <Input.TextArea
+                    rows={2}
+                    value={statusNote}
+                    onChange={(e) => setStatusNote(e.target.value)}
+                    placeholder="Checkpoint note, location, or scan reference"
+                  />
+                  <Button type="primary" loading={statusUpdating} onClick={handleStatusUpdate}>
+                    Update Return Status
+                  </Button>
+                </Space>
+              </Card>
+            )}
 
             {/* Tracking Milestones */}
             <div>

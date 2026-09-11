@@ -124,6 +124,21 @@ export async function getCnLookups() {
   return data
 }
 
+export async function generateCode(kind, params = {}) {
+  try {
+    const { data } = await api.post('/ops/codes/generate', { kind, ...params })
+    return data
+  } catch {
+    const { data } = await api.post('/ops/admin/generate-code', { kind, ...params })
+    return data
+  }
+}
+
+export async function quoteConsignment(body) {
+  const { data } = await api.post('/ops/consignments/quote', body)
+  return data
+}
+
 export async function listConsignments(params) {
   const { data } = await api.get('/ops/consignments', { params })
   return data
@@ -428,6 +443,16 @@ export async function getReturn(cn) {
 
 export async function initiateReturn(cn, body) {
   const { data } = await api.post(`/ops/returns/${encodeURIComponent(cn)}/initiate`, body)
+  return data
+}
+
+export async function updateReturnStatus(cn, body) {
+  const { data } = await api.post(`/ops/returns/${encodeURIComponent(cn)}/status`, body)
+  return data
+}
+
+export async function completeReturn(cn) {
+  const { data } = await api.post(`/ops/returns/${encodeURIComponent(cn)}/complete`)
   return data
 }
 

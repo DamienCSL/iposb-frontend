@@ -20,6 +20,7 @@ import {
   HistoryOutlined,
   InboxOutlined,
   LogoutOutlined,
+  PlusCircleOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -37,6 +38,7 @@ const { Header, Sider, Content } = Layout
 const APP_PAGES = [
   { title: 'Dashboard', path: '/ops/dashboard', keywords: ['home', 'overview', 'stats'] },
   { title: 'Consignments', path: '/ops/consignments', keywords: ['shipments', 'cn', 'tracking', 'list'] },
+  { title: 'New Consignment Booking', path: '/ops/consignments/new', keywords: ['new', 'create', 'booking', 'shipment', 'consignment', 'entry'] },
   { title: 'Batch Import Consignments', path: '/ops/consignments/import', keywords: ['csv', 'excel', 'bulk', 'import'] },
   { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign'] },
   { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
@@ -111,10 +113,12 @@ function getBreadcrumbs(pathname, search) {
   if (pathname.startsWith('/ops/consignments')) {
     items.push({ label: 'Consignments', path: '/ops/consignments' })
     const parts = pathname.split('/')
-    if (parts[3] && parts[3] !== 'import') {
-      items.push({ label: parts[3], path: pathname })
+    if (parts[3] === 'new') {
+      items.push({ label: 'New Shipment', path: pathname })
     } else if (parts[3] === 'import') {
       items.push({ label: 'Batch Import', path: pathname })
+    } else if (parts[3]) {
+      items.push({ label: parts[3], path: pathname })
     }
   } else if (pathname.startsWith('/ops/pickups')) {
     items.push({ label: 'Pickups Queue', path: '/ops/pickups' })
@@ -156,6 +160,7 @@ function getBreadcrumbs(pathname, search) {
 
 function getSelectedKey(pathname) {
   if (!pathname || pathname === '/' || pathname === '/ops/dashboard') return '/ops/dashboard'
+  if (pathname === '/ops/consignments/new') return '/ops/consignments/new'
   if (pathname.startsWith('/ops/consignments/import')) return '/ops/consignments/import'
   if (pathname.startsWith('/ops/consignments')) return '/ops/consignments'
   if (pathname.startsWith('/ops/pickups')) return '/ops/pickups'
@@ -394,6 +399,12 @@ export default function AppLayout() {
           key: '/ops/consignments',
           icon: <InboxOutlined />,
           label: <Link to="/ops/consignments" style={{ display: 'block', width: '100%' }}>Consignments</Link>,
+          visible: can('consignments'),
+        },
+        {
+          key: '/ops/consignments/new',
+          icon: <PlusCircleOutlined />,
+          label: <Link to="/ops/consignments/new" style={{ display: 'block', width: '100%' }}>New Shipment</Link>,
           visible: can('consignments'),
         },
         {

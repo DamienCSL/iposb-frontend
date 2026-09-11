@@ -295,8 +295,11 @@ export const MASTER_SCHEMAS = {
     fields: [
       { name: 'full_name', label: 'Full Name', required: true },
       { name: 'phone', label: 'Phone', required: true },
-      { name: 'firebase_uid', label: 'Firebase Mobile UID' },
+      { name: 'loc_id', label: 'Branch / Location', required: true, placeholder: 'e.g. BKI' },
       { name: 'route_cd', label: 'Assigned Route Code' },
+      { name: 'preferred_zones', label: 'Preferred Zones', placeholder: 'e.g. BKI, BKI-NORTH' },
+      { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
+      { name: 'mobile_password', label: 'Mobile Login Password', type: 'password', required: true },
     ],
     pk: 'driver_id',
   },
@@ -511,6 +514,7 @@ export default function MasterAdminPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [routeCodes, setRouteCodes] = useState([])
   const [form] = Form.useForm()
 
   // API Key Rotation State (Strictly required for 3PL)
@@ -542,9 +546,19 @@ export default function MasterAdminPage() {
     }
   }
 
+  async function loadRouteCodes() {
+    try {
+      const res = await listMaster('route-codes')
+      setRouteCodes(res?.data || res?.rows || (Array.isArray(res) ? res : []))
+    } catch {
+      setRouteCodes([])
+    }
+  }
+
   useEffect(() => {
     setSearch('')
     loadData()
+    if (currentResource === 'drivers') loadRouteCodes()
   }, [currentResource])
 
   function openCreate() {
@@ -1018,6 +1032,22 @@ export default function MasterAdminPage() {
                 <Input.TextArea rows={3} placeholder={f.placeholder} />
               ) : f.type === 'select' ? (
                 <Select placeholder={f.placeholder} options={f.options} />
+              ) : currentResource === 'drivers' && f.name === 'route_cd' ? (
+                <Select
+                  placeholder="Select an approved route code"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  options={[
+                    ...routeCodes,
+                    ...(editingItem?.route_cd && !routeCodes.some((route) => route.route_cd === editingItem.route_cd)
+                      ? [{ route_cd: editingItem.route_cd, route_name: 'Legacy assignment' }]
+                      : []),
+                  ].map((route) => ({
+                    value: route.route_cd,
+                    label: `${route.route_cd}${route.route_name ? ` — ${route.route_name}` : ''}`,
+                  }))}
+                />
               ) : f.type === 'password' ? (
                 <Input.Password placeholder={f.placeholder} />
               ) : (

@@ -39,10 +39,13 @@ const EMPTY = {
 }
 
 export function normalizeRole(role) {
-  if (role === 'System' || role === 'Supervisor') return ADMIN
-  if (role === 'Agent 2') return 'Agent'
-  if (role === 'Finance') return 'Invoice'
-  return role || 'Others'
+  const raw = String(role || '').trim()
+  const key = raw.toLowerCase().replace(/[_-]+/g, ' ')
+  if (key === 'super admin' || key === 'superadmin') return SUPER_ADMIN
+  if (key === 'admin' || key === 'system' || key === 'supervisor') return key === 'admin' ? ADMIN : ADMIN
+  if (key === 'agent 2') return 'Agent'
+  if (key === 'finance') return 'Invoice'
+  return raw || 'Others'
 }
 
 export function capabilitiesFor(role) {

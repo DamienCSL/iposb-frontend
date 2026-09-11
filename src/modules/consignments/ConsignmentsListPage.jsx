@@ -5,7 +5,10 @@ import {
   Card,
   DatePicker,
   Dropdown,
+  Form,
   Modal,
+  Input,
+  InputNumber,
   Popconfirm,
   Progress,
   Select,
@@ -35,6 +38,7 @@ import {
   exportConsignments,
   importConsignments,
   listConsignments,
+  saveConsignment,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import ListPageLayout from '../../components/ListPageLayout'
@@ -135,6 +139,8 @@ export default function ConsignmentsListPage() {
       message.error(apiError(err))
     }
   }
+
+
 
   // Handle Export
   async function handleExportSelected() {
@@ -395,6 +401,13 @@ export default function ConsignmentsListPage() {
 
   const actions = [
     {
+      key: 'create',
+      label: 'New Shipment',
+      icon: <PlusOutlined />,
+      type: 'primary',
+      onClick: () => navigate('/ops/consignments/new'),
+    },
+    {
       key: 'reload',
       label: 'Refresh',
       icon: <ReloadOutlined />,
@@ -535,6 +548,8 @@ export default function ConsignmentsListPage() {
         emptyText="No consignments found"
         emptyDescription="Try adjusting your search or filters."
       />
+
+
 
       {/* Import Modal */}
       <Modal
