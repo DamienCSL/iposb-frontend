@@ -31,6 +31,7 @@ import {
   AuditOutlined,
   GlobalOutlined,
   KeyOutlined,
+  WalletOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
