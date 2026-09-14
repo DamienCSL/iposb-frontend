@@ -1,64 +1,73 @@
 import React, { useEffect, useState } from 'react'
 import {
+  Alert,
   Button,
   Card,
   Col,
-  Descriptions,
-  Empty,
   Form,
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
-  Radio,
   Row,
   Select,
   Space,
   Statistic,
-  Tag,
   Typography,
   message,
 } from 'antd'
 import {
-  CheckCircleOutlined,
   DollarCircleOutlined,
-  FileDoneOutlined,
-  HistoryOutlined,
   ReloadOutlined,
-  RightCircleOutlined,
-  SearchOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   apiError,
   collectCod,
-  getCod,
   listCod,
   remitCod,
   settleCod,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
-import ListPageLayout from '../../components/ListPageLayout'
 import StatusTag from '../../components/StatusTag'
+import { money } from '../../ui/bits'
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
+const BRAND = '#1B8A5A'
+
+const STATUS_TABS = [
+  { key: 'ALL', label: 'All' },
+  { key: 'PENDING', label: 'Pending collection' },
+  { key: 'COLLECTED', label: 'Collected' },
+  { key: 'REMITTED', label: 'Remitted' },
+  { key: 'SETTLED', label: 'Settled' },
+]
+
+function cnOf(r) {
+  return String(r?.cnNo || r?.cn_no || r?.consignment_no || '').toUpperCase()
+}
+
+function expectedOf(r) {
+  return Number(r?.expectedAmt ?? r?.cod_amt ?? r?.amount ?? 0)
+}
+
+function collectedOf(r) {
+  return Number(r?.collectedAmt ?? r?.collected_amt ?? 0)
+}
 
 export default function CodPage() {
-  const navigate = useNavigate()
-  const { can, isAdmin, user } = useAuth()
+  const { isAdmin, user } = useAuth()
   const canManageCod =
     isAdmin ||
     ['Invoice', 'Finance', 'Droppoint Manager', 'Super Admin', 'Admin'].includes(user?.role)
 
-  const [statusFilter, setStatusFilter] = useState('ALL') // ALL | PENDING | COLLECTED | REMITTED | SETTLED
+  const [statusFilter, setStatusFilter] = useState('PENDING')
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState({ pending: 0, collected: 0, remitted: 0, settled: 0 })
 
-  // Action Dialog State
   const [actionModal, setActionModal] = useState({ open: false, type: null, record: null })
   const [actionSubmitting, setActionSubmitting] = useState(false)
   const [actionForm] = Form.useForm()
@@ -70,19 +79,17 @@ export default function CodPage() {
       if (statusFilter !== 'ALL') q.status = statusFilter
       if (search) q.search = search
       const res = await listCod(q)
+      const records = res?.data || res?.rows || res?.items || []
+      setRows(Array.isArray(records) ? records : [])
 
-      const records = res?.data || res?.rows || []
-      setRows(records)
-
-      // Calculate totals for summary strip
       const stats = { pending: 0, collected: 0, remitted: 0, settled: 0 }
       records.forEach((r) => {
-        const amt = Number(r.cod_amt || r.amount || 0)
+        const amt = expectedOf(r)
         const st = String(r.status || r.cod_status || 'PENDING').toUpperCase()
         if (st === 'PENDING') stats.pending += amt
-        else if (st === 'COLLECTED') stats.collected += amt
-        else if (st === 'REMITTED') stats.remitted += amt
-        else if (st === 'SETTLED') stats.settled += amt
+        else if (st === 'COLLECTED') stats.collected += collectedOf(r) || amt
+        else if (st === 'REMITTED') stats.remitted += collectedOf(r) || amt
+        else if (st === 'SETTLED') stats.settled += collectedOf(r) || amt
       })
       setSummary(res?.summary || stats)
     } catch (err) {
@@ -94,34 +101,55 @@ export default function CodPage() {
 
   useEffect(() => {
     loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, search])
 
-  // Open appropriate action modal (collect, remit, settle)
   function openAction(type, record) {
     actionForm.resetFields()
-    actionForm.setFieldsValue({
-      amount: record.cod_amt || record.amount || 0,
-      collected_by: user?.name || user?.username,
-      reference_no: `REF-${record.cn_no}-${Date.now().toString().slice(-4)}`,
-    })
+    if (type === 'COLLECT') {
+      actionForm.setFieldsValue({
+        amount: expectedOf(record),
+        drop_point_code: record.dropPointCode || record.drop_point_code || '',
+        recipient_name: record.recipientName || record.recpName || record.recp_name || '',
+        note: '',
+      })
+    } else if (type === 'REMIT') {
+      actionForm.setFieldsValue({ bilyet_no: record.remittanceRef || '' })
+    } else {
+      actionForm.setFieldsValue({ note: '' })
+    }
     setActionModal({ open: true, type, record })
   }
 
   async function handleActionSubmit(values) {
     const { type, record } = actionModal
-    const cn = record?.cn_no || record?.id
+    const cn = cnOf(record)
     if (!cn) return
     setActionSubmitting(true)
     try {
       if (type === 'COLLECT') {
-        await collectCod(cn, values)
-        message.success(`COD collection recorded for CN ${cn}`)
+        if (!values.drop_point_code) {
+          message.warning('Drop point code is required for counter collection.')
+          return
+        }
+        await collectCod(cn, {
+          amount: values.amount,
+          collected_amt: values.amount,
+          drop_point_code: values.drop_point_code,
+          recipient_name: values.recipient_name,
+          note: values.note,
+        })
+        message.success(`COD collected for ${cn}`)
       } else if (type === 'REMIT') {
-        await remitCod(cn, values)
-        message.success(`COD remitted to branch treasury for CN ${cn}`)
+        if (!values.bilyet_no) {
+          message.warning('Bilyet number is required. Create Money In under Agent billing first if needed.')
+          return
+        }
+        await remitCod(cn, { bilyet_no: values.bilyet_no })
+        message.success(`COD remitted for ${cn}`)
       } else if (type === 'SETTLE') {
-        await settleCod(cn, values)
-        message.success(`COD settled and marked as completed for CN ${cn}`)
+        await settleCod(cn, { note: values.note })
+        message.success(`COD settled for ${cn}`)
       }
       setActionModal({ open: false, type: null, record: null })
       loadData()
@@ -134,87 +162,76 @@ export default function CodPage() {
 
   const columns = [
     {
-      title: 'CN Number',
-      dataIndex: 'cn_no',
-      key: 'cn_no',
-      render: (val, r) => (
-        <span
-          style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer' }}
-          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val || r.id)}`)}
-        >
-          {val || r.id}
-        </span>
+      title: 'CN',
+      key: 'cn',
+      render: (_, r) => (
+        <Link to={`/ops/consignments/${encodeURIComponent(cnOf(r))}`}>
+          <Text code style={{ color: BRAND }}>{cnOf(r)}</Text>
+        </Link>
       ),
     },
     {
-      title: 'Customer / Shipper',
-      dataIndex: 'consigner',
-      key: 'consigner',
-      render: (val, r) => val || r.cust_name || r.senderName || '—',
+      title: 'Customer / Consignee',
+      key: 'party',
+      render: (_, r) => (
+        <div>
+          <div>{r.custAcNo || r.cust_ac_no || '—'}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{r.recpName || r.recp_name || r.recipientName || ''}</Text>
+        </div>
+      ),
     },
     {
-      title: 'Recipient',
-      dataIndex: 'consignee',
-      key: 'consignee',
-      render: (val, r) => val || r.recipientName || '—',
-    },
-    {
-      title: 'COD Amount',
-      dataIndex: 'cod_amt',
-      key: 'cod_amt',
+      title: 'Expected',
+      key: 'expected',
       align: 'right',
-      render: (v, r) => (
-        <strong style={{ color: '#0F1B2D', fontSize: 13, fontFamily: 'monospace' }}>
-          RM {Number(v || r.amount || 0).toFixed(2)}
-        </strong>
-      ),
+      render: (_, r) => money(expectedOf(r)),
     },
     {
-      title: 'COD Status',
-      dataIndex: 'status',
+      title: 'Collected',
+      key: 'collected',
+      align: 'right',
+      render: (_, r) => money(collectedOf(r)),
+    },
+    {
+      title: 'Status',
       key: 'status',
-      render: (v, r) => <StatusTag status={v || r.cod_status || 'PENDING'} />,
+      render: (_, r) => <StatusTag status={r.status || r.cod_status || 'PENDING'} />,
     },
     {
-      title: 'Linear Lifecycle Action',
+      title: 'Drop point',
+      key: 'dp',
+      render: (_, r) => r.dropPointCode || r.drop_point_code || '—',
+    },
+    {
+      title: 'Collected at',
+      key: 'at',
+      render: (_, r) => (r.collectedAt || r.collected_at ? String(r.collectedAt || r.collected_at).slice(0, 16) : '—'),
+    },
+    {
+      title: 'Bilyet',
+      key: 'bilyet',
+      render: (_, r) => r.remittanceRef || r.remittance_ref || '—',
+    },
+    {
+      title: 'Actions',
       key: 'actions',
-      align: 'right',
+      width: 220,
       render: (_, r) => {
-        const currentSt = String(r.status || r.cod_status || 'PENDING').toUpperCase()
+        if (!canManageCod) return null
+        const st = String(r.status || r.cod_status || 'PENDING').toUpperCase()
         return (
-          <Space size="small">
-            {/* Step 1: Collect */}
-            <Button
-              size="small"
-              type={currentSt === 'PENDING' ? 'primary' : 'default'}
-              disabled={!canManageCod || currentSt !== 'PENDING'}
-              onClick={() => openAction('COLLECT', r)}
-              style={currentSt === 'PENDING' ? { background: '#1668DC', borderColor: '#1668DC' } : {}}
-            >
-              Collect
-            </Button>
-
-            {/* Step 2: Remit */}
-            <Button
-              size="small"
-              type={currentSt === 'COLLECTED' ? 'primary' : 'default'}
-              disabled={!canManageCod || currentSt !== 'COLLECTED'}
-              onClick={() => openAction('REMIT', r)}
-              style={currentSt === 'COLLECTED' ? { background: '#0891B2', borderColor: '#0891B2' } : {}}
-            >
-              Remit
-            </Button>
-
-            {/* Step 3: Settle */}
-            <Button
-              size="small"
-              type={currentSt === 'REMITTED' ? 'primary' : 'default'}
-              disabled={!canManageCod || currentSt !== 'REMITTED'}
-              onClick={() => openAction('SETTLE', r)}
-              style={currentSt === 'REMITTED' ? { background: '#1B8A5A', borderColor: '#1B8A5A' } : {}}
-            >
-              Settle
-            </Button>
+          <Space wrap>
+            {st === 'PENDING' ? (
+              <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => openAction('COLLECT', r)}>
+                Collect
+              </Button>
+            ) : null}
+            {st === 'COLLECTED' ? (
+              <Button size="small" onClick={() => openAction('REMIT', r)}>Remit</Button>
+            ) : null}
+            {st === 'REMITTED' ? (
+              <Button size="small" onClick={() => openAction('SETTLE', r)}>Settle</Button>
+            ) : null}
           </Space>
         )
       },
@@ -222,116 +239,76 @@ export default function CodPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#0F1B2D', letterSpacing: '-0.3px' }}>
-            Cash On Delivery (COD) Control
-          </h2>
-          <div style={{ fontSize: 12, color: '#5B6B7C', marginTop: 2 }}>
-            Strict linear reconciliation: Collect from consignee → Remit to hub treasury → Settle to shipper.
-          </div>
+          <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>COD Reconciliation</Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Collect at drop point → remit with bilyet → settle. Create{' '}
+            <Link to="/ops/billing/agent-in?mode=entry">Agent Money In</Link> before remitting.
+          </Text>
         </div>
-
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={loadData}>
-            Refresh
-          </Button>
-        </Space>
+        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>Refresh</Button>
       </div>
 
-      {/* Summary KPI Strip */}
-      <Row gutter={[16, 16]}>
-        <Col xs={12} sm={6}>
-          <Card size="small" style={{ borderRadius: 8 }}>
-            <Statistic
-              title="Pending Collection"
-              value={summary.pending || 0}
-              precision={2}
-              prefix="RM"
-              valueStyle={{ color: '#D97706', fontWeight: 700 }}
-            />
-          </Card>
+      <Alert
+        type="info"
+        showIcon
+        message="Damien COD flow"
+        description="API rows use camelCase (cnNo, expectedAmt, dropPointCode). Counter collect requires drop_point_code; remit requires bilyet_no."
+      />
+
+      <Row gutter={[12, 12]}>
+        <Col xs={12} md={6}>
+          <Card size="small"><Statistic title="Pending" value={summary.pending} prefix={<DollarCircleOutlined />} precision={2} valueStyle={{ color: '#D97706' }} /></Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" style={{ borderRadius: 8 }}>
-            <Statistic
-              title="Collected (At Station)"
-              value={summary.collected || 0}
-              precision={2}
-              prefix="RM"
-              valueStyle={{ color: '#1668DC', fontWeight: 700 }}
-            />
-          </Card>
+        <Col xs={12} md={6}>
+          <Card size="small"><Statistic title="Collected" value={summary.collected} precision={2} valueStyle={{ color: '#1668DC' }} /></Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" style={{ borderRadius: 8 }}>
-            <Statistic
-              title="Remitted to Treasury"
-              value={summary.remitted || 0}
-              precision={2}
-              prefix="RM"
-              valueStyle={{ color: '#0891B2', fontWeight: 700 }}
-            />
-          </Card>
+        <Col xs={12} md={6}>
+          <Card size="small"><Statistic title="Remitted" value={summary.remitted} precision={2} valueStyle={{ color: BRAND }} /></Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" style={{ borderRadius: 8 }}>
-            <Statistic
-              title="Settled & Closed"
-              value={summary.settled || 0}
-              precision={2}
-              prefix="RM"
-              valueStyle={{ color: '#1B8A5A', fontWeight: 700 }}
-            />
-          </Card>
+        <Col xs={12} md={6}>
+          <Card size="small"><Statistic title="Settled" value={summary.settled} prefix={<WalletOutlined />} precision={2} /></Card>
         </Col>
       </Row>
 
-      {/* Filter / Table Container */}
-      <Card size="small" style={{ borderRadius: 8 }} bodyStyle={{ padding: '12px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <Radio.Group
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            buttonStyle="solid"
-          >
-            <Radio.Button value="ALL">All COD</Radio.Button>
-            <Radio.Button value="PENDING">Pending</Radio.Button>
-            <Radio.Button value="COLLECTED">Collected</Radio.Button>
-            <Radio.Button value="REMITTED">Remitted</Radio.Button>
-            <Radio.Button value="SETTLED">Settled</Radio.Button>
-          </Radio.Group>
-
-          <Input
-            placeholder="Search CN or Customer..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
-            style={{ width: 240 }}
+      <Card size="small">
+        <Space wrap style={{ marginBottom: 12 }}>
+          {STATUS_TABS.map((t) => (
+            <Button
+              key={t.key}
+              type={statusFilter === t.key ? 'primary' : 'default'}
+              style={statusFilter === t.key ? { background: BRAND, borderColor: BRAND } : undefined}
+              onClick={() => setStatusFilter(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+          <Input.Search
             allowClear
+            placeholder="Search CN / customer"
+            style={{ width: 240 }}
+            onSearch={(v) => setSearch(v)}
           />
-        </div>
+        </Space>
+        <DataTable
+          loading={loading}
+          rowKey={(r) => cnOf(r) || r.id}
+          dataSource={rows}
+          columns={columns}
+          pagination={{ pageSize: 20 }}
+          locale={{ emptyText: 'No COD records in this status' }}
+        />
       </Card>
 
-      <DataTable
-        columns={columns}
-        dataSource={rows}
-        rowKey="cn_no"
-        loading={loading}
-        pagination={{ pageSize: 15 }}
-        locale={{ emptyText: 'No COD records matching criteria' }}
-      />
-
-      {/* Lifecycle Action Modal */}
       <Modal
         title={
           actionModal.type === 'COLLECT'
-            ? `Step 1: Record COD Cash Collection (${actionModal.record?.cn_no})`
+            ? `Collect COD — ${cnOf(actionModal.record)}`
             : actionModal.type === 'REMIT'
-            ? `Step 2: Remit Cash to Hub Treasury (${actionModal.record?.cn_no})`
-            : `Step 3: Settle & Disburse to Shipper (${actionModal.record?.cn_no})`
+              ? `Remit COD — ${cnOf(actionModal.record)}`
+              : `Settle COD — ${cnOf(actionModal.record)}`
         }
         open={actionModal.open}
         onCancel={() => setActionModal({ open: false, type: null, record: null })}
@@ -339,49 +316,47 @@ export default function CodPage() {
         destroyOnClose
       >
         <Form form={actionForm} layout="vertical" onFinish={handleActionSubmit}>
-          <div style={{ fontSize: 13, color: '#5B6B7C', marginBottom: 16 }}>
-            {actionModal.type === 'COLLECT' && 'Confirm that cash payment has been collected from the recipient on delivery.'}
-            {actionModal.type === 'REMIT' && 'Confirm that the driver/drop point has handed over collected cash to branch finance.'}
-            {actionModal.type === 'SETTLE' && 'Confirm electronic transfer or payout settlement to the merchant shipper.'}
-          </div>
-
-          <Form.Item label="Amount to Process (RM)" name="amount" rules={[{ required: true }]}>
-            <InputNumber min={0.01} precision={2} prefix="RM" style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item label="Handled By" name="collected_by">
-            <Input />
-          </Form.Item>
-
-          <Form.Item label="Reference / Bank Receipt No" name="reference_no">
-            <Input />
-          </Form.Item>
-
-          <Form.Item label="Audit Note" name="note">
-            <Input.TextArea rows={2} placeholder="Optional audit trail note" />
-          </Form.Item>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-            <Button onClick={() => setActionModal({ open: false, type: null, record: null })}>
-              Cancel
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={actionSubmitting}
-              style={{
-                background:
-                  actionModal.type === 'SETTLE'
-                    ? '#1B8A5A'
-                    : actionModal.type === 'REMIT'
-                    ? '#0891B2'
-                    : '#1668DC',
-                borderColor: 'transparent',
-              }}
+          {actionModal.type === 'COLLECT' ? (
+            <>
+              <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} prefix="RM" />
+              </Form.Item>
+              <Form.Item
+                name="drop_point_code"
+                label="Drop point code"
+                rules={[{ required: true, message: 'Drop point code is required' }]}
+              >
+                <Input placeholder="e.g. DP-KUL-01" />
+              </Form.Item>
+              <Form.Item name="recipient_name" label="Recipient name">
+                <Input />
+              </Form.Item>
+              <Form.Item name="note" label="Note">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </>
+          ) : null}
+          {actionModal.type === 'REMIT' ? (
+            <Form.Item
+              name="bilyet_no"
+              label="Bilyet No (Money In)"
+              rules={[{ required: true, message: 'Bilyet number is required' }]}
+              extra={<Link to="/ops/billing/agent-in?mode=entry">Create Agent Money In</Link>}
             >
-              Confirm {actionModal.type}
+              <Input placeholder="Bilyet number" />
+            </Form.Item>
+          ) : null}
+          {actionModal.type === 'SETTLE' ? (
+            <Form.Item name="note" label="Note">
+              <Input.TextArea rows={2} />
+            </Form.Item>
+          ) : null}
+          <Space>
+            <Button onClick={() => setActionModal({ open: false, type: null, record: null })}>Cancel</Button>
+            <Button type="primary" htmlType="submit" loading={actionSubmitting} style={{ background: BRAND, borderColor: BRAND }}>
+              Confirm
             </Button>
-          </div>
+          </Space>
         </Form>
       </Modal>
     </div>

@@ -44,7 +44,7 @@ import {
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
 import { money } from '../ui/bits'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -127,12 +127,21 @@ function SaveFooter({ saving, onReset, label = 'Save settings' }) {
   )
 }
 
+const COMMISSION_TABS = ['rates', 'calculator', 'ledger', 'wallets', 'withdrawals']
+
+function tabFromLocation(pathname, search) {
+  const seg = String(pathname || '').split('/').filter(Boolean).pop()
+  if (COMMISSION_TABS.includes(seg)) return seg
+  const q = new URLSearchParams(search || '').get('tab')
+  if (COMMISSION_TABS.includes(q)) return q
+  return 'rates'
+}
+
 export default function CommissionPage() {
-  const [params, setParams] = useSearchParams()
-  const tabFromUrl = params.get('tab') || 'rates'
-  const [tab, setTab] = useState(
-    ['rates', 'calculator', 'ledger', 'wallets', 'withdrawals'].includes(tabFromUrl) ? tabFromUrl : 'rates',
-  )
+  const location = useLocation()
+  const navigate = useNavigate()
+  const initialTab = tabFromLocation(location.pathname, location.search)
+  const [tab, setTab] = useState(initialTab)
   const [config, setConfig] = useState(null)
   const [draft, setDraft] = useState({})
   const [engineDraft, setEngineDraft] = useState({
@@ -227,12 +236,10 @@ export default function CommissionPage() {
   }
 
   useEffect(() => {
-    const next = params.get('tab') || 'rates'
-    if (['rates', 'calculator', 'ledger', 'wallets', 'withdrawals'].includes(next) && next !== tab) {
-      setTab(next)
-    }
+    const next = tabFromLocation(location.pathname, location.search)
+    if (next !== tab) setTab(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params])
+  }, [location.pathname, location.search])
 
   useEffect(() => {
     load()
@@ -241,7 +248,34 @@ export default function CommissionPage() {
 
   function selectTab(next) {
     setTab(next)
-    setParams(next === 'rates' ? {} : { tab: next }, { replace: true })
+    navigate(`/ops/commissions/${next}`, { replace: true })
+  }
+
+  /** Canvas walkthrough: ADDRESS_PICKUP + doorstep on RM 20 fee (illustrative 10%+10% stacking). */
+  function applyWalkthroughPreset() {
+    setCalcForm((f) => ({
+      ...f,
+      transportMode: 'road',
+      pcs: '1',
+      weight: '5',
+      deliveryFee: '20',
+      originService: 'ADDRESS_PICKUP',
+      outcome: 'doorstep',
+      collectHours: '4',
+    }))
+    setEngineDraft((d) => ({ ...d, commissionEngine: 'pct_matrix' }))
+    setPctMatrix((rows) =>
+      rows.map((row) => {
+        const code = String(row.roleCode || '')
+        const mode = String(row.transportMode || '*')
+        if (mode !== '*' && mode !== 'road') return row
+        if (['origin_drop', 'origin_dp', 'dest_drop', 'dest_dp'].includes(code)) {
+          return { ...row, pct: 10, isActive: true }
+        }
+        return row
+      }),
+    )
+    message.info('Loaded walkthrough: courier pickup + doorstep, fee RM 20, 10% origin/dest drop+DP (draft only).')
   }
 
   function setField(key, value) {
@@ -916,6 +950,7 @@ export default function CommissionPage() {
               <Card size="small" title="Engine & switches">
                 <Paragraph type="secondary" style={{ marginTop: 0 }}>
                   Keep legacy RM until the company confirms franchisee %. Then switch to the matrix.
+                  Live seeds stay at <strong>0%</strong> until ops enter real shares — the calculator walkthrough can draft 10% for demos without saving.
                 </Paragraph>
                 <Form.Item label={<Text strong>Commission engine</Text>}>
                   <Radio.Group
@@ -1178,10 +1213,28 @@ export default function CommissionPage() {
             size="small"
             title="What-if calculator"
             style={{ marginBottom: 12 }}
+            extra={
+              <Button size="small" onClick={applyWalkthroughPreset}>
+                Load RM 20 walkthrough
+              </Button>
+            }
           >
             <Paragraph type="secondary" style={{ marginTop: 0 }}>
               Uses your <strong>current Rate settings draft</strong> (even if not saved yet). Does not post to wallets.
+              Matches the pre-merge split rules: engine, fee bands, % matrix, collect SLA, and drop/DP stacking.
             </Paragraph>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="% matrix accrual (by scan)"
+              description={
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Pickup → hub sort → linehaul → dest receive → POD/collect. Roles accrue when their event fires
+                  (not all at once). Legacy RM still posts the full pack at POD / return.
+                </Text>
+              }
+            />
             <Form layout="vertical" onFinish={onCalculate}>
               <Row gutter={12}>
                 <Col xs={24} md={12}>
@@ -1628,9 +1681,21 @@ export default function CommissionPage() {
             Commission & Partner Wallets
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Configure customer delivery fees, franchisee % splits, collect SLA, and legacy RM fallback rates.
-            Changes apply to new quotes and accruals — posted ledger lines are not rewritten.
+            Configure customer delivery fees, franchisee % splits (with drop/DP stacking), collect SLA T1–T5,
+            and legacy RM fallback rates. Use the calculator for what-if splits before saving.
           </Text>
+          {tab !== 'rates' && tab !== 'calculator' ? (
+            <div style={{ marginTop: 8 }}>
+              <Space wrap>
+                <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => selectTab('rates')}>
+                  Open rate settings (split config)
+                </Button>
+                <Button size="small" onClick={() => selectTab('calculator')}>
+                  Open what-if calculator
+                </Button>
+              </Space>
+            </div>
+          ) : null}
         </div>
         <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
           Refresh

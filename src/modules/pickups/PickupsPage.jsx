@@ -38,7 +38,7 @@ import {
   ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   apiError,
   assignPickup,
@@ -56,10 +56,12 @@ const { Title, Text, Paragraph } = Typography
 
 export default function PickupsPage() {
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
   const { can, isAdmin, user } = useAuth()
   const canAssign = isAdmin || ['Operation', 'Super Admin', 'Admin', 'Droppoint Manager', 'Hub Manager'].includes(user?.role)
 
-  const [activeTab, setActiveTab] = useState('waiting') // 'waiting' | 'queue'
+  const tabFromUrl = params.get('tab') || 'waiting'
+  const activeTab = ['waiting', 'queue'].includes(tabFromUrl) ? tabFromUrl : 'waiting'
   const [loading, setLoading] = useState(false)
 
   // Data lists
@@ -123,7 +125,7 @@ export default function PickupsPage() {
 
   // Manual Assign
   function openManualAssign(record) {
-    setSelectedCn(record.cn_no || record.id)
+    setSelectedCn(record.cn_no || record.consignment_no || record.id)
     setSelectedPickup(record)
     assignForm.resetFields()
     setManualModalOpen(true)
@@ -131,6 +133,10 @@ export default function PickupsPage() {
 
   async function handleManualSubmit(values) {
     if (!selectedCn) return
+    if (!values.driver_id && !values.dp_code) {
+      message.warning('Select a courier or a drop point station.')
+      return
+    }
     setAssigning(true)
     try {
       await assignPickup(selectedCn, values)
@@ -145,7 +151,7 @@ export default function PickupsPage() {
   }
 
   const compatibleDrivers = drivers.filter((driver) => {
-    const origin = String(selectedPickup?.origin_branch || '').trim().toUpperCase()
+    const origin = String(selectedPickup?.origin_branch || selectedPickup?.from_branch || '').trim().toUpperCase()
     const driverBranch = String(driver.locId || driver.loc_id || '').trim().toUpperCase()
     return !origin || !driverBranch || origin === driverBranch
   })
@@ -155,7 +161,8 @@ export default function PickupsPage() {
     setAutoAssigning(true)
     try {
       const res = await autoAssignPickups(values)
-      message.success(`Auto-assigned ${res?.assigned_count || res?.total_assigned || 0} pickups`)
+      const count = res?.assigned ?? res?.assigned_count ?? res?.total_assigned ?? 0
+      message.success(res?.message || `Auto-assigned ${count} pickups`)
       setAutoResult(res)
       loadData()
     } catch (err) {
@@ -163,6 +170,10 @@ export default function PickupsPage() {
     } finally {
       setAutoAssigning(false)
     }
+  }
+
+  function selectPickupTab(next) {
+    setParams(next === 'waiting' ? {} : { tab: next }, { replace: true })
   }
 
   const waitingColumns = [
@@ -180,34 +191,37 @@ export default function PickupsPage() {
       ),
     },
     {
-      title: 'Pickup Address / Shipper',
-      dataIndex: 'consigner',
-      key: 'consigner',
+      title: 'Shipper',
+      dataIndex: 'sender_name',
+      key: 'sender_name',
       render: (val, r) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{val || r.senderName || r.cust_name || '—'}</div>
-          <div style={{ fontSize: 11, color: '#6B7280' }}>{r.origin_addr || r.senderAddress || '—'}</div>
+          <div style={{ fontWeight: 500 }}>{val || r.consigner || r.senderName || r.cust_name || '—'}</div>
+          <div style={{ fontSize: 11, color: '#6B7280' }}>
+            {r.consignee_name || r.consignee || r.origin_addr || r.senderAddress || '—'}
+          </div>
         </div>
       ),
     },
     {
-      title: 'Origin Zone',
-      dataIndex: 'origin_zone',
-      key: 'origin_zone',
-      render: (v) => <Tag color="blue">{v || 'DEFAULT'}</Tag>,
+      title: 'Origin branch',
+      dataIndex: 'from_branch',
+      key: 'from_branch',
+      render: (v, r) => <Tag color="blue">{v || r.origin_branch || r.origin_zone || '—'}</Tag>,
     },
     {
-      title: 'Parcels',
-      key: 'parcels',
-      render: (_, r) => `${r.cn_pcs || 1} pcs (${r.cn_wt || 1} kg)`,
+      title: 'Status',
+      dataIndex: 'cn_status',
+      key: 'cn_status',
+      render: (v) => <StatusTag status={v || 'WAITING_PICKUP'} />,
     },
     {
       title: 'Ready Since',
-      dataIndex: 'pu_dt',
-      key: 'pu_dt',
+      dataIndex: 'cn_date',
+      key: 'cn_date',
       render: (v, r) => (
         <span style={{ fontSize: 12, color: '#6B7280' }}>
-          {v || (r.created_at ? String(r.created_at).slice(0, 16) : '—')}
+          {v || r.pu_dt || (r.created_at ? String(r.created_at).slice(0, 16) : '—')}
         </span>
       ),
     },
@@ -248,8 +262,8 @@ export default function PickupsPage() {
       title: 'Assigned Courier / DP',
       key: 'agent',
       render: (_, r) => {
-        const name = r.driver_name || r.courier_name || r.drop_point_name || r.agent_name || 'Assigned'
-        const isDp = Boolean(r.drop_point_name)
+        const isDp = Boolean(r.dp_code || r.dp_id || r.drop_point_name)
+        const name = r.driver_name || r.courier_name || r.drop_point_name || r.dp_code || r.agent_name || 'Assigned'
         return (
           <Space>
             <Avatar
@@ -259,7 +273,9 @@ export default function PickupsPage() {
             />
             <div>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
-              <div style={{ fontSize: 11, color: '#6B7280' }}>{isDp ? 'Drop Point' : 'Field Courier'}</div>
+              <div style={{ fontSize: 11, color: '#6B7280' }}>
+                {isDp ? `Drop Point${r.assignment_type ? ` · ${r.assignment_type}` : ''}` : `Field Courier${r.assignment_type ? ` · ${r.assignment_type}` : ''}`}
+              </div>
             </div>
           </Space>
         )
@@ -302,12 +318,13 @@ export default function PickupsPage() {
             Pickup Assignment Queue
           </h2>
           <div style={{ fontSize: 12, color: '#5B6B7C', marginTop: 2 }}>
-            Dispatch fleet couriers and route pickup jobs from booking clients.
+            First-mile waiting / assigned pickups (Damien `/ops/pickups*`). For plan + last-mile + 3PL use{' '}
+            <Link to="/ops/dispatch?tab=assign">Dispatch & 3PL</Link>.
           </div>
         </div>
 
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={loadData}>
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
             Refresh
           </Button>
           {canAssign && (
@@ -375,7 +392,7 @@ export default function PickupsPage() {
       <Card style={{ borderRadius: 8 }} bodyStyle={{ padding: 16 }}>
         <Tabs
           activeKey={activeTab}
-          onChange={(k) => setActiveTab(k)}
+          onChange={selectPickupTab}
           items={[
             {
               key: 'waiting',
@@ -550,7 +567,8 @@ export default function PickupsPage() {
               }}
             >
               <div style={{ fontWeight: 600, color: '#166534', marginBottom: 8 }}>
-                Assignment Results ({autoResult.assigned_count || autoResult.total_assigned || 0} consignments):
+                Assignment Results ({autoResult.assigned ?? autoResult.assigned_count ?? autoResult.total_assigned ?? 0} consignments
+                {autoResult.skipped ? `, ${autoResult.skipped} skipped` : ''}):
               </div>
               <div style={{ fontSize: 12, color: '#374151' }}>
                 {autoResult.couriers && Object.keys(autoResult.couriers).length > 0 ? (

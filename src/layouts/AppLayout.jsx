@@ -46,8 +46,9 @@ const APP_PAGES = [
   { title: 'Import Error Log', path: '/ops/consignments/import-log', keywords: ['import', 'errors', 'batch', 'failures'] },
   { title: 'Consignment Tracking', path: '/ops/consignments/tracking', keywords: ['tracking', 'timeline', 'cn', 'status'] },
   { title: 'Cancellation Log', path: '/ops/consignments/cancellations', keywords: ['cancel', 'void', 'cancellations'] },
-  { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign'] },
-  { title: 'Dispatch & 3PL', path: '/ops/dispatch', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers'] },
+  { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign', 'waiting', 'courier'] },
+  { title: 'Dispatch Driver Assignment', path: '/ops/dispatch?tab=assign', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers', 'plan', 'auto-assign'] },
+  { title: 'Remote / 3PL Pickup', path: '/ops/dispatch?tab=remote', keywords: ['3pl', 'remote', 'uncovered', 'partner'] },
   { title: 'Seal Station', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan'] },
   { title: 'Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'baby', 'mother', 'father', 'hub'] },
   { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
@@ -73,11 +74,11 @@ const APP_PAGES = [
   { title: 'Customer Wallet', path: '/ops/billing/customer-wallet', keywords: ['wallet', 'customer', 'ledger', 'balance'] },
   { title: 'Cancellation Policy', path: '/ops/billing/cancellation-settings', keywords: ['cancel', 'policy', 'fees', 'tiers'] },
   { title: 'COD Reconciliation', path: '/ops/cod', keywords: ['cash', 'collect', 'remit', 'settle', 'cod'] },
-  { title: 'Commissions Ledger', path: '/ops/commissions/rates?tab=ledger', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
-  { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/rates?tab=wallets', keywords: ['wallets', 'payouts', 'balance'] },
-  { title: 'Commission Rate Rules', path: '/ops/commissions/rates?tab=rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix'] },
-  { title: 'Commission Rates Calculator', path: '/ops/commissions/rates?tab=calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if'] },
-  { title: 'Commission Withdrawals', path: '/ops/commissions/rates?tab=withdrawals', keywords: ['withdrawals', 'payout'] },
+  { title: 'Commissions Ledger', path: '/ops/commissions/ledger', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
+  { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/wallets', keywords: ['wallets', 'payouts', 'balance'] },
+  { title: 'Commission Rate Rules', path: '/ops/commissions/rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix', 'split', 'engine'] },
+  { title: 'Commission Rates Calculator', path: '/ops/commissions/calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if', 'walkthrough', 'split'] },
+  { title: 'Commission Withdrawals', path: '/ops/commissions/withdrawals', keywords: ['withdrawals', 'payout'] },
   { title: 'Agent Money Overview', path: '/ops/agents', keywords: ['agents', 'bilyet', 'ledger'] },
   { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
   { title: 'Staff Verification', path: '/ops/staff', keywords: ['staff', 'approval', 'drivers', 'kyc'] },
@@ -90,7 +91,8 @@ const APP_PAGES = [
   { title: 'Master Data: 3PL Partners', path: '/ops/admin/3pl', keywords: ['3pl', 'logistics', 'dhl', 'jnt'] },
   { title: 'Master Data: Coverage Areas', path: '/ops/admin/coverage', keywords: ['coverage', 'areas', 'territory'] },
   { title: 'Master Data: Routing Rules', path: '/ops/admin/routes', keywords: ['routes', 'rules', 'origin', 'dest'] },
-  { title: 'Master Data: Delivery Zones', path: '/ops/admin/zones', keywords: ['zones', 'coverage', 'postcode'] },
+  { title: 'Master Data: Delivery Points', path: '/ops/admin/zones', keywords: ['zones', 'delivery points', 'coverage', 'postcode'] },
+  { title: 'Master Data: Network Areas', path: '/ops/admin/areas', keywords: ['areas', 'network', 'last-mile'] },
   { title: 'Master Data: Route Codes', path: '/ops/admin/route-codes', keywords: ['route-codes', 'sector', 'area'] },
   { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
   { title: 'Master Data: Agents', path: '/ops/admin/agents', keywords: ['agents', 'resellers', 'partners'] },
@@ -147,6 +149,15 @@ function getBreadcrumbs(pathname, search) {
     }
   } else if (pathname.startsWith('/ops/pickups')) {
     items.push({ label: 'Pickups Queue', path: '/ops/pickups' })
+    const tab = new URLSearchParams(search || '').get('tab')
+    if (tab === 'queue') items.push({ label: 'Assigned Queue', path: '/ops/pickups?tab=queue' })
+    else items.push({ label: 'Waiting', path: '/ops/pickups' })
+  } else if (pathname.startsWith('/ops/dispatch')) {
+    items.push({ label: 'Dispatch & 3PL', path: '/ops/dispatch?tab=assign' })
+    const tab = new URLSearchParams(search || '').get('tab')
+    if (tab === 'remote') items.push({ label: 'Remote / 3PL', path: '/ops/dispatch?tab=remote' })
+    else if (tab === 'drivers') items.push({ label: 'Drivers', path: '/ops/dispatch?tab=drivers' })
+    else items.push({ label: 'Driver assignment', path: '/ops/dispatch?tab=assign' })
   } else if (pathname.startsWith('/ops/manifests')) {
     items.push({ label: 'Manifests & Bags', path: '/ops/manifests' })
     const parts = pathname.split('/')
@@ -163,11 +174,12 @@ function getBreadcrumbs(pathname, search) {
     items.push({ label: 'COD Reconciliation', path: '/ops/cod' })
   } else if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
     items.push({ label: 'Commissions', path: '/ops/commissions/rates' })
-    const tab = new URLSearchParams(search || '').get('tab')
-    if (tab === 'calculator') items.push({ label: 'Calculator', path: '/ops/commissions/rates?tab=calculator' })
-    else if (tab === 'ledger') items.push({ label: 'Ledger', path: '/ops/commissions/rates?tab=ledger' })
-    else if (tab === 'wallets') items.push({ label: 'Partner Wallets', path: '/ops/commissions/rates?tab=wallets' })
-    else if (tab === 'withdrawals') items.push({ label: 'Withdrawals', path: '/ops/commissions/rates?tab=withdrawals' })
+    const seg = pathname.split('/').filter(Boolean).pop()
+    const tab = new URLSearchParams(search || '').get('tab') || seg
+    if (tab === 'calculator') items.push({ label: 'Calculator', path: '/ops/commissions/calculator' })
+    else if (tab === 'ledger') items.push({ label: 'Ledger', path: '/ops/commissions/ledger' })
+    else if (tab === 'wallets') items.push({ label: 'Partner Wallets', path: '/ops/commissions/wallets' })
+    else if (tab === 'withdrawals') items.push({ label: 'Withdrawals', path: '/ops/commissions/withdrawals' })
     else items.push({ label: 'Rate settings', path: '/ops/commissions/rates' })
   } else if (pathname.startsWith('/ops/cs')) {
     items.push({ label: 'Customer Service', path: '/ops/cs/tickets' })
@@ -211,11 +223,12 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/ops/billing')) return '/ops/billing/invoices'
   if (pathname.startsWith('/ops/cod')) return '/ops/cod'
   if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
-    const tab = new URLSearchParams(search).get('tab')
-    if (tab === 'ledger') return '/ops/commissions/rates?tab=ledger'
-    if (tab === 'wallets') return '/ops/commissions/rates?tab=wallets'
-    if (tab === 'withdrawals') return '/ops/commissions/rates?tab=withdrawals'
-    if (tab === 'calculator') return '/ops/commissions/rates?tab=rates'
+    const seg = pathname.split('/').filter(Boolean).pop()
+    const tab = new URLSearchParams(search).get('tab') || seg
+    if (tab === 'ledger') return '/ops/commissions/ledger'
+    if (tab === 'wallets') return '/ops/commissions/wallets'
+    if (tab === 'withdrawals') return '/ops/commissions/withdrawals'
+    if (tab === 'calculator') return '/ops/commissions/calculator'
     return '/ops/commissions/rates'
   }
   if (pathname.startsWith('/ops/agents')) return '/ops/agents'
@@ -485,7 +498,7 @@ export default function AppLayout() {
         {
           key: '/ops/dispatch',
           icon: <GlobalOutlined />,
-          label: <Link to="/ops/dispatch" style={{ display: 'block', width: '100%' }}>Dispatch & 3PL</Link>,
+          label: <Link to="/ops/dispatch?tab=assign" style={{ display: 'block', width: '100%' }}>Dispatch & 3PL</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
         {
@@ -686,26 +699,31 @@ export default function AppLayout() {
           key: 'sub-commissions',
           icon: <TeamOutlined />,
           label: 'Commissions & Wallets',
-          visible: can('commissions') || can('agent') || isAdmin,
+          visible: can('commissions') || can('agent') || can('billing') || isAdmin,
           children: [
             {
               key: '/ops/commissions/rates',
-              label: <Link to="/ops/commissions/rates?tab=rates" style={{ display: 'block', width: '100%' }}>Rate settings & calculator</Link>,
-              visible: can('commissions') || isAdmin,
+              label: <Link to="/ops/commissions/rates" style={{ display: 'block', width: '100%' }}>Rate settings (split config)</Link>,
+              visible: can('commissions') || can('billing') || isAdmin,
             },
             {
-              key: '/ops/commissions/rates?tab=ledger',
-              label: <Link to="/ops/commissions/rates?tab=ledger" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
+              key: '/ops/commissions/calculator',
+              label: <Link to="/ops/commissions/calculator" style={{ display: 'block', width: '100%' }}>What-if calculator</Link>,
+              visible: can('commissions') || can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/commissions/ledger',
+              label: <Link to="/ops/commissions/ledger" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
               visible: can('commissions') || can('agent') || isAdmin,
             },
             {
-              key: '/ops/commissions/rates?tab=wallets',
-              label: <Link to="/ops/commissions/rates?tab=wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
+              key: '/ops/commissions/wallets',
+              label: <Link to="/ops/commissions/wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
               visible: can('commissions') || can('agent') || isAdmin,
             },
             {
-              key: '/ops/commissions/rates?tab=withdrawals',
-              label: <Link to="/ops/commissions/rates?tab=withdrawals" style={{ display: 'block', width: '100%' }}>Withdrawals</Link>,
+              key: '/ops/commissions/withdrawals',
+              label: <Link to="/ops/commissions/withdrawals" style={{ display: 'block', width: '100%' }}>Withdrawals</Link>,
               visible: can('commissions') || can('agent') || isAdmin,
             },
             {
@@ -745,7 +763,7 @@ export default function AppLayout() {
           key: '/ops/admin/role-access',
           icon: <KeyOutlined />,
           label: <Link to="/ops/admin/role-access" style={{ display: 'block', width: '100%' }}>Role Access (RBAC)</Link>,
-          visible: isAdmin,
+          visible: can('roleAccess') || String(user?.role || '') === 'Super Admin' || isAdmin,
         },
         {
           key: 'sub-master-data',
@@ -795,8 +813,13 @@ export default function AppLayout() {
             },
             {
               key: '/ops/admin/zones',
-              label: <Link to="/ops/admin/zones" style={{ display: 'block', width: '100%' }}>Delivery Zones</Link>,
-              visible: can('admin') || isAdmin,
+              label: <Link to="/ops/admin/zones" style={{ display: 'block', width: '100%' }}>Delivery Points</Link>,
+              visible: can('admin') || can('routing') || isAdmin,
+            },
+            {
+              key: '/ops/admin/areas',
+              label: <Link to="/ops/admin/areas" style={{ display: 'block', width: '100%' }}>Network Areas</Link>,
+              visible: can('admin') || can('routing') || isAdmin,
             },
             {
               key: '/ops/admin/route-codes',

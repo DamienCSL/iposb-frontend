@@ -365,7 +365,8 @@ export async function getPickupsWaiting(params) {
 }
 
 export async function getPickupsQueue(params) {
-  const { data } = await api.get('/ops/pickups/queue', { params })
+  // Assigned / in-progress queue — backend route is GET /ops/pickups (not /queue)
+  const { data } = await api.get('/ops/pickups', { params })
   return data
 }
 
@@ -411,8 +412,11 @@ export async function detachManifestConsignment(mfg, cn) {
 }
 
 // --- Billing Void & PDF ---
-export async function voidBilling(doc, id, note) {
-  const { data } = await api.post(`/ops/billing/${doc}/${encodeURIComponent(id)}/void`, { note })
+export async function voidBilling(doc, id, reason) {
+  const { data } = await api.post(`/ops/billing/${doc}/${encodeURIComponent(id)}/void`, {
+    reason: reason || 'Voided by operations',
+    note: reason || 'Voided by operations',
+  })
   return data
 }
 

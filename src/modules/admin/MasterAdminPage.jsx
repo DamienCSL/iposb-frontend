@@ -161,7 +161,8 @@ export const MASTER_CATEGORIES = [
     icon: <BranchesOutlined />,
     description: 'Delivery zones, dispatch routing codes, and automated cross-zone linehaul rules.',
     resources: [
-      { key: 'zones', label: 'Delivery Zones', icon: <EnvironmentOutlined /> },
+      { key: 'zones', label: 'Delivery Points', icon: <EnvironmentOutlined /> },
+      { key: 'areas', label: 'Network Areas', icon: <GlobalOutlined /> },
       { key: 'route-codes', label: 'Route Codes', icon: <BarcodeOutlined /> },
       { key: 'routes', label: 'Routing Matrix', icon: <BranchesOutlined /> },
     ],
@@ -250,26 +251,27 @@ export const MASTER_SCHEMAS = {
     columns: [
       { title: 'Area Code', dataIndex: 'area_code', key: 'area_code', render: (v) => <Tag color="geekblue">{v}</Tag> },
       { title: 'Area Name', dataIndex: 'area_name', key: 'area_name', render: (v) => <strong>{v}</strong> },
-      { title: 'Zone Code', dataIndex: 'zone_code', key: 'zone_code', render: (v) => <Tag color="green">{v}</Tag> },
+      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => <Tag color="green">{v || r.zone_code || '—'}</Tag> },
       {
         title: 'Owner Type',
         dataIndex: 'owner_type',
         key: 'owner_type',
-        render: (v) => <Tag color={v === 'internal' ? 'blue' : 'orange'}>{v || 'internal'}</Tag>,
+        render: (v) => <Tag color={v === 'internal' || v === 'own' ? 'blue' : 'orange'}>{v || 'uncovered'}</Tag>,
       },
     ],
     fields: [
       { name: 'area_code', label: 'Area Code', required: true, placeholder: 'e.g. KK-CBD' },
       { name: 'area_name', label: 'Area Name', required: true, placeholder: 'e.g. Kota Kinabalu CBD' },
-      { name: 'zone_code', label: 'Zone Code', required: true, placeholder: 'e.g. Z-BKI-01' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL' },
       {
         name: 'owner_type',
         label: 'Owner Type',
         type: 'select',
         options: [
-          { label: 'Internal Fleet (IPOSB)', value: 'internal' },
-          { label: '3PL Partner Handover', value: '3pl' },
-          { label: 'Drop Point / Counter', value: 'drop_point' },
+          { label: 'Own / Internal', value: 'own' },
+          { label: '3PL Partner', value: '3pl' },
+          { label: 'Uncovered (HQ)', value: 'uncovered' },
+          { label: 'Drop Point', value: 'drop_point' },
         ],
       },
     ],
@@ -345,20 +347,43 @@ export const MASTER_SCHEMAS = {
     pk: 'id',
   },
   zones: {
-    title: 'Zone Management',
-    singular: 'Zone',
+    title: 'Delivery Points (Zones)',
+    singular: 'Delivery Point',
     category: 'routing',
     icon: <EnvironmentOutlined />,
     columns: [
-      { title: 'Zone Code', dataIndex: 'zone_code', key: 'zone_code', render: (v) => <Tag color="green">{v}</Tag> },
-      { title: 'Zone Name', dataIndex: 'zone_name', key: 'zone_name', render: (v) => <strong>{v}</strong> },
+      { title: 'Code', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => <Tag color="green">{v || r.zone_code}</Tag> },
+      { title: 'Name', dataIndex: 'delivery_point_name', key: 'delivery_point_name', render: (v, r) => <strong>{v || r.zone_name}</strong> },
+      { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'zone_code', label: 'Zone Code', required: true },
-      { name: 'zone_name', label: 'Zone Name', required: true },
-      { name: 'branch_code', label: 'Branch Code', required: true },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true },
+      { name: 'delivery_point_name', label: 'Name', required: true },
+      { name: 'hub_code', label: 'Hub Code', required: true },
+      { name: 'branch_code', label: 'Branch Code' },
+    ],
+    pk: 'id',
+  },
+  areas: {
+    title: 'Network Areas',
+    singular: 'Area',
+    category: 'routing',
+    icon: <GlobalOutlined />,
+    columns: [
+      { title: 'Area Code', dataIndex: 'area_code', key: 'area_code', render: (v) => <Tag color="geekblue">{v}</Tag> },
+      { title: 'Area Name', dataIndex: 'area_name', key: 'area_name', render: (v) => <strong>{v}</strong> },
+      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code' },
+      { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+    ],
+    fields: [
+      { name: 'area_code', label: 'Area Code', required: true },
+      { name: 'area_name', label: 'Area Name', required: true },
+      { name: 'delivery_point_code', label: 'Parent Delivery Point', required: true },
+      { name: 'hub_code', label: 'Hub Code' },
+      { name: 'branch_code', label: 'Branch Code' },
     ],
     pk: 'id',
   },
@@ -409,15 +434,19 @@ export const MASTER_SCHEMAS = {
     columns: [
       { title: 'Account #', dataIndex: 'cust_ac_no', key: 'cust_ac_no', render: (v) => <Tag color="blue">{v}</Tag> },
       { title: 'Company / Name', dataIndex: 'cust_name', key: 'cust_name', render: (v) => <strong>{v}</strong> },
-      { title: 'Phone', dataIndex: 'phone', key: 'phone' },
+      { title: 'Phone', dataIndex: 'cust_tel', key: 'cust_tel', render: (v, r) => v || r.phone || '—' },
+      { title: 'Email', dataIndex: 'cust_email', key: 'cust_email' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
     ],
     fields: [
       { name: 'cust_ac_no', label: 'Account Number', required: true },
       { name: 'cust_name', label: 'Customer Name', required: true },
-      { name: 'phone', label: 'Phone' },
+      { name: 'cust_tel', label: 'Phone' },
+      { name: 'cust_email', label: 'Email' },
+      { name: 'cust_addr1', label: 'Address line 1', type: 'textarea' },
+      { name: 'cust_postcode', label: 'Postcode' },
+      { name: 'cust_state', label: 'State / City' },
       { name: 'branch_code', label: 'Branch Code' },
-      { name: 'address', label: 'Registered Address', type: 'textarea' },
     ],
     pk: 'id',
   },
@@ -443,7 +472,7 @@ export const MASTER_SCHEMAS = {
     pk: 'id',
   },
   users: {
-    title: 'Portal Users & RBAC',
+    title: 'Staff Users',
     singular: 'User',
     category: 'accounts',
     icon: <SafetyCertificateOutlined />,
@@ -466,12 +495,13 @@ export const MASTER_SCHEMAS = {
         options: [
           { label: 'Super Admin', value: 'Super Admin' },
           { label: 'Admin', value: 'Admin' },
-          { label: 'Operation', value: 'Operation' },
-          { label: 'Invoice', value: 'Invoice' },
-          { label: 'Droppoint Manager', value: 'Droppoint Manager' },
           { label: 'Hub Manager', value: 'Hub Manager' },
-          { label: 'CSL', value: 'CSL' },
+          { label: 'Droppoint Manager', value: 'Droppoint Manager' },
+          { label: 'Operation', value: 'Operation' },
           { label: 'Agent', value: 'Agent' },
+          { label: 'Invoice (Billing)', value: 'Invoice' },
+          { label: 'CSL (Customer Service)', value: 'CSL' },
+          { label: 'Others (limited)', value: 'Others' },
         ],
       },
       { name: 'user_password', label: 'Password', type: 'password', placeholder: 'Leave blank to keep current' },
@@ -723,6 +753,20 @@ export default function MasterAdminPage() {
           style={{ borderRadius: 8, border: '1px solid #FDE68A', background: '#FFFBEB' }}
         />
       )}
+
+      {currentResource === 'users' ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Staff users & role access"
+          description={
+            <span>
+              Assign each person a job role here (Super Admin, Operation, Invoice, …). Module menus and login landing pages are configured on{' '}
+              <a href="/ops/admin/role-access">Role Access (RBAC)</a>. Seller / Receiver / Customer are not staff login roles.
+            </span>
+          }
+        />
+      ) : null}
 
       {/* Top Header Card with Domain Categories */}
       <Card

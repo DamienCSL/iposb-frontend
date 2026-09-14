@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { message } from 'antd'
 import { apiError, loginOffice, logoutOffice, meOffice } from '../api/client'
 import { capabilitiesFor, DEMO_USERS, normalizeRole } from './rbac'
+import { remapDefaultRoute } from './routeAliases'
 
 const AuthContext = createContext(null)
 const STORAGE_KEY = 'iposb.staff.session'
@@ -28,7 +29,7 @@ function sessionFromApi(token, user, capabilities = null, issuedAt = null) {
     issuedAt: issuedAt || Date.now(),
     token,
     authKind: 'office',
-    defaultRoute: user.defaultRoute || '/ops/dashboard',
+    defaultRoute: remapDefaultRoute(user.defaultRoute || '/ops/dashboard'),
   }
 }
 
@@ -128,7 +129,9 @@ export function AuthProvider({ children }) {
       isAdmin,
       can(capName) {
         if (!caps) return false
-        if (isAdmin) return true
+        if (normalizeRole(user?.role) === 'Super Admin') return true
+        // Head-office Admin keeps broad access; Role Access matrix still drives Operation/Agent/etc.
+        if (normalizeRole(user?.role) === 'Admin' && capName !== 'roleAccess') return true
         return Boolean(caps[capName])
       },
       async login(username, password) {

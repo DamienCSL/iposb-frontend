@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
+  Alert,
   Button,
   Card,
   Col,
@@ -24,7 +25,7 @@ import {
   SearchOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { apiError, listBilling } from '../../api/client'
 
 const { Title, Text } = Typography
@@ -49,8 +50,8 @@ export default function AgentsPage() {
   async function fetchLedger() {
     setLoading(true)
     try {
-      const res = await listBilling(ledgerType, { search })
-      setLedgerData(res || { rows: [] })
+      const res = await listBilling(ledgerType, { agent_cd: search || undefined, bilyet_no: search || undefined })
+      setLedgerData({ rows: res?.rows || res?.data || [] })
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -154,12 +155,41 @@ export default function AgentsPage() {
             ),
             children: (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Drop-point / agent money"
+                  description={
+                    <span>
+                      Use Damien billing entry screens for bilyets:{' '}
+                      <Link to="/ops/billing/agent-in?mode=entry">Money In</Link>
+                      {' · '}
+                      <Link to="/ops/billing/agent-out?mode=entry">Money Out</Link>
+                      {' · '}
+                      <Link to="/ops/billing/agent-credit?mode=entry">Credit</Link>
+                      {' · '}
+                      <Link to="/ops/billing/agent-debit?mode=entry">Debit</Link>
+                      . Commission wallets live under{' '}
+                      <Link to="/ops/commissions/wallets">Partner Wallets</Link>.
+                    </span>
+                  }
+                />
                 <Row gutter={[12, 12]}>
                   <Col xs={24} sm={8}>
                     <Card size="small" style={{ borderRadius: 6, borderColor: '#E5E7EB' }}>
                       <Statistic
-                        title={<span style={{ fontSize: 12, color: '#5B6B7C' }}>Total Agent Inflow (Month)</span>}
-                        value={14250.0}
+                        title={<span style={{ fontSize: 12, color: '#5B6B7C' }}>Loaded ledger rows ({ledgerType})</span>}
+                        value={(ledgerData.rows || ledgerData.data || []).length}
+                        prefix={<TeamOutlined style={{ color: '#1668DC' }} />}
+                        valueStyle={{ fontWeight: 700, color: '#0F1B2D' }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Card size="small" style={{ borderRadius: 6, borderColor: '#E5E7EB' }}>
+                      <Statistic
+                        title={<span style={{ fontSize: 12, color: '#5B6B7C' }}>Sum on current list</span>}
+                        value={(ledgerData.rows || ledgerData.data || []).reduce((s, r) => s + Number(r.amt || r.total_amount || 0), 0)}
                         precision={2}
                         prefix={<ArrowDownOutlined style={{ color: '#1B8A5A' }} />}
                         suffix="RM"
@@ -169,24 +199,9 @@ export default function AgentsPage() {
                   </Col>
                   <Col xs={24} sm={8}>
                     <Card size="small" style={{ borderRadius: 6, borderColor: '#E5E7EB' }}>
-                      <Statistic
-                        title={<span style={{ fontSize: 12, color: '#5B6B7C' }}>Agent Commission Disbursed</span>}
-                        value={4820.5}
-                        precision={2}
-                        prefix={<ArrowUpOutlined style={{ color: '#D97706' }} />}
-                        suffix="RM"
-                        valueStyle={{ fontWeight: 700, color: '#D97706' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col xs={24} sm={8}>
-                    <Card size="small" style={{ borderRadius: 6, borderColor: '#E5E7EB' }}>
-                      <Statistic
-                        title={<span style={{ fontSize: 12, color: '#5B6B7C' }}>Active Agent Hubs</span>}
-                        value={18}
-                        prefix={<TeamOutlined style={{ color: '#1668DC' }} />}
-                        valueStyle={{ fontWeight: 700, color: '#0F1B2D' }}
-                      />
+                      <Button type="link" href={`/ops/billing/${ledgerType}?mode=entry`} style={{ padding: 0 }}>
+                        Create {ledgerType} document →
+                      </Button>
                     </Card>
                   </Col>
                 </Row>
@@ -197,9 +212,8 @@ export default function AgentsPage() {
                   style={{ borderRadius: 6, borderColor: '#E5E7EB' }}
                 >
                   <p style={{ margin: 0, color: '#4B5563', fontSize: 13 }}>
-                    Use the <strong>Transaction Ledger</strong> tab to filter and verify all Bilyet Money In
-                    deposits, Bilyet Money Out payments, and credit note reconciliations. All transactions require
-                    clearing validation by finance clerks before commission release.
+                    Use the <strong>Transaction Ledger</strong> tab to filter and verify Bilyet Money In/Out and
+                    credit/debit notes. COD remittance requires a Money In bilyet first.
                   </p>
                 </Card>
               </div>

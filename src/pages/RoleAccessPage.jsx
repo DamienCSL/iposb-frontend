@@ -40,6 +40,9 @@ import {
   UserOutlined,
 } from '@ant-design/icons'
 import { apiError, getRbacModules, getRbacRoles, updateRbacRole } from '../api/client'
+import { remapDefaultRoute } from '../auth/routeAliases'
+import { useAuth } from '../auth/AuthContext'
+import { Link } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -64,9 +67,17 @@ const MODULE_META = {
     icon: InboxOutlined,
     hint: 'Create, search, track, and cancel shipments',
   },
+  pickups: {
+    icon: CarOutlined,
+    hint: 'First-mile waiting queue and courier / DP assignment',
+  },
+  manifests: {
+    icon: FileTextOutlined,
+    hint: 'Manifests, bags, and seal station',
+  },
   dispatch: {
     icon: CarOutlined,
-    hint: 'Assign drivers for delivery-point first-mile and last-mile jobs',
+    hint: 'Driver assignment, plan path, and remote / 3PL coverage',
   },
   summaries: {
     icon: BarChartOutlined,
@@ -78,11 +89,23 @@ const MODULE_META = {
   },
   billing: {
     icon: FileTextOutlined,
-    hint: 'Invoices, receipts, wallets, COD, and commissions',
+    hint: 'Invoices, receipts, credit notes, and customer wallet',
+  },
+  cod: {
+    icon: DollarOutlined,
+    hint: 'Cash-on-delivery collection and reconciliation',
+  },
+  commissions: {
+    icon: RiseOutlined,
+    hint: 'Commission rate matrix, calculator, ledger, and withdrawals',
   },
   dropPoints: {
     icon: EnvironmentOutlined,
     hint: 'Drop points, stock, and drop-point money',
+  },
+  agent: {
+    icon: TeamOutlined,
+    hint: 'Agent money overview and drop-point agent tools',
   },
   customerReports: {
     icon: RiseOutlined,
@@ -112,6 +135,10 @@ const MODULE_META = {
     icon: BranchesOutlined,
     hint: 'Zones, routes, and route codes for planning',
   },
+  admin: {
+    icon: SettingOutlined,
+    hint: 'Master data admin screens (branches, hubs, partners)',
+  },
 }
 
 const GROUP_META = {
@@ -138,11 +165,13 @@ const DEMO_LOGINS = [
 const brandPrimary = { background: '#1B8A5A', borderColor: '#1B8A5A' }
 
 export default function RoleAccessPage() {
+  const { user } = useAuth()
+  const isSuperAdmin = String(user?.role || '') === 'Super Admin'
   const [modules, setModules] = useState([])
   const [roles, setRoles] = useState([])
   const [selectedRole, setSelectedRole] = useState('')
   const [enabled, setEnabled] = useState([])
-  const [defaultRoute, setDefaultRoute] = useState('/')
+  const [defaultRoute, setDefaultRoute] = useState('/ops/dashboard')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -155,12 +184,15 @@ export default function RoleAccessPage() {
 
   const routeOptions = useMemo(() => {
     const enabledSet = new Set(enabled)
-    const opts = [{ value: '/', label: 'Main dashboard', desc: 'Overview when they first log in' }]
+    const opts = [{ value: '/ops/dashboard', label: 'Main dashboard', desc: 'Overview when they first log in' }]
     for (const mod of modules) {
-      if (enabledSet.has(mod.code) && mod.suggestedRoute && mod.suggestedRoute !== '/') {
+      if (mod.code === 'roleAccess') continue
+      if (enabledSet.has(mod.code) && mod.suggestedRoute && mod.suggestedRoute !== '/' && mod.suggestedRoute !== '/ops/dashboard') {
         const meta = MODULE_META[mod.code]
+        const route = remapDefaultRoute(mod.suggestedRoute)
+        if (opts.some((o) => o.value === route)) continue
         opts.push({
-          value: mod.suggestedRoute,
+          value: route,
           label: mod.label,
           desc: meta?.hint || `Opens ${mod.label}`,
         })
@@ -208,7 +240,7 @@ export default function RoleAccessPage() {
   useEffect(() => {
     if (!selectedRole || !roleRow) return
     setEnabled([...(roleRow.modules || [])])
-    setDefaultRoute(roleRow.defaultRoute || '/')
+    setDefaultRoute(remapDefaultRoute(roleRow.defaultRoute || '/ops/dashboard'))
   }, [selectedRole, roleRow])
 
   useEffect(() => {
@@ -281,12 +313,19 @@ export default function RoleAccessPage() {
             Staff Access Settings
           </Title>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Choose what each job role can see in the system and which page opens when they log in.
+            Damien RBAC: choose which modules each job role can use, and where they land after login.
+            Assign people to roles under{' '}
+            <Link to="/ops/admin/users">Staff Users</Link>.
           </Text>
         </div>
-        <Tag icon={<SafetyCertificateOutlined />} color="success" style={{ borderColor: '#1B8A5A', color: '#1B8A5A' }}>
-          RBAC Control Tower
-        </Tag>
+        <Space>
+          <Link to="/ops/admin/users">
+            <Button>Staff Users</Button>
+          </Link>
+          <Tag icon={<SafetyCertificateOutlined />} color="success" style={{ borderColor: '#1B8A5A', color: '#1B8A5A' }}>
+            RBAC Control Tower
+          </Tag>
+        </Space>
       </div>
 
       {error ? (
@@ -363,6 +402,14 @@ export default function RoleAccessPage() {
         />
       ) : (
         <>
+          {!isSuperAdmin ? (
+            <Alert
+              type="info"
+              showIcon
+              message="View only"
+              description="Only Super Admin can save Role Access changes. You can review the matrix, then ask a Super Admin to apply updates."
+            />
+          ) : null}
           <Card
             size="small"
             style={{ borderRadius: 8 }}
@@ -538,7 +585,7 @@ export default function RoleAccessPage() {
                 type="primary"
                 icon={<CheckCircleOutlined />}
                 loading={saving}
-                disabled={locked || enabled.length === 0}
+                disabled={locked || !isSuperAdmin || enabled.length === 0}
                 onClick={onSave}
                 style={brandPrimary}
               >
