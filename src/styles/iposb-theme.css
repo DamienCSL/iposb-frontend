@@ -125,8 +125,9 @@ body {
   text-transform: uppercase;
 }
 .sidebar a,
-.sidebar .logout-link {
-  color: #c8c8c8;
+.sidebar .logout-link,
+.sidebar .nav-group-toggle {
+  color: #c8c8c8 !important;
 }
 .sidebar a:hover,
 .sidebar a.active,
@@ -136,8 +137,17 @@ body {
   border-left: 3px solid var(--iposb-green);
   padding-left: 17px;
 }
+.sidebar .nav-group-items a:hover,
+.sidebar .nav-group-items a.active {
+  padding-left: 25px;
+}
 .sidebar .section-title {
-  color: #8a8a8a !important;
+  color: #a0a0a0 !important;
+}
+.sidebar .nav-group-toggle:hover,
+.sidebar .nav-group.has-active > .nav-group-toggle,
+.sidebar .nav-group.is-open > .nav-group-toggle {
+  color: #fff !important;
 }
 
 .iposb-login-page {

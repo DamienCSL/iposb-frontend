@@ -29,7 +29,7 @@ import {
   ReloadOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   apiError,
   cancelConsignment,
@@ -55,6 +55,7 @@ const DATE_PRESETS = [
 
 export default function ConsignmentsListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { can, isAdmin, user } = useAuth()
   const canEdit = isAdmin || ['Operation', 'Super Admin', 'Admin'].includes(user?.role)
 
@@ -83,6 +84,12 @@ export default function ConsignmentsListPage() {
 
   // Export State
   const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/import')) {
+      setImportOpen(true)
+    }
+  }, [location.pathname])
 
   // Search debounce ~300ms
   const searchTimer = useRef(null)

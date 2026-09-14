@@ -1,13 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 import {
   Alert,
-  Badge,
   Breadcrumb,
   Button,
   Card,
-  Checkbox,
   Col,
+  Collapse,
   DatePicker,
   Divider,
   Form,
@@ -17,406 +16,661 @@ import {
   Row,
   Select,
   Space,
-  Switch,
-  Tag,
-  Tooltip,
+  Spin,
   Typography,
   message,
   notification,
 } from 'antd'
 import {
   ArrowLeftOutlined,
-  BarcodeOutlined,
-  CarOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  CompassOutlined,
-  CopyOutlined,
-  CreditCardOutlined,
-  DollarCircleOutlined,
   EnvironmentOutlined,
-  FileTextOutlined,
-  InboxOutlined,
-  InfoCircleOutlined,
-  PhoneOutlined,
-  PrinterOutlined,
   ReloadOutlined,
   SaveOutlined,
-  SendOutlined,
-  ShopOutlined,
-  UserOutlined,
+  SearchOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons'
-import { Link, useNavigate } from 'react-router-dom'
-import { apiError, generateCode, getCnLookups, quoteConsignment, saveConsignment } from '../../api/client'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  apiError,
+  generateCode,
+  generateSystemCode,
+  getCnLookups,
+  getCodRecord,
+  getConsignment,
+  quoteConsignment,
+  saveConsignment,
+  saveMaster,
+  searchCustomers,
+} from '../../api/client'
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
 
-// Comprehensive registered IPOSB branches & gateways (Sabah, Sarawak, and Peninsular Malaysia)
-const DEFAULT_BRANCHES = [
-  { value: 'BKI', label: 'BKI — Kota Kinabalu Central Hub (Sabah)', group: 'Sabah' },
-  { value: 'SDK', label: 'SDK — Sandakan Branch (Sabah)', group: 'Sabah' },
-  { value: 'TWU', label: 'TWU — Tawau Gateway (Sabah)', group: 'Sabah' },
-  { value: 'LDD', label: 'LDD — Lahad Datu Branch (Sabah)', group: 'Sabah' },
-  { value: 'KEN', label: 'KEN — Keningau Hub (Sabah)', group: 'Sabah' },
-  { value: 'KCH', label: 'KCH — Kuching International Hub (Sarawak)', group: 'Sarawak' },
-  { value: 'MYY', label: 'MYY — Miri Regional Hub (Sarawak)', group: 'Sarawak' },
-  { value: 'BTU', label: 'BTU — Bintulu Gateway (Sarawak)', group: 'Sarawak' },
-  { value: 'SBW', label: 'SBW — Sibu Branch (Sarawak)', group: 'Sarawak' },
-  { value: 'LBU', label: 'LBU — Labuan Federal Territory Hub', group: 'Federal Territory' },
-  { value: 'KUL', label: 'KUL — Kuala Lumpur Central Gateway (Selangor)', group: 'Peninsular' },
-  { value: 'PEN', label: 'PEN — Penang Northern Hub (Penang)', group: 'Peninsular' },
-  { value: 'JHB', label: 'JHB — Johor Bahru Southern Gateway (Johor)', group: 'Peninsular' },
-  { value: 'IPH', label: 'IPH — Ipoh Hub (Perak)', group: 'Peninsular' },
-  { value: 'KTN', label: 'KTN — Kuantan East Coast Hub (Pahang)', group: 'Peninsular' },
-  { value: 'MLK', label: 'MLK — Melaka Branch (Melaka)', group: 'Peninsular' },
-  { value: 'ALR', label: 'ALR — Alor Setar Hub (Kedah)', group: 'Peninsular' },
-  { value: 'KBR', label: 'KBR — Kota Bharu Hub (Kelantan)', group: 'Peninsular' },
-  { value: 'TRG', label: 'TRG — Kuala Terengganu Hub (Terengganu)', group: 'Peninsular' },
-]
+const BRAND = '#1B8A5A'
+
+function money(x) {
+  if (x == null || x === '') return '—'
+  const n = Number(x)
+  if (Number.isNaN(n)) return '—'
+  return `RM ${n.toFixed(2)}`
+}
+
+function zoneCode(z) {
+  return z?.delivery_point_code || z?.zone_code || ''
+}
+
+function zoneName(z) {
+  return z?.delivery_point_name || z?.zone_name || zoneCode(z)
+}
+
+function zoneHub(z) {
+  return z?.hub_code || z?.branch_code || ''
+}
+
+function emptyForm() {
+  return {
+    cn_no: '',
+    cust_ac_no: '',
+    srv_typ: 'STD',
+    pkg_typ: 'P',
+    cn_origin: '',
+    cn_dstn: '',
+    origin_zone: '',
+    destination_zone: '',
+    destination_area_code: '',
+    origin_drop_point_id: '',
+    destination_drop_point_id: '',
+    origin_service: 'DROP_COUNTER',
+    destination_service: 'DOORSTEP',
+    sender_address: '',
+    remarks: '',
+    pu_dt: dayjs().format('YYYY-MM-DD'),
+    cn_wt: '',
+    cn_pcs: '1',
+    spec_handle: 'N',
+    spec_cd: '',
+    spec_amt: '',
+    consignee: '',
+    consigner: '',
+    recp_name: '',
+    pay_mode: 'PPD',
+    cash_amt: '',
+    transport_mode: 'road',
+    linehaul_mode: '',
+    vessel_name: '',
+    voyage_ref: '',
+    sailing_date: '',
+    port_origin: '',
+    port_destination: '',
+  }
+}
+
+function CustomerPicker({ value, onSelect }) {
+  const [q, setQ] = useState(value || '')
+  const [hits, setHits] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState({
+    cust_ac_no: '',
+    cust_name: '',
+    cust_tel: '',
+    cust_email: '',
+    cust_addr1: '',
+  })
+  const timer = useRef(null)
+
+  useEffect(() => {
+    setQ(value || '')
+  }, [value])
+
+  function search(term) {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(async () => {
+      const t = String(term || '').trim()
+      if (t.length < 1) {
+        setHits([])
+        return
+      }
+      setBusy(true)
+      try {
+        const r = await searchCustomers(t)
+        setHits(r.customers || [])
+      } catch (err) {
+        message.error(apiError(err))
+        setHits([])
+      } finally {
+        setBusy(false)
+      }
+    }, 250)
+  }
+
+  async function createCustomer() {
+    if (!String(draft.cust_name || '').trim()) {
+      message.error('Customer name is required')
+      return
+    }
+    setCreating(true)
+    try {
+      let ac = String(draft.cust_ac_no || '').trim().toUpperCase()
+      if (!ac) {
+        try {
+          const gen = await generateSystemCode({ kind: 'cust_ac_no', resource: 'customers' })
+          ac = gen.code
+        } catch {
+          const gen = await generateCode('cust_ac_no')
+          ac = gen?.code || gen?.cust_ac_no
+        }
+      }
+      await saveMaster('customers', { ...draft, cust_ac_no: ac, cust_status: 'A' })
+      onSelect({
+        cust_ac_no: ac,
+        cust_name: draft.cust_name,
+        cust_tel: draft.cust_tel,
+      })
+      setQ(ac)
+      setShowNew(false)
+      setDraft({ cust_ac_no: '', cust_name: '', cust_tel: '', cust_email: '', cust_addr1: '' })
+      setHits([])
+      message.success(`Customer ${ac} created`)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div>
+      <Space.Compact style={{ width: '100%' }}>
+        <Input
+          value={q}
+          placeholder="Search name, phone, or account…"
+          prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
+          onChange={(e) => {
+            const v = e.target.value
+            setQ(v)
+            onSelect({ cust_ac_no: v.toUpperCase() })
+            search(v)
+          }}
+          onFocus={() => {
+            if (q) search(q)
+          }}
+        />
+        <Button icon={<UserAddOutlined />} onClick={() => setShowNew((v) => !v)}>
+          {showNew ? 'Cancel' : 'New'}
+        </Button>
+      </Space.Compact>
+      {busy ? <Text type="secondary" style={{ fontSize: 12 }}>Searching…</Text> : null}
+      {hits.length > 0 ? (
+        <div
+          style={{
+            marginTop: 6,
+            border: '1px solid #E2E8F0',
+            borderRadius: 6,
+            maxHeight: 180,
+            overflowY: 'auto',
+            background: '#fff',
+          }}
+        >
+          {hits.map((c) => (
+            <button
+              key={c.cust_ac_no}
+              type="button"
+              onClick={() => {
+                onSelect(c)
+                setQ(c.cust_ac_no)
+                setHits([])
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '8px 12px',
+                border: 'none',
+                borderBottom: '1px solid #F1F5F9',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+            >
+              <Text strong>{c.cust_ac_no}</Text>
+              <Text type="secondary"> — {c.cust_name}</Text>
+              {c.cust_tel ? <Text type="secondary"> · {c.cust_tel}</Text> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showNew ? (
+        <Card size="small" style={{ marginTop: 8, background: '#F8FAFC' }}>
+          <Text strong style={{ display: 'block', marginBottom: 8 }}>Register customer</Text>
+          <Row gutter={[8, 8]}>
+            <Col span={8}>
+              <Input
+                placeholder="Account (optional)"
+                value={draft.cust_ac_no}
+                onChange={(e) => setDraft((d) => ({ ...d, cust_ac_no: e.target.value.toUpperCase() }))}
+              />
+            </Col>
+            <Col span={8}>
+              <Input
+                placeholder="Name *"
+                value={draft.cust_name}
+                onChange={(e) => setDraft((d) => ({ ...d, cust_name: e.target.value }))}
+              />
+            </Col>
+            <Col span={8}>
+              <Input
+                placeholder="Phone"
+                value={draft.cust_tel}
+                onChange={(e) => setDraft((d) => ({ ...d, cust_tel: e.target.value }))}
+              />
+            </Col>
+            <Col span={8}>
+              <Input
+                placeholder="Email"
+                type="email"
+                value={draft.cust_email}
+                onChange={(e) => setDraft((d) => ({ ...d, cust_email: e.target.value }))}
+              />
+            </Col>
+            <Col span={16}>
+              <Input
+                placeholder="Address"
+                value={draft.cust_addr1}
+                onChange={(e) => setDraft((d) => ({ ...d, cust_addr1: e.target.value }))}
+              />
+            </Col>
+            <Col span={24}>
+              <Button type="primary" loading={creating} onClick={createCustomer} style={{ background: BRAND, borderColor: BRAND }}>
+                Save customer & use
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+      ) : (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          Search an existing account, or click New to register.
+        </Text>
+      )}
+    </div>
+  )
+}
 
 export default function ConsignmentEntryPage() {
   const navigate = useNavigate()
-  const [form] = Form.useForm()
+  const [params, setParams] = useSearchParams()
+  const preset = (params.get('cn') || '').toUpperCase()
 
+  const [lookups, setLookups] = useState({
+    locations: [],
+    zones: [],
+    areas: [],
+    dropPoints: [],
+    serviceTypes: [],
+    transportModes: [],
+  })
+  const [form, setForm] = useState(() => emptyForm())
+  const [isExisting, setIsExisting] = useState(false)
+  const [quote, setQuote] = useState(null)
+  const [quoting, setQuoting] = useState(false)
+  const [codInfo, setCodInfo] = useState(null)
+  const [savedFreight, setSavedFreight] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [quoting, setQuoting] = useState(false)
-  const [lookups, setLookups] = useState({})
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const quoteTimer = useRef(null)
+  const bootstrapped = useRef(false)
 
-  // Mode: Auto-generated CN (default) vs Manual scan pre-printed barcode
-  const [isManualCn, setIsManualCn] = useState(false)
-  const [activeCnNo, setActiveCnNo] = useState('')
-
-  // Watched state values for dynamic calculations & conditionals
-  const [originBranch, setOriginBranch] = useState('BKI')
-  const [destinationBranch, setDestinationBranch] = useState('KUL')
-  const [originService, setOriginService] = useState('CUSTOMER_DROP')
-  const [destinationService, setDestinationService] = useState('DOOR')
-  const [payMode, setPayMode] = useState('PPD')
-  const [weight, setWeight] = useState(1.0)
-  const [pieces, setPieces] = useState(1)
-  const [dimL, setDimL] = useState(0)
-  const [dimW, setDimW] = useState(0)
-  const [dimH, setDimH] = useState(0)
-  const [codAmount, setCodAmount] = useState(0)
-
-  // Freight estimate quote
-  const [quoteSummary, setQuoteSummary] = useState({
-    baseFreight: 12.0,
-    fuelSurcharge: 1.2,
-    handlingFee: 0.0,
-    codFee: 0.0,
-    total: 13.2,
-  })
-
-  // Volumetric calculation: (L * W * H) / 5000
-  const volumetricWeight = useMemo(() => {
-    if (dimL > 0 && dimW > 0 && dimH > 0) {
-      return Number(((dimL * dimW * dimH) / 5000).toFixed(2))
-    }
-    return 0
-  }, [dimL, dimW, dimH])
-
-  const chargeableWeight = useMemo(() => {
-    return Math.max(weight || 0, volumetricWeight || 0)
-  }, [weight, volumetricWeight])
-
-  // Build clean, unique branch options from lookup and defaults
-  const branchOptions = useMemo(() => {
-    const rows = lookups.locations || lookups.hubs || []
-    const mapped = rows
-      .map((row) => ({
-        value: row.loc_id || row.hub_code || row.branch_code,
-        label: `${row.loc_name || row.hub_name || row.branch_name || row.loc_id || row.hub_code || row.branch_code} (${row.loc_id || row.hub_code || row.branch_code})`,
-        group: 'Registered Nodes',
-      }))
-      .filter((row) => row.value)
-
-    const merged = [...DEFAULT_BRANCHES, ...mapped]
-    const map = new Map()
-    for (const item of merged) {
-      if (!map.has(item.value)) {
-        map.set(item.value, item)
-      }
-    }
-    return Array.from(map.values())
-  }, [lookups])
-
-  // Filter zones/delivery points by origin branch
-  const originZoneOptions = useMemo(() => {
-    const rows = lookups.zones || lookups.deliveryPoints || []
-    const filtered = rows.filter(
-      (z) => !originBranch || z.hub_code === originBranch || z.branch_code === originBranch,
-    )
-    const list = filtered.length > 0 ? filtered : rows
-    return list.map((z) => ({
-      value: z.zone_code || z.delivery_point_code,
-      label: `${z.zone_name || z.delivery_point_name || z.zone_code || z.delivery_point_code} (${z.zone_code || z.delivery_point_code})`,
-    }))
-  }, [lookups, originBranch])
-
-  // Filter zones/delivery points by destination branch
-  const destZoneOptions = useMemo(() => {
-    const rows = lookups.zones || lookups.deliveryPoints || []
-    const filtered = rows.filter(
-      (z) => !destinationBranch || z.hub_code === destinationBranch || z.branch_code === destinationBranch,
-    )
-    const list = filtered.length > 0 ? filtered : rows
-    return list.map((z) => ({
-      value: z.zone_code || z.delivery_point_code,
-      label: `${z.zone_name || z.delivery_point_name || z.zone_code || z.delivery_point_code} (${z.zone_code || z.delivery_point_code})`,
-    }))
-  }, [lookups, destinationBranch])
-
-  // Drop point options
-  const dropPointOptions = useMemo(() => {
-    return (lookups.dropPoints || []).map((row) => ({
-      value: row.id,
-      label: `${row.drop_name} (${row.drop_code}) — ${row.branch_code || row.hub_code || 'Counter'}`,
-      branch: row.branch_code || row.hub_code,
-    }))
-  }, [lookups])
-
-  // Auto-generate CN number on page mount or via button
-  async function generateNewCn() {
-    setGenerating(true)
-    try {
-      const res = await generateCode('cn_no')
-      const generated = res?.code || res?.cn_no
-      if (generated) {
-        form.setFieldValue('cn_no', generated)
-        setActiveCnNo(generated)
-      }
-    } catch {
-      // Fallback local format if server call is delayed
-      const fallback = `IP${dayjs().format('YYMMDD')}${Math.floor(1000 + Math.random() * 9000)}`
-      form.setFieldValue('cn_no', fallback)
-      setActiveCnNo(fallback)
-    } finally {
-      setGenerating(false)
-    }
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }))
   }
 
-  // Calculate live freight quote estimate
-  async function fetchLiveQuote() {
-    if (!originBranch || !destinationBranch || chargeableWeight <= 0) return
-    setQuoting(true)
-    try {
-      const res = await quoteConsignment({
-        cn_origin: originBranch,
-        cn_dstn: destinationBranch,
-        cn_wt: chargeableWeight,
-        cn_pcs: pieces,
-        pay_mode: payMode,
-        srv_typ: form.getFieldValue('srv_typ') || 'STD',
-      })
-      if (res && res.amount) {
-        const base = Number(res.amount) || 12.0
-        const fuel = Number((base * 0.1).toFixed(2))
-        const cod = payMode === 'COD' ? Math.max(3.0, Number((codAmount * 0.02).toFixed(2))) : 0.0
-        setQuoteSummary({
-          baseFreight: base,
-          fuelSurcharge: fuel,
-          handlingFee: 0.0,
-          codFee: cod,
-          total: Number((base + fuel + cod).toFixed(2)),
-        })
-        return
-      }
-    } catch {
-      // Offline fallback heuristic
-    } finally {
-      setQuoting(false)
-    }
-
-    // Heuristic estimate fallback
-    const isInterState = originBranch !== destinationBranch
-    const isEastWest =
-      (['BKI', 'SDK', 'TWU', 'KCH', 'MYY', 'BTU'].includes(originBranch) &&
-        ['KUL', 'PEN', 'JHB', 'IPH', 'KTN'].includes(destinationBranch)) ||
-      (['KUL', 'PEN', 'JHB', 'IPH', 'KTN'].includes(originBranch) &&
-        ['BKI', 'SDK', 'TWU', 'KCH', 'MYY', 'BTU'].includes(destinationBranch))
-
-    let rate = isEastWest ? 15.0 : isInterState ? 9.0 : 6.0
-    rate += Math.max(0, chargeableWeight - 1) * (isEastWest ? 8.0 : 4.0)
-    const fuel = Number((rate * 0.1).toFixed(2))
-    const cod = payMode === 'COD' ? Math.max(3.0, Number((codAmount * 0.02).toFixed(2))) : 0.0
-    setQuoteSummary({
-      baseFreight: Number(rate.toFixed(2)),
-      fuelSurcharge: fuel,
-      handlingFee: 0.0,
-      codFee: cod,
-      total: Number((rate + fuel + cod).toFixed(2)),
-    })
-  }
-
-  // Load master lookups & initial auto-generated CN
   useEffect(() => {
     getCnLookups()
-      .then((data) => {
-        setLookups(data || {})
-      })
-      .catch(() => setLookups({}))
-
-    generateNewCn()
-
-    // Form initial baseline defaults
-    form.setFieldsValue({
-      cust_ac_type: 'WALK_IN',
-      cust_ac_no: 'WALK-IN',
-      cust_name: 'WALK-IN RETAIL CUSTOMER',
-      booking_date: dayjs(),
-      srv_typ: 'STD',
-      pkg_typ: 'P',
-      transport_mode: 'ROAD',
-      cn_origin: 'BKI',
-      cn_dstn: 'KUL',
-      origin_service: 'CUSTOMER_DROP',
-      destination_service: 'DOOR',
-      cn_wt: 1.0,
-      cn_pcs: 1,
-      pay_mode: 'PPD',
-      pu_time_window: 'morning',
-    })
+      .then(setLookups)
+      .catch((err) => message.error(apiError(err) || 'Could not load dropdown options.'))
   }, [])
 
-  // Recalculate quote whenever origin, destination, weight or payment changes
+  // Overnight is operational, not bookable at entry
   useEffect(() => {
-    fetchLiveQuote()
-  }, [originBranch, destinationBranch, chargeableWeight, pieces, payMode, codAmount])
+    const code = String(form.srv_typ || '').toUpperCase()
+    if (['OND', 'OVN', 'OVERNIGHT'].includes(code)) {
+      setForm((f) => ({ ...f, srv_typ: 'STD' }))
+    }
+  }, [form.srv_typ])
 
-  // Copy CN barcode number
-  function handleCopyCn() {
-    const cn = form.getFieldValue('cn_no') || activeCnNo
-    if (cn) {
-      navigator.clipboard.writeText(cn)
-      message.success(`Consignment number ${cn} copied to clipboard`)
+  // Live quote — Damien payload only, no offline freight math
+  useEffect(() => {
+    const wt = parseFloat(form.cn_wt)
+    if (!form.cust_ac_no || !form.cn_origin || !form.cn_dstn || !wt || wt <= 0) {
+      setQuote(null)
+      setQuoting(false)
+      return
+    }
+    if (quoteTimer.current) clearTimeout(quoteTimer.current)
+    setQuoting(true)
+    quoteTimer.current = setTimeout(() => {
+      quoteConsignment({
+        cust_ac_no: form.cust_ac_no,
+        srv_typ: form.srv_typ,
+        pkg_typ: form.pkg_typ,
+        cn_origin: form.cn_origin,
+        cn_dstn: form.cn_dstn,
+        cn_wt: wt,
+        cn_pcs: form.cn_pcs,
+        transport_mode: form.transport_mode || 'road',
+        linehaul_mode: form.linehaul_mode || '',
+        spec_handle: form.spec_handle,
+        spec_amt: form.spec_amt,
+        pu_dt: form.pu_dt,
+      })
+        .then((r) => {
+          setQuote(r)
+          setQuoting(false)
+        })
+        .catch(() => {
+          setQuote(null)
+          setQuoting(false)
+        })
+    }, 400)
+    return () => {
+      if (quoteTimer.current) clearTimeout(quoteTimer.current)
+    }
+  }, [form])
+
+  useEffect(() => {
+    if (bootstrapped.current) return
+    bootstrapped.current = true
+    if (preset) {
+      loadCn(preset)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset])
+
+  function applyCnRow(cnNo, existing) {
+    setForm({
+      cn_no: cnNo,
+      cust_ac_no: existing?.cust_ac_no || '',
+      srv_typ: existing?.srv_typ || 'STD',
+      pkg_typ: existing?.pkg_typ || 'P',
+      cn_origin: existing?.cn_origin || '',
+      cn_dstn: existing?.cn_dstn || '',
+      origin_zone: existing?.origin_zone || '',
+      destination_zone: existing?.destination_zone || '',
+      destination_area_code: existing?.destination_area_code || '',
+      origin_drop_point_id: existing?.origin_drop_point_id || '',
+      destination_drop_point_id: existing?.destination_drop_point_id || '',
+      origin_service: existing?.origin_service || 'DROP_COUNTER',
+      destination_service: existing?.destination_service || 'DOORSTEP',
+      sender_address: existing?.sender_address || '',
+      remarks: existing?.remarks || '',
+      pu_dt: (existing?.pu_dt || '').slice(0, 10) || dayjs().format('YYYY-MM-DD'),
+      cn_wt: existing?.cn_wt || '',
+      cn_pcs: existing?.cn_pcs || '1',
+      spec_handle: existing?.spec_handle || 'N',
+      spec_cd: existing?.oda_cd || '',
+      spec_amt: existing?.spec_amt || '',
+      consignee: existing?.consignee || '',
+      consigner: existing?.consigner || '',
+      recp_name: existing?.recp_name || '',
+      pay_mode: existing?.ppd_cct === 'COD' ? 'COD' : 'PPD',
+      cash_amt: existing?.cash_amt || '',
+      transport_mode: (existing?.transport_mode || 'road').toLowerCase(),
+      linehaul_mode: existing?.linehaul_mode || '',
+      vessel_name: existing?.vessel_name || '',
+      voyage_ref: existing?.voyage_ref || '',
+      sailing_date: (existing?.sailing_date || '').slice(0, 10) || '',
+      port_origin: existing?.port_origin || '',
+      port_destination: existing?.port_destination || '',
+    })
+    setIsExisting(Boolean(existing))
+    setShowAdvanced(Boolean(existing?.transport_mode && String(existing.transport_mode).toLowerCase() !== 'road'))
+    setSavedFreight(
+      existing
+        ? {
+            total: existing.tot_cn_amt,
+            tax: existing.cn_tax_amt,
+            invFlag: existing.cn_inv_flg,
+            invNo: existing.inv_no,
+          }
+        : null,
+    )
+    setCodInfo(null)
+    if (existing?.ppd_cct === 'COD' && typeof getCodRecord === 'function') {
+      getCodRecord(cnNo)
+        .then((r) => setCodInfo(r.cod || r))
+        .catch(() => setCodInfo(null))
     }
   }
 
-  // Submit Handler: Saves consignment, optionally prints waybill label
-  async function handleSubmit(values, printAfter = false) {
+  async function loadCn(cn) {
+    const cnNo = String(cn || form.cn_no || '').trim().toUpperCase()
+    if (!cnNo) {
+      message.error('Enter a consignment number to load.')
+      return
+    }
     setLoading(true)
     try {
-      const finalCn = (values.cn_no || activeCnNo || '').trim().toUpperCase()
-
-      // Resolve origin zone fallback if unselected
-      const finalOriginZone =
-        values.origin_zone ||
-        originZoneOptions[0]?.value ||
-        values.cn_origin ||
-        'BKI'
-
-      // Resolve destination zone fallback if unselected
-      const finalDestZone =
-        values.destination_zone ||
-        destZoneOptions[0]?.value ||
-        values.cn_dstn ||
-        'KUL'
-
-      // Resolve drop points
-      const originDrop =
-        values.origin_service === 'CUSTOMER_DROP'
-          ? values.origin_drop_point_id || (dropPointOptions[0]?.value || 0)
-          : 0
-
-      const destDrop =
-        values.destination_service === 'SELF_COLLECT'
-          ? values.destination_drop_point_id || (dropPointOptions[0]?.value || 0)
-          : 0
-
-      // Sender address formatting
-      const senderAddr =
-        values.origin_service === 'OWN_DP'
-          ? values.sender_address
-          : `Counter Drop-off: ${values.cn_origin} Hub Counter`
-
-      // Delivery address formatting
-      const deliveryAddr =
-        values.destination_service === 'DOOR'
-          ? [
-              values.remarks,
-              values.dest_postcode ? `Postcode: ${values.dest_postcode}` : '',
-              values.dest_city ? `City: ${values.dest_city}` : '',
-              values.dest_state ? `State: ${values.dest_state}` : '',
-            ]
-              .filter(Boolean)
-              .join(', ')
-          : `Self-Collect: ${values.cn_dstn} Hub / Counter Collection Point`
-
-      // Construct remarks with special delivery instructions
-      const combinedRemarks = [
-        deliveryAddr,
-        values.special_instructions ? `[Instructions: ${values.special_instructions}]` : '',
-        values.goods_desc ? `[Cargo: ${values.goods_desc}]` : '',
-      ]
-        .filter(Boolean)
-        .join(' | ')
-
-      const payload = {
-        cn_no: finalCn,
-        cust_ac_no: values.cust_ac_no || 'WALK-IN',
-        cust_name: values.cust_name || values.consigner,
-        srv_typ: values.srv_typ || 'STD',
-        pkg_typ: values.pkg_typ || 'P',
-        transport_mode: values.transport_mode || 'ROAD',
-        cn_origin: values.cn_origin || 'BKI',
-        cn_dstn: values.cn_dstn || 'KUL',
-        origin_zone: finalOriginZone,
-        destination_zone: finalDestZone,
-        origin_service: values.origin_service || 'CUSTOMER_DROP',
-        destination_service: values.destination_service || 'DOOR',
-        origin_drop_point_id: originDrop,
-        destination_drop_point_id: destDrop,
-        consigner: values.consigner,
-        sender_phone: values.sender_phone,
-        sender_email: values.sender_email,
-        sender_address: senderAddr,
-        consignee: values.consignee,
-        recp_name: values.consignee,
-        recp_phone: values.recp_phone,
-        remarks: combinedRemarks,
-        pu_dt: values.booking_date ? values.booking_date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-        cn_wt: Number(chargeableWeight || 1.0),
-        cn_pcs: Number(values.cn_pcs || 1),
-        pay_mode: values.pay_mode || 'PPD',
-        cash_amt: values.pay_mode === 'COD' ? Number(values.cash_amt || 0) : 0,
-        cod_amt: values.pay_mode === 'COD' ? Number(values.cash_amt || 0) : 0,
-        tot_cn_amt: quoteSummary.total,
-      }
-
-      const res = await saveConsignment(payload)
-      const createdCn = res?.cnNo || res?.cn_no || finalCn
-
-      notification.success({
-        message: 'Shipment Successfully Registered',
-        description: `Consignment ${createdCn} has been created and logged in the system.`,
-        placement: 'topRight',
-        duration: 4,
-      })
-
-      if (printAfter) {
-        window.open(`/api/labels/${encodeURIComponent(createdCn)}`, '_blank')
-      }
-
-      // Navigate to the newly created consignment details page
-      navigate(`/ops/consignments/${encodeURIComponent(createdCn)}`)
-    } catch (err) {
-      message.error(apiError(err))
+      const existing = (await getConsignment(cnNo)).cn
+      applyCnRow(cnNo, existing)
+      setParams({ cn: cnNo })
+      message.success(`Loaded existing consignment ${cnNo}.`)
+    } catch {
+      message.warning(`No consignment found for ${cnNo}. Keep typing to create a new one, or Generate a number.`)
+      applyCnRow(cnNo, null)
+      setParams({ cn: cnNo })
     } finally {
       setLoading(false)
     }
   }
 
+  async function generateCn() {
+    setGenerating(true)
+    try {
+      let code
+      try {
+        const res = await generateSystemCode({ kind: 'cn_no' })
+        code = res?.code || res?.cn_no
+      } catch {
+        const res = await generateCode('cn_no')
+        code = res?.code || res?.cn_no
+      }
+      if (code) {
+        setIsExisting(false)
+        set('cn_no', String(code).toUpperCase())
+      }
+    } catch (err) {
+      message.error(apiError(err) || 'Could not generate CN number.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  function startNew() {
+    setQuote(null)
+    setCodInfo(null)
+    setSavedFreight(null)
+    setShowAdvanced(false)
+    setIsExisting(false)
+    setForm(emptyForm())
+    setParams({})
+  }
+
+  async function onSave() {
+    if (!String(form.cn_no || '').trim()) {
+      message.error('Generate or enter a consignment number first.')
+      return
+    }
+    if (!form.cust_ac_no) {
+      message.error('Customer account is required.')
+      return
+    }
+    if (!form.origin_zone || !form.destination_zone) {
+      message.error('Origin and destination delivery points are required.')
+      return
+    }
+    if (form.origin_service === 'ADDRESS_PICKUP' && !String(form.sender_address || '').trim()) {
+      message.error('Pickup address is required for address pickup.')
+      return
+    }
+    if (form.destination_service === 'DOORSTEP' && !String(form.remarks || '').trim()) {
+      message.error('Delivery address is required for doorstep delivery.')
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        cn_no: String(form.cn_no).trim().toUpperCase(),
+        transport_mode: String(form.transport_mode || 'road').toLowerCase(),
+        recp_name: form.recp_name || form.consignee,
+      }
+      const r = await saveConsignment(payload)
+      const createdCn = r?.cnNo || r?.cn_no || payload.cn_no
+      if (r.quote) setQuote(r.quote)
+      notification.success({
+        message: 'Consignment saved',
+        description: r.message || `Consignment ${createdCn} saved successfully.`,
+        placement: 'topRight',
+      })
+      navigate(`/ops/consignments/${encodeURIComponent(createdCn)}`)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const zoneOptions = lookups.zones?.length ? lookups.zones : lookups.deliveryPoints || []
+
+  function pickOriginDp(code) {
+    const z = zoneOptions.find((x) => zoneCode(x) === code)
+    setForm((f) => ({
+      ...f,
+      origin_zone: code,
+      cn_origin: zoneHub(z) || f.cn_origin,
+      origin_drop_point_id: '',
+    }))
+  }
+
+  function pickDestDp(code) {
+    const z = zoneOptions.find((x) => zoneCode(x) === code)
+    setForm((f) => ({
+      ...f,
+      destination_zone: code,
+      cn_dstn: zoneHub(z) || f.cn_dstn,
+      destination_drop_point_id: '',
+      destination_area_code: '',
+    }))
+  }
+
+  function pickOriginDrop(dropId) {
+    const d = (lookups.dropPoints || []).find((x) => String(x.id) === String(dropId))
+    const dpCode = d?.delivery_point_code || ''
+    const z = dpCode ? zoneOptions.find((x) => zoneCode(x) === dpCode) : null
+    setForm((f) => ({
+      ...f,
+      origin_drop_point_id: dropId,
+      origin_zone: dpCode || f.origin_zone,
+      cn_origin: zoneHub(z) || d?.hub_code || d?.branch_code || f.cn_origin,
+    }))
+  }
+
+  const pickupDrops = useMemo(() => {
+    const all = (lookups.dropPoints || []).filter((d) => {
+      const typ = String(d.drop_type || 'both').toLowerCase()
+      return ['pickup', 'both', ''].includes(typ)
+    })
+    if (!form?.origin_zone) return all
+    const matched = all.filter((d) => !d.delivery_point_code || d.delivery_point_code === form.origin_zone)
+    return matched.length > 0 ? matched : all
+  }, [lookups.dropPoints, form?.origin_zone])
+
+  const deliveryDrops = useMemo(() => {
+    const all = (lookups.dropPoints || []).filter((d) => {
+      const typ = String(d.drop_type || 'both').toLowerCase()
+      return ['delivery', 'both', ''].includes(typ)
+    })
+    if (!form?.destination_zone) return all
+    const matched = all.filter((d) => !d.delivery_point_code || d.delivery_point_code === form.destination_zone)
+    return matched.length > 0 ? matched : all
+  }, [lookups.dropPoints, form?.destination_zone])
+
+  const destAreas = useMemo(() => {
+    const all = lookups.areas || []
+    if (!form?.destination_zone) return all
+    const matched = all.filter((a) => String(a.delivery_point_code || '') === String(form.destination_zone))
+    return matched.length > 0 ? matched : all
+  }, [lookups.areas, form?.destination_zone])
+
+  const serviceTypeOptions = (
+    lookups.serviceTypes?.length
+      ? lookups.serviceTypes
+      : [
+          { code: 'STD', cd_desc: 'Standard' },
+          { code: 'EXP', cd_desc: 'Express' },
+        ]
+  ).filter((s) => {
+    const code = String(s.code || '').toUpperCase()
+    const desc = String(s.cd_desc || s.label || '').toUpperCase()
+    return !['OND', 'OVN', 'OVERNIGHT'].includes(code) && !desc.includes('OVERNIGHT')
+  })
+
+  const originServices = lookups.originServices?.length
+    ? lookups.originServices
+    : [
+        { code: 'DROP_COUNTER', label: 'Drop at counter' },
+        { code: 'ADDRESS_PICKUP', label: 'Address pickup' },
+      ]
+  const destinationServices = lookups.destinationServices?.length
+    ? lookups.destinationServices
+    : [
+        { code: 'DOORSTEP', label: 'Doorstep delivery' },
+        { code: 'SELF_COLLECT', label: 'Self-collect' },
+      ]
+  const transportModes = lookups.transportModes?.length
+    ? lookups.transportModes
+    : [
+        { code: 'road', label: 'Road / Land' },
+        { code: 'sea', label: 'Sea / Ferry' },
+        { code: 'air', label: 'Air' },
+        { code: 'multi', label: 'Multimodal' },
+      ]
+
+  const showSeaFields =
+    form?.transport_mode === 'sea' || (form?.transport_mode === 'multi' && form?.linehaul_mode === 'sea')
+
+  const originLabel = useMemo(() => {
+    const z = zoneOptions.find((x) => zoneCode(x) === form?.origin_zone)
+    return z ? `${zoneCode(z)} · ${zoneName(z)}` : form?.origin_zone || '—'
+  }, [zoneOptions, form?.origin_zone])
+
+  const destLabel = useMemo(() => {
+    const z = zoneOptions.find((x) => zoneCode(x) === form?.destination_zone)
+    return z ? `${zoneCode(z)} · ${zoneName(z)}` : form?.destination_zone || '—'
+  }, [zoneOptions, form?.destination_zone])
+
+  const canQuote = form && form.cust_ac_no && form.cn_origin && form.cn_dstn && parseFloat(form.cn_wt) > 0
+
+  const zoneSelectOptions = zoneOptions.map((z) => {
+    const code = zoneCode(z)
+    return {
+      value: code,
+      label: `${code} — ${zoneName(z)} (${zoneHub(z) || '—'})`,
+    }
+  })
+
+  const cardHead = { background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }
+  const cardStyle = { borderRadius: 8, border: '1px solid #E2E8F0', marginBottom: 16 }
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 64 }}>
-      {/* Top Breadcrumb & Page Title Strip */}
+    <div style={{ maxWidth: 1280, margin: '0 auto', paddingBottom: 48 }}>
       <div style={{ marginBottom: 16 }}>
         <Breadcrumb
           items={[
             { title: <Link to="/ops/dashboard">Operations</Link> },
             { title: <Link to="/ops/consignments">Consignments</Link> },
-            { title: 'New Shipment Booking' },
+            { title: isExisting && form.cn_no ? `Edit ${form.cn_no}` : 'New booking' },
           ]}
         />
         <div
@@ -430,862 +684,667 @@ export default function ConsignmentEntryPage() {
           }}
         >
           <Space align="center" size={12}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/ops/consignments')}
-              style={{ borderRadius: 6 }}
-            >
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/ops/consignments')}>
               Back
             </Button>
             <div>
-              <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 700 }}>
-                New Consignment Booking
+              <Title level={4} style={{ margin: 0, color: '#0F172A' }}>
+                {isExisting && form.cn_no ? `Edit ${form.cn_no}` : 'New consignment'}
               </Title>
-              <Text style={{ fontSize: 13, color: '#64748B' }}>
-                Full operational intake: auto-generated CN barcode, branch routing, client, sender, receiver & pickup details.
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Fill the steps below. Delivery points set hubs automatically.
               </Text>
             </div>
           </Space>
-
-          <Space size={10}>
-            <Button onClick={() => navigate('/ops/consignments')}>Cancel</Button>
-            <Button
-              icon={<PrinterOutlined />}
-              loading={loading}
-              onClick={() => form.validateFields().then((vals) => handleSubmit(vals, true))}
-            >
-              Save & Print Label
-            </Button>
+          <Space>
+            <Button onClick={startNew}>New CN</Button>
             <Button
               type="primary"
               icon={<SaveOutlined />}
-              loading={loading}
-              style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
-              onClick={() => form.submit()}
+              loading={saving}
+              onClick={onSave}
+              style={{ background: BRAND, borderColor: BRAND }}
             >
-              Create Shipment
+              Save consignment
             </Button>
           </Space>
         </div>
       </div>
 
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={(vals) => handleSubmit(vals, false)}
-        initialValues={{
-          pay_mode: 'PPD',
-          pkg_typ: 'P',
-          srv_typ: 'STD',
-          transport_mode: 'ROAD',
-          cn_origin: 'BKI',
-          cn_dstn: 'KUL',
-          origin_service: 'CUSTOMER_DROP',
-          destination_service: 'DOOR',
-          cn_pcs: 1,
-          cn_wt: 1.0,
-          cash_amt: 0,
-        }}
-      >
-        {/* CN NUMBER & SERVICE IDENTITY HEADER STRIP */}
-        <Card
-          style={{
-            marginBottom: 20,
-            borderRadius: 8,
-            border: '1px solid #CBD5E1',
-            background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
-            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-          }}
-          bodyStyle={{ padding: '16px 20px' }}
-        >
-          <Row gutter={[20, 16]} align="middle">
-            {/* CN Number display & regeneration */}
-            <Col xs={24} md={10}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text strong style={{ fontSize: 13, color: '#334155' }}>
-                    <BarcodeOutlined style={{ marginRight: 6, color: '#1B8A5A' }} />
-                    Consignment Number (CN)
-                  </Text>
-                  <Space size={6}>
-                    <Text style={{ fontSize: 11, color: '#64748B' }}>Scan Existing</Text>
-                    <Switch
-                      size="small"
-                      checked={isManualCn}
-                      onChange={(checked) => {
-                        setIsManualCn(checked)
-                        if (!checked && !activeCnNo) generateNewCn()
-                      }}
-                    />
-                  </Space>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Form.Item
-                    name="cn_no"
-                    noStyle
-                    rules={[{ required: true, message: 'CN number is required' }]}
-                  >
+      <Row gutter={20} align="top">
+        {/* ─── Main form column ─── */}
+        <Col xs={24} lg={16}>
+          {/* Step 1: Basics */}
+          <Card
+            size="small"
+            title={<Text strong>1 · Basics</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>CN, customer, service, parcel</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
+          >
+            <Row gutter={[16, 12]}>
+              <Col xs={24} md={14}>
+                <Form.Item label="Consignment number" required style={{ marginBottom: 8 }}>
+                  <Space.Compact style={{ width: '100%' }}>
                     <Input
-                      readOnly={!isManualCn}
-                      placeholder="e.g. 20260911001"
-                      style={{
-                        fontFamily: 'JetBrains Mono, monospace',
-                        fontWeight: 700,
-                        fontSize: 16,
-                        letterSpacing: '0.05em',
-                        color: isManualCn ? '#0F172A' : '#1B8A5A',
-                        background: isManualCn ? '#FFFFFF' : '#F1F5F9',
+                      value={form.cn_no}
+                      maxLength={20}
+                      placeholder="Generate or type CN number"
+                      style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
+                      onChange={(e) => {
+                        setIsExisting(false)
+                        set('cn_no', e.target.value.toUpperCase())
                       }}
-                      onChange={(e) => setActiveCnNo(e.target.value.toUpperCase())}
+                    />
+                    <Button loading={generating} onClick={generateCn}>
+                      Generate
+                    </Button>
+                    <Button
+                      loading={loading}
+                      disabled={!String(form.cn_no || '').trim()}
+                      onClick={() => loadCn(form.cn_no)}
+                    >
+                      Load
+                    </Button>
+                  </Space.Compact>
+                </Form.Item>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Generate for a new CN, or type an existing number and Load to edit.
+                </Text>
+              </Col>
+              <Col xs={24} md={10}>
+                <Form.Item label="Customer account" required style={{ marginBottom: 0 }}>
+                  <CustomerPicker
+                    value={form.cust_ac_no}
+                    onSelect={(c) => {
+                      setForm((f) => ({
+                        ...f,
+                        cust_ac_no: String(c.cust_ac_no || '').toUpperCase(),
+                        consigner: c.cust_name || f.consigner,
+                      }))
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Service" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={form.srv_typ}
+                    onChange={(v) => set('srv_typ', v)}
+                    options={serviceTypeOptions.map((s) => ({
+                      value: s.code,
+                      label: s.cd_desc || s.label || s.code,
+                    }))}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Package" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={form.pkg_typ}
+                    onChange={(v) => set('pkg_typ', v)}
+                    options={[
+                      { value: 'P', label: 'Parcel' },
+                      { value: 'D', label: 'Document' },
+                    ]}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Pickup date" style={{ marginBottom: 0 }}>
+                  <DatePicker
+                    style={{ width: '100%' }}
+                    format="YYYY-MM-DD"
+                    allowClear={false}
+                    value={form.pu_dt ? dayjs(form.pu_dt) : null}
+                    onChange={(d) => set('pu_dt', d ? d.format('YYYY-MM-DD') : '')}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Weight (kg)" required style={{ marginBottom: 0 }}>
+                  <InputNumber
+                    min={0.1}
+                    step={0.1}
+                    style={{ width: '100%' }}
+                    value={form.cn_wt === '' ? null : Number(form.cn_wt)}
+                    onChange={(v) => set('cn_wt', v == null ? '' : String(v))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Pieces" required style={{ marginBottom: 0 }}>
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    value={form.cn_pcs === '' ? null : Number(form.cn_pcs)}
+                    onChange={(v) => set('cn_pcs', v == null ? '1' : String(v))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8} md={4}>
+                <Form.Item label="Payment" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={form.pay_mode || 'PPD'}
+                    onChange={(mode) => {
+                      setForm((f) => ({
+                        ...f,
+                        pay_mode: mode,
+                        cash_amt: mode === 'COD' ? f.cash_amt : '',
+                      }))
+                      if (mode !== 'COD') setCodInfo(null)
+                    }}
+                    options={[
+                      { value: 'PPD', label: 'Prepaid / Account' },
+                      { value: 'COD', label: 'Cash on Delivery' },
+                    ]}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              {form.pay_mode === 'COD' ? (
+                <Col xs={12} sm={8} md={6}>
+                  <Form.Item label="COD collect (RM)" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      min={0}
+                      step={0.01}
+                      precision={2}
+                      style={{ width: '100%' }}
+                      value={form.cash_amt === '' ? null : Number(form.cash_amt)}
+                      placeholder={quote?.total != null ? String(quote.total) : 'Uses freight if blank'}
+                      onChange={(v) => set('cash_amt', v == null ? '' : String(v))}
                     />
                   </Form.Item>
-
-                  {!isManualCn && (
-                    <Tooltip title="Regenerate unique CN number">
-                      <Button
-                        icon={<ReloadOutlined spin={generating} />}
-                        loading={generating}
-                        onClick={generateNewCn}
-                      />
-                    </Tooltip>
-                  )}
-                  <Tooltip title="Copy CN number">
-                    <Button icon={<CopyOutlined />} onClick={handleCopyCn} />
-                  </Tooltip>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Tag color="success" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
-                    {isManualCn ? 'Manual Waybill Scan' : 'Auto-Generated by IPOSB System'}
-                  </Tag>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    Unique identity key for tracking & billing
-                  </Text>
-                </div>
-              </div>
-            </Col>
-
-            {/* Booking Date */}
-            <Col xs={24} sm={8} md={5}>
-              <Form.Item
-                label={
-                  <Space size={4}>
-                    <ClockCircleOutlined style={{ color: '#64748B' }} />
-                    <span>Booking Date</span>
-                  </Space>
-                }
-                name="booking_date"
-                rules={[{ required: true }]}
-                style={{ marginBottom: 0 }}
-              >
-                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" allowClear={false} />
-              </Form.Item>
-            </Col>
-
-            {/* Service Level */}
-            <Col xs={24} sm={8} md={4}>
-              <Form.Item
-                label="Service Speed"
-                name="srv_typ"
-                rules={[{ required: true }]}
-                style={{ marginBottom: 0 }}
-              >
-                <Select
-                  options={[
-                    { value: 'STD', label: 'STD — Standard Delivery' },
-                    { value: 'EXP', label: 'EXP — Express Priority' },
-                    { value: 'SD', label: 'SD — Same Day' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-
-            {/* Transport Mode */}
-            <Col xs={24} sm={8} md={5}>
-              <Form.Item
-                label="Transit Trunk"
-                name="transport_mode"
-                rules={[{ required: true }]}
-                style={{ marginBottom: 0 }}
-              >
-                <Select
-                  options={[
-                    { value: 'ROAD', label: 'ROAD — Peninsular Trunk' },
-                    { value: 'SEA', label: 'SEA — Ocean Marine Cargo' },
-                    { value: 'MULTIMODAL', label: 'MULTIMODAL — Road + Sea' },
-                    { value: 'AIR', label: 'AIR — Air Cargo Freight' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* 2-COLUMN DOSSIER: SENDER (LEFT) vs RECEIVER (RIGHT) */}
-        <Row gutter={[20, 20]}>
-          {/* SENDER & ORIGIN PICKUP SECTION */}
-          <Col xs={24} lg={12}>
-            <Card
-              title={
-                <Space>
-                  <UserOutlined style={{ color: '#1B8A5A' }} />
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>Sender Details & Origin Pickup</span>
-                </Space>
-              }
-              size="small"
-              style={{ borderRadius: 8, height: '100%', border: '1px solid #E2E8F0' }}
-              headStyle={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}
-            >
-              {/* Origin Branch Dropdown — Structured Select, NOT text input */}
-              <Form.Item
-                label={
-                  <Space size={4}>
-                    <EnvironmentOutlined style={{ color: '#1B8A5A' }} />
-                    <span style={{ fontWeight: 600 }}>Origin Branch / Hub (Counter)</span>
-                  </Space>
-                }
-                name="cn_origin"
-                rules={[{ required: true, message: 'Please select origin branch' }]}
-                tooltip="Select the originating IPOSB hub or counter handling this intake"
-              >
-                <Select
-                  showSearch
-                  placeholder="Select origin branch..."
-                  optionFilterProp="label"
-                  options={branchOptions}
-                  onChange={(val) => {
-                    setOriginBranch(val)
-                    form.setFieldValue('origin_zone', undefined)
-                  }}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-
-              <Row gutter={12}>
-                <Col span={14}>
-                  <Form.Item
-                    label="Sender Full Name"
-                    name="consigner"
-                    rules={[{ required: true, message: 'Sender name is required' }]}
-                  >
-                    <Input placeholder="e.g. Ahmad bin Razak" />
-                  </Form.Item>
                 </Col>
-                <Col span={10}>
-                  <Form.Item
-                    label="Sender Phone"
-                    name="sender_phone"
-                    rules={[{ required: true, message: 'Contact phone is required' }]}
-                  >
-                    <Input placeholder="e.g. 012-3456789" />
-                  </Form.Item>
-                </Col>
-              </Row>
+              ) : null}
+            </Row>
+          </Card>
 
-              <Form.Item label="Sender Email (Optional)" name="sender_email">
-                <Input type="email" placeholder="e.g. ahmad@gmail.com" />
-              </Form.Item>
-
-              <Divider style={{ margin: '14px 0' }} />
-
-              {/* Pickup Type / Origin Service Mode */}
-              <Form.Item
-                label={
-                  <Space size={4}>
-                    <CarOutlined style={{ color: '#1668DC' }} />
-                    <span style={{ fontWeight: 600 }}>Pickup Method</span>
-                  </Space>
-                }
-                name="origin_service"
-                rules={[{ required: true }]}
-              >
-                <Radio.Group
-                  buttonStyle="solid"
-                  style={{ width: '100%', display: 'flex' }}
-                  onChange={(e) => setOriginService(e.target.value)}
-                >
-                  <Radio.Button value="CUSTOMER_DROP" style={{ flex: 1, textAlign: 'center' }}>
-                    Counter Drop-off
-                  </Radio.Button>
-                  <Radio.Button value="OWN_DP" style={{ flex: 1, textAlign: 'center' }}>
-                    Courier Pickup
-                  </Radio.Button>
-                  <Radio.Button value="3PL" style={{ flex: 1, textAlign: 'center' }}>
-                    Drop Point Agent
-                  </Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-
-              {/* Conditional Pickup Details */}
-              {originService === 'OWN_DP' ? (
+          {/* Step 2: Route */}
+          <Card
+            size="small"
+            title={<Text strong>2 · Route</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>Pick delivery points — hubs fill in</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
+          >
+            <Row gutter={[16, 12]}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Origin delivery point" required style={{ marginBottom: 4 }}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Search origin delivery point…"
+                    value={form.origin_zone || undefined}
+                    options={zoneSelectOptions}
+                    onChange={pickOriginDp}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Hub: <Text strong>{form.cn_origin || '—'}</Text>
+                </Text>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Destination delivery point" required style={{ marginBottom: 4 }}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Search destination delivery point…"
+                    value={form.destination_zone || undefined}
+                    options={zoneSelectOptions}
+                    onChange={pickDestDp}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Hub: <Text strong>{form.cn_dstn || '—'}</Text>
+                </Text>
+              </Col>
+              <Col span={24}>
                 <div
                   style={{
-                    padding: 12,
-                    background: '#F0F9FF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 14px',
+                    background: '#F8FAFC',
                     borderRadius: 6,
-                    border: '1px solid #BAE6FD',
-                    marginBottom: 12,
+                    border: '1px solid #E2E8F0',
                   }}
                 >
-                  <Form.Item
-                    label="Pickup Address"
-                    name="sender_address"
-                    rules={[{ required: true, message: 'Pickup address is required for courier pickup' }]}
-                  >
-                    <Input.TextArea
-                      rows={2}
-                      placeholder="Full pickup location address (street, building, unit, landmark)"
-                    />
-                  </Form.Item>
-
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item label="Pickup Time Window" name="pu_time_window">
-                        <Select
-                          options={[
-                            { value: 'morning', label: 'Morning (09:00 - 13:00)' },
-                            { value: 'afternoon', label: 'Afternoon (14:00 - 18:00)' },
-                            { value: 'anytime', label: 'Anytime Today' },
-                          ]}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item label="Origin Zone" name="origin_zone">
-                        <Select
-                          allowClear
-                          showSearch
-                          placeholder="Select zone..."
-                          optionFilterProp="label"
-                          options={originZoneOptions}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
+                  <EnvironmentOutlined style={{ color: BRAND }} />
+                  <Text>{originLabel}</Text>
+                  <Text type="secondary">→</Text>
+                  <Text>{destLabel}</Text>
                 </div>
-              ) : (
-                <Row gutter={12}>
-                  <Col span={14}>
-                    <Form.Item label="Drop Point Counter" name="origin_drop_point_id">
-                      <Select
-                        allowClear
-                        showSearch
-                        placeholder="Select branch counter..."
-                        optionFilterProp="label"
-                        options={dropPointOptions}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={10}>
-                    <Form.Item label="Origin Zone" name="origin_zone">
-                      <Select
-                        allowClear
-                        showSearch
-                        placeholder="Zone code..."
-                        optionFilterProp="label"
-                        options={originZoneOptions}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              )}
-            </Card>
-          </Col>
+              </Col>
+            </Row>
+          </Card>
 
-          {/* RECIPIENT & DESTINATION DELIVERY SECTION */}
-          <Col xs={24} lg={12}>
-            <Card
-              title={
-                <Space>
-                  <EnvironmentOutlined style={{ color: '#1668DC' }} />
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>Receiver Details & Destination Delivery</span>
-                </Space>
-              }
-              size="small"
-              style={{ borderRadius: 8, height: '100%', border: '1px solid #E2E8F0' }}
-              headStyle={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}
-            >
-              {/* Destination Branch Dropdown — Structured Select, NOT text input */}
-              <Form.Item
-                label={
-                  <Space size={4}>
-                    <EnvironmentOutlined style={{ color: '#1668DC' }} />
-                    <span style={{ fontWeight: 600 }}>Destination Branch / Hub</span>
-                  </Space>
-                }
-                name="cn_dstn"
-                rules={[{ required: true, message: 'Please select destination branch' }]}
-                tooltip="Select the receiving IPOSB gateway or delivery hub"
+          {/* Step 3: First mile */}
+          <Card
+            size="small"
+            title={<Text strong>3 · First mile</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>How the parcel enters the network</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
+          >
+            <Form.Item style={{ marginBottom: 12 }}>
+              <Radio.Group
+                buttonStyle="solid"
+                value={form.origin_service || 'DROP_COUNTER'}
+                onChange={(e) => {
+                  const mode = e.target.value
+                  setForm((f) => ({
+                    ...f,
+                    origin_service: mode,
+                    origin_drop_point_id: mode === 'DROP_COUNTER' ? f.origin_drop_point_id : '',
+                    sender_address: mode === 'ADDRESS_PICKUP' ? f.sender_address : '',
+                  }))
+                }}
+                style={{ width: '100%', display: 'flex' }}
               >
-                <Select
-                  showSearch
-                  placeholder="Select destination branch..."
-                  optionFilterProp="label"
-                  options={branchOptions}
-                  onChange={(val) => {
-                    setDestinationBranch(val)
-                    form.setFieldValue('destination_zone', undefined)
-                  }}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-
-              <Row gutter={12}>
-                <Col span={14}>
-                  <Form.Item
-                    label="Recipient Full Name"
-                    name="consignee"
-                    rules={[{ required: true, message: 'Recipient name is required' }]}
-                  >
-                    <Input placeholder="e.g. Siti Nurhaliza" />
-                  </Form.Item>
-                </Col>
-                <Col span={10}>
-                  <Form.Item
-                    label="Recipient Phone"
-                    name="recp_phone"
-                    rules={[{ required: true, message: 'Phone number is required' }]}
-                  >
-                    <Input placeholder="e.g. 019-8765432" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col span={14}>
-                  <Form.Item label="Secondary Phone (Optional)" name="recp_phone2">
-                    <Input placeholder="e.g. 088-123456" />
-                  </Form.Item>
-                </Col>
-                <Col span={10}>
-                  <Form.Item label="Recipient Email (Optional)" name="recp_email">
-                    <Input type="email" placeholder="siti@gmail.com" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider style={{ margin: '14px 0' }} />
-
-              {/* Delivery Service Mode */}
-              <Form.Item
-                label={
-                  <Space size={4}>
-                    <InboxOutlined style={{ color: '#1B8A5A' }} />
-                    <span style={{ fontWeight: 600 }}>Delivery Method</span>
-                  </Space>
-                }
-                name="destination_service"
-                rules={[{ required: true }]}
-              >
-                <Radio.Group
-                  buttonStyle="solid"
-                  style={{ width: '100%', display: 'flex' }}
-                  onChange={(e) => setDestinationService(e.target.value)}
-                >
-                  <Radio.Button value="DOOR" style={{ flex: 1, textAlign: 'center' }}>
-                    Doorstep Delivery
+                {originServices.map((s) => (
+                  <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
+                    {s.label || s.code}
                   </Radio.Button>
-                  <Radio.Button value="SELF_COLLECT" style={{ flex: 1, textAlign: 'center' }}>
-                    Hub Self-Collect
-                  </Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-
-              {/* Conditional Delivery Details */}
-              {destinationService === 'DOOR' ? (
-                <div>
-                  <Form.Item
-                    label="Delivery Street Address"
-                    name="remarks"
-                    rules={[{ required: true, message: 'Delivery address is required for doorstep delivery' }]}
-                  >
-                    <Input.TextArea
-                      rows={2}
-                      placeholder="Street name, residential lot, building, floor/unit number"
-                    />
-                  </Form.Item>
-
-                  <Row gutter={12}>
-                    <Col span={8}>
-                      <Form.Item label="Postcode" name="dest_postcode">
-                        <Input placeholder="e.g. 50450" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item label="City" name="dest_city">
-                        <Input placeholder="e.g. Kuala Lumpur" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item label="Delivery Zone" name="destination_zone">
-                        <Select
-                          allowClear
-                          showSearch
-                          placeholder="Zone..."
-                          optionFilterProp="label"
-                          options={destZoneOptions}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Form.Item label="Delivery Instructions / Gate Code" name="special_instructions">
-                    <Input placeholder="e.g. Leave at guardhouse / Call recipient 15 min before arrival" />
-                  </Form.Item>
-                </div>
-              ) : (
-                <div>
-                  <Form.Item
-                    label="Destination Collection Drop Point"
-                    name="destination_drop_point_id"
-                    rules={[{ required: true, message: 'Please choose destination collection counter' }]}
-                  >
+                ))}
+              </Radio.Group>
+            </Form.Item>
+            <Row gutter={[16, 12]}>
+              {form.origin_service === 'DROP_COUNTER' ? (
+                <Col xs={24} md={16}>
+                  <Form.Item label="Drop point" style={{ marginBottom: 4 }}>
                     <Select
                       showSearch
-                      placeholder="Select collection hub or partner drop point..."
+                      allowClear
                       optionFilterProp="label"
-                      options={dropPointOptions}
+                      placeholder="Search drop counter…"
+                      value={form.origin_drop_point_id ? String(form.origin_drop_point_id) : undefined}
+                      options={pickupDrops.map((d) => ({
+                        value: String(d.id),
+                        label: `${d.drop_code} — ${d.drop_name}${d.delivery_point_code ? ` · ${d.delivery_point_code}` : ''}`,
+                      }))}
+                      onChange={(id) => (id ? pickOriginDrop(id) : set('origin_drop_point_id', ''))}
+                      style={{ width: '100%' }}
                     />
                   </Form.Item>
-                  <Alert
-                    type="info"
-                    showIcon
-                    message="Receiver will collect parcel from counter upon SMS arrival notification."
-                    style={{ fontSize: 12, marginBottom: 12 }}
-                  />
-                </div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Choosing a drop point also sets the origin delivery point.
+                  </Text>
+                </Col>
+              ) : (
+                <Col span={24}>
+                  <Form.Item label="Pickup address" required style={{ marginBottom: 0 }}>
+                    <Input.TextArea
+                      rows={2}
+                      value={form.sender_address || ''}
+                      onChange={(e) => set('sender_address', e.target.value)}
+                      placeholder="Full sender address for collection"
+                    />
+                  </Form.Item>
+                </Col>
               )}
-            </Card>
-          </Col>
-        </Row>
-
-        {/* PARCEL & CARGO SPECIFICATION */}
-        <Card
-          title={
-            <Space>
-              <InboxOutlined style={{ color: '#1B8A5A' }} />
-              <span style={{ fontWeight: 700, fontSize: 14 }}>Cargo & Parcel Specifications</span>
-            </Space>
-          }
-          size="small"
-          style={{ marginTop: 20, borderRadius: 8, border: '1px solid #E2E8F0' }}
-          headStyle={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}
-        >
-          <Row gutter={[16, 12]}>
-            <Col xs={24} sm={6}>
-              <Form.Item label="Package Type" name="pkg_typ" rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { value: 'P', label: 'Parcel / Carton Box' },
-                    { value: 'D', label: 'Document / Envelope' },
-                    { value: 'F', label: 'Fragile Goods' },
-                    { value: 'H', label: 'Heavy Cargo / Pallet' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={12} sm={6}>
-              <Form.Item
-                label="Actual Weight (kg)"
-                name="cn_wt"
-                rules={[{ required: true, message: 'Enter weight' }]}
-              >
-                <InputNumber
-                  min={0.01}
-                  step={0.1}
-                  precision={2}
-                  style={{ width: '100%' }}
-                  onChange={(val) => setWeight(Number(val || 1))}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={12} sm={4}>
-              <Form.Item
-                label="Pieces (pcs)"
-                name="cn_pcs"
-                rules={[{ required: true, message: 'Enter pieces' }]}
-              >
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  style={{ width: '100%' }}
-                  onChange={(val) => setPieces(Number(val || 1))}
-                />
-              </Form.Item>
-            </Col>
-
-            {/* Dimensions for volumetric calculation */}
-            <Col xs={24} sm={8}>
-              <Form.Item label="Dimensions: L × W × H (cm)">
-                <Space.Compact style={{ width: '100%' }}>
-                  <InputNumber
-                    placeholder="L (cm)"
-                    min={0}
-                    style={{ width: '33%' }}
-                    onChange={(val) => setDimL(Number(val || 0))}
+              <Col xs={24} md={12}>
+                <Form.Item label="Sender / consigner" style={{ marginBottom: 0 }}>
+                  <Input
+                    value={form.consigner}
+                    onChange={(e) => set('consigner', e.target.value)}
+                    placeholder="Sender name"
                   />
-                  <InputNumber
-                    placeholder="W (cm)"
-                    min={0}
-                    style={{ width: '33%' }}
-                    onChange={(val) => setDimW(Number(val || 0))}
-                  />
-                  <InputNumber
-                    placeholder="H (cm)"
-                    min={0}
-                    style={{ width: '34%' }}
-                    onChange={(val) => setDimH(Number(val || 0))}
-                  />
-                </Space.Compact>
-              </Form.Item>
-            </Col>
-          </Row>
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
 
-          {/* Dynamic Volumetric / Chargeable weight helper strip */}
-          <div
-            style={{
-              padding: '10px 14px',
-              background: '#F8FAFC',
-              borderRadius: 6,
-              border: '1px solid #E2E8F0',
-              marginBottom: 16,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}
+          {/* Step 4: Last mile */}
+          <Card
+            size="small"
+            title={<Text strong>4 · Last mile</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>How the receiver gets the parcel</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
           >
-            <Space size={16}>
-              <div>
-                <Text type="secondary" style={{ fontSize: 11 }}>ACTUAL WEIGHT</Text>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{weight || 0} kg</div>
-              </div>
-              <Divider type="vertical" style={{ height: 28 }} />
-              <div>
-                <Text type="secondary" style={{ fontSize: 11 }}>VOLUMETRIC WEIGHT</Text>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#64748B' }}>
-                  {volumetricWeight} kg
-                </div>
-              </div>
-              <Divider type="vertical" style={{ height: 28 }} />
-              <div>
-                <Text type="secondary" style={{ fontSize: 11 }}>BILLABLE CHARGEABLE WEIGHT</Text>
-                <div style={{ fontWeight: 800, fontSize: 15, color: '#1B8A5A' }}>
-                  {chargeableWeight} kg
-                </div>
-              </div>
-            </Space>
-
-            <Tag color={volumetricWeight > weight ? 'orange' : 'blue'} style={{ margin: 0, fontWeight: 600 }}>
-              {volumetricWeight > weight ? 'Volumetric Heavy Parcel' : 'Actual Weight Billable'}
-            </Tag>
-          </div>
-
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Content Description" name="goods_desc">
-                <Input placeholder="e.g. Commercial spare parts, garments, electronics" />
-              </Form.Item>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Form.Item label="Declared Cargo Value (RM)" name="declared_value">
-                <InputNumber min={0} precision={2} prefix="RM" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Form.Item label="Customer Account Code" name="cust_ac_no">
-                <Input placeholder="WALK-IN" />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* PAYMENT & FINANCIAL RECONCILIATION */}
-        <Card
-          title={
-            <Space>
-              <DollarCircleOutlined style={{ color: '#1B8A5A' }} />
-              <span style={{ fontWeight: 700, fontSize: 14 }}>Payment Mode & Freight Billing</span>
-            </Space>
-          }
-          size="small"
-          style={{ marginTop: 20, borderRadius: 8, border: '1px solid #E2E8F0' }}
-          headStyle={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}
-        >
-          <Row gutter={[20, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                label={<span style={{ fontWeight: 600 }}>Payment Mode</span>}
-                name="pay_mode"
-                rules={[{ required: true }]}
+            <Form.Item style={{ marginBottom: 12 }}>
+              <Radio.Group
+                buttonStyle="solid"
+                value={form.destination_service || 'DOORSTEP'}
+                onChange={(e) => {
+                  const mode = e.target.value
+                  setForm((f) => ({
+                    ...f,
+                    destination_service: mode,
+                    destination_drop_point_id: mode === 'SELF_COLLECT' ? f.destination_drop_point_id : '',
+                    destination_area_code: mode === 'DOORSTEP' ? f.destination_area_code : '',
+                    remarks: mode === 'DOORSTEP' ? f.remarks : '',
+                  }))
+                }}
+                style={{ width: '100%', display: 'flex' }}
               >
-                <Radio.Group
-                  buttonStyle="solid"
-                  style={{ width: '100%', display: 'flex' }}
-                  onChange={(e) => setPayMode(e.target.value)}
-                >
-                  <Radio.Button value="PPD" style={{ flex: 1, textAlign: 'center' }}>
-                    PPD — Prepaid
+                {destinationServices.map((s) => (
+                  <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
+                    {s.label || s.code}
                   </Radio.Button>
-                  <Radio.Button value="COD" style={{ flex: 1, textAlign: 'center' }}>
-                    COD — Cash on Delivery
-                  </Radio.Button>
-                  <Radio.Button value="ACC" style={{ flex: 1, textAlign: 'center' }}>
-                    ACC — Credit Account
-                  </Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-
-              {payMode === 'COD' && (
-                <div
-                  style={{
-                    padding: 14,
-                    background: '#FFFBEB',
-                    borderRadius: 6,
-                    border: '1px solid #FDE68A',
-                    marginTop: 10,
-                  }}
-                >
-                  <Form.Item
-                    label={
-                      <span style={{ fontWeight: 700, color: '#92400E' }}>
-                        COD Amount to Collect from Recipient (RM)
-                      </span>
-                    }
-                    name="cash_amt"
-                    rules={[{ required: true, message: 'Please enter COD collection amount' }]}
-                    style={{ marginBottom: 8 }}
-                  >
-                    <InputNumber
-                      min={0.01}
-                      precision={2}
-                      prefix="RM"
-                      style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
-                      onChange={(val) => setCodAmount(Number(val || 0))}
+                ))}
+              </Radio.Group>
+            </Form.Item>
+            <Row gutter={[16, 12]}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Receiver / consignee" style={{ marginBottom: 0 }}>
+                  <Input
+                    value={form.consignee}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setForm((f) => ({ ...f, consignee: v, recp_name: v }))
+                    }}
+                    placeholder="Receiver name"
+                  />
+                </Form.Item>
+              </Col>
+              {form.destination_service === 'SELF_COLLECT' ? (
+                <Col xs={24} md={12}>
+                  <Form.Item label="Self-collect drop point" style={{ marginBottom: 0 }}>
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Search self-collect drop…"
+                      value={form.destination_drop_point_id ? String(form.destination_drop_point_id) : undefined}
+                      options={deliveryDrops.map((d) => ({
+                        value: String(d.id),
+                        label: `${d.drop_code} — ${d.drop_name}`,
+                      }))}
+                      onChange={(id) => set('destination_drop_point_id', id || '')}
+                      style={{ width: '100%' }}
                     />
                   </Form.Item>
-                  <Text style={{ fontSize: 12, color: '#B45309' }}>
-                    The delivering courier/agent will collect this cash upon handing over the parcel.
-                  </Text>
-                </div>
+                </Col>
+              ) : (
+                <>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Destination area" style={{ marginBottom: 4 }}>
+                      <Select
+                        showSearch
+                        allowClear
+                        optionFilterProp="label"
+                        placeholder="Search area (or leave blank)"
+                        value={form.destination_area_code || undefined}
+                        options={destAreas.map((a) => ({
+                          value: a.area_code,
+                          label: `${a.area_code} — ${a.area_name}`,
+                        }))}
+                        onChange={(code) => set('destination_area_code', code || '')}
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Optional — assigns the area’s dispatcher for delivery.
+                    </Text>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item label="Delivery address" required style={{ marginBottom: 0 }}>
+                      <Input.TextArea
+                        rows={2}
+                        value={form.remarks || ''}
+                        onChange={(e) => set('remarks', e.target.value)}
+                        placeholder="Full receiver address (used to match area keywords if area is blank)"
+                      />
+                    </Form.Item>
+                  </Col>
+                </>
               )}
-            </Col>
+            </Row>
+          </Card>
 
-            {/* Estimated Quote Breakdown Box */}
-            <Col xs={24} md={12}>
-              <div
-                style={{
-                  padding: '14px 18px',
-                  background: '#F8FAFC',
-                  borderRadius: 6,
-                  border: '1px solid #E2E8F0',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text strong style={{ fontSize: 13, color: '#334155' }}>
-                    Freight & Surcharge Estimate
-                  </Text>
-                  <Tag color="cyan">{originBranch} → {destinationBranch}</Tag>
-                </div>
+          {/* Advanced */}
+          <Collapse
+            style={{ ...cardStyle, background: '#fff' }}
+            activeKey={showAdvanced ? ['adv'] : []}
+            onChange={(keys) => setShowAdvanced(keys.includes('adv'))}
+            items={[
+              {
+                key: 'adv',
+                label: <Text strong>Advanced (optional)</Text>,
+                extra: <Text type="secondary" style={{ fontSize: 12 }}>Transport · special handling</Text>,
+                children: (
+                  <Row gutter={[16, 12]}>
+                    <Col xs={24} sm={8} md={6}>
+                      <Form.Item label="Transport mode" style={{ marginBottom: 0 }}>
+                        <Select
+                          value={form.transport_mode || 'road'}
+                          onChange={(mode) => {
+                            setForm((f) => ({
+                              ...f,
+                              transport_mode: mode,
+                              linehaul_mode: mode === 'multi' ? f.linehaul_mode || 'sea' : '',
+                              ...(mode !== 'sea' && !(mode === 'multi' && (f.linehaul_mode || 'sea') === 'sea')
+                                ? {
+                                    vessel_name: '',
+                                    voyage_ref: '',
+                                    sailing_date: '',
+                                    port_origin: '',
+                                    port_destination: '',
+                                  }
+                                : {}),
+                            }))
+                          }}
+                          options={transportModes.map((m) => ({
+                            value: String(m.code || '').toLowerCase(),
+                            label: m.label || m.cd_desc || m.code,
+                          }))}
+                          style={{ width: '100%' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                    {form.transport_mode === 'multi' ? (
+                      <Col xs={24} sm={8} md={6}>
+                        <Form.Item label="Linehaul mode" style={{ marginBottom: 0 }}>
+                          <Select
+                            value={form.linehaul_mode || 'sea'}
+                            onChange={(v) => set('linehaul_mode', v)}
+                            options={[
+                              { value: 'road', label: 'Road / Land' },
+                              { value: 'sea', label: 'Sea / Ferry' },
+                              { value: 'air', label: 'Air' },
+                            ]}
+                            style={{ width: '100%' }}
+                          />
+                        </Form.Item>
+                      </Col>
+                    ) : null}
+                    {showSeaFields ? (
+                      <>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Vessel" style={{ marginBottom: 0 }}>
+                            <Input value={form.vessel_name || ''} onChange={(e) => set('vessel_name', e.target.value)} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Voyage ref" style={{ marginBottom: 0 }}>
+                            <Input value={form.voyage_ref || ''} onChange={(e) => set('voyage_ref', e.target.value)} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Sailing date" style={{ marginBottom: 0 }}>
+                            <DatePicker
+                              style={{ width: '100%' }}
+                              format="YYYY-MM-DD"
+                              value={form.sailing_date ? dayjs(form.sailing_date) : null}
+                              onChange={(d) => set('sailing_date', d ? d.format('YYYY-MM-DD') : '')}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Port origin" style={{ marginBottom: 0 }}>
+                            <Input value={form.port_origin || ''} onChange={(e) => set('port_origin', e.target.value)} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Port destination" style={{ marginBottom: 0 }}>
+                            <Input
+                              value={form.port_destination || ''}
+                              onChange={(e) => set('port_destination', e.target.value)}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </>
+                    ) : null}
+                    <Col xs={24} sm={8} md={6}>
+                      <Form.Item label="Special handling" style={{ marginBottom: 0 }}>
+                        <Select
+                          value={form.spec_handle}
+                          onChange={(v) => set('spec_handle', v)}
+                          options={[
+                            { value: 'N', label: 'No' },
+                            { value: 'Y', label: 'Yes' },
+                          ]}
+                          style={{ width: '100%' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                    {form.spec_handle === 'Y' ? (
+                      <>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Handling code" style={{ marginBottom: 0 }}>
+                            <Input
+                              maxLength={10}
+                              value={form.spec_cd}
+                              onChange={(e) => set('spec_cd', e.target.value)}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Form.Item label="Handling amount (RM)" style={{ marginBottom: 0 }}>
+                            <InputNumber
+                              min={0}
+                              step={0.01}
+                              precision={2}
+                              style={{ width: '100%' }}
+                              value={form.spec_amt === '' ? null : Number(form.spec_amt)}
+                              onChange={(v) => set('spec_amt', v == null ? '' : String(v))}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </>
+                    ) : null}
+                  </Row>
+                ),
+              },
+            ]}
+          />
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                  <Text type="secondary">Base Freight ({chargeableWeight} kg):</Text>
-                  <Text strong>RM {quoteSummary.baseFreight.toFixed(2)}</Text>
-                </div>
+          {savedFreight?.total != null && Number(savedFreight.total) > 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={
+                <span>
+                  Saved freight: <strong>{money(savedFreight.total)}</strong>
+                  {savedFreight.invNo ? ` · Invoice ${savedFreight.invNo}` : ''}
+                </span>
+              }
+            />
+          ) : null}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                  <Text type="secondary">Fuel Surcharge (10%):</Text>
-                  <Text strong>RM {quoteSummary.fuelSurcharge.toFixed(2)}</Text>
-                </div>
+          {form.pay_mode === 'COD' && codInfo ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={
+                <span>
+                  COD {codInfo.status || 'PENDING'}: expected {money(codInfo.expectedAmt)}{' '}
+                  <Link to={`/ops/cod?cn=${encodeURIComponent(form.cn_no)}`}>Open COD</Link>
+                </span>
+              }
+            />
+          ) : null}
+        </Col>
 
-                {quoteSummary.codFee > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <Text type="secondary">COD Processing Fee:</Text>
-                    <Text strong>RM {quoteSummary.codFee.toFixed(2)}</Text>
-                  </div>
-                )}
-
-                <Divider style={{ margin: '8px 0' }} />
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text strong style={{ fontSize: 14, color: '#0F172A' }}>Estimated Total:</Text>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: '#1B8A5A' }}>
-                    RM {quoteSummary.total.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* STICKY BOTTOM ACTION STRIP */}
-        <div
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            zIndex: 100,
-            background: 'rgba(255, 255, 255, 0.96)',
-            backdropFilter: 'blur(8px)',
-            padding: '14px 24px',
-            marginTop: 24,
-            borderRadius: 8,
-            border: '1px solid #CBD5E1',
-            boxShadow: '0 -4px 16px rgba(15, 23, 42, 0.08)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span
+        {/* ─── Sticky quote sidebar ─── */}
+        <Col xs={24} lg={8}>
+          <div style={{ position: 'sticky', top: 16 }}>
+            <Card
+              size="small"
+              title={<Text strong style={{ color: BRAND }}>Live quote</Text>}
+              extra={quoting ? <Spin size="small" /> : null}
               style={{
-                fontFamily: 'JetBrains Mono, monospace',
-                fontWeight: 700,
-                fontSize: 15,
-                color: '#1B8A5A',
+                borderRadius: 8,
+                border: `1px solid ${BRAND}33`,
+                boxShadow: '0 2px 12px rgba(27, 138, 90, 0.08)',
               }}
+              headStyle={{ background: '#F0FDF4', borderBottom: '1px solid #BBF7D0' }}
             >
-              {activeCnNo || 'Generating CN...'}
-            </span>
-            <Tag color="geekblue" style={{ margin: 0 }}>
-              {originBranch} → {destinationBranch}
-            </Tag>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Freight: <strong>RM {quoteSummary.total.toFixed(2)}</strong> ({payMode})
-            </Text>
-          </div>
+              {quote ? (
+                <>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {quote.source === 'delivery_fee' ? 'Delivery fee' : 'Freight'}
+                    {quote.rateLabel ? ` · ${quote.rateLabel}` : ''}
+                  </Text>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: BRAND, margin: '8px 0 4px' }}>
+                    {money(quote.total)}
+                  </div>
+                  {form.pay_mode === 'COD' ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      COD collect {money(form.cash_amt || quote.total)}
+                    </Text>
+                  ) : null}
+                  <Divider style={{ margin: '12px 0' }} />
+                  <div style={{ fontSize: 12, color: '#64748B' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>Route</span>
+                      <Text strong>
+                        {form.cn_origin || '—'} → {form.cn_dstn || '—'}
+                      </Text>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>Weight</span>
+                      <Text strong>{form.cn_wt || '—'} kg · {form.cn_pcs || 1} pcs</Text>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Mode</span>
+                      <Text strong>{(form.transport_mode || 'road').toUpperCase()}</Text>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {canQuote
+                    ? quoting
+                      ? 'Calculating quote…'
+                      : 'No quote returned — check rate tables.'
+                    : 'Enter customer, hubs/DPs, and weight for a quote'}
+                </Text>
+              )}
 
-          <Space size={12}>
-            <Button size="large" onClick={() => navigate('/ops/consignments')}>
-              Cancel
-            </Button>
-            <Button
-              size="large"
-              icon={<PrinterOutlined />}
-              loading={loading}
-              onClick={() => form.validateFields().then((vals) => handleSubmit(vals, true))}
-            >
-              Save & Print Waybill Label
-            </Button>
-            <Button
-              size="large"
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              loading={loading}
-              style={{ background: '#1B8A5A', borderColor: '#1B8A5A', minWidth: 160 }}
-              htmlType="submit"
-            >
-              Create Consignment
-            </Button>
-          </Space>
-        </div>
-      </Form>
+              <Divider style={{ margin: '16px 0 12px' }} />
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  icon={<SaveOutlined />}
+                  loading={saving}
+                  onClick={onSave}
+                  style={{ background: BRAND, borderColor: BRAND }}
+                >
+                  Save consignment
+                </Button>
+                <Button block icon={<ReloadOutlined />} onClick={startNew}>
+                  Clear / New CN
+                </Button>
+                <Button block onClick={() => navigate('/ops/consignments')}>
+                  Cancel
+                </Button>
+              </Space>
+            </Card>
+          </div>
+        </Col>
+      </Row>
     </div>
   )
 }

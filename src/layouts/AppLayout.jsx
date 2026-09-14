@@ -27,7 +27,10 @@ import {
   SettingOutlined,
   TeamOutlined,
   UserOutlined,
-  WalletOutlined,
+  PrinterOutlined,
+  AuditOutlined,
+  GlobalOutlined,
+  KeyOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -40,10 +43,24 @@ const APP_PAGES = [
   { title: 'Consignments', path: '/ops/consignments', keywords: ['shipments', 'cn', 'tracking', 'list'] },
   { title: 'New Consignment Booking', path: '/ops/consignments/new', keywords: ['new', 'create', 'booking', 'shipment', 'consignment', 'entry'] },
   { title: 'Batch Import Consignments', path: '/ops/consignments/import', keywords: ['csv', 'excel', 'bulk', 'import'] },
+  { title: 'Import Error Log', path: '/ops/consignments/import-log', keywords: ['import', 'errors', 'batch', 'failures'] },
+  { title: 'Consignment Tracking', path: '/ops/consignments/tracking', keywords: ['tracking', 'timeline', 'cn', 'status'] },
+  { title: 'Cancellation Log', path: '/ops/consignments/cancellations', keywords: ['cancel', 'void', 'cancellations'] },
   { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign'] },
+  { title: 'Dispatch & 3PL', path: '/ops/dispatch', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers'] },
+  { title: 'Seal Station', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan'] },
+  { title: 'Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'baby', 'mother', 'father', 'hub'] },
   { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
   { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
   { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network'] },
+  { title: 'Status Summaries', path: '/ops/summaries', keywords: ['summary', 'status', 'counts'] },
+  { title: 'Print Manifest', path: '/ops/reports/manifest', keywords: ['print', 'manifest'] },
+  { title: 'Print Consignment', path: '/ops/reports/cn', keywords: ['print', 'cn', 'awb'] },
+  { title: 'Print Invoice', path: '/ops/reports/invoice', keywords: ['print', 'invoice'] },
+  { title: 'Print DO', path: '/ops/reports/do', keywords: ['print', 'do', 'delivery'] },
+  { title: 'Print Receipt', path: '/ops/reports/receipt', keywords: ['print', 'receipt', 'or'] },
+  { title: 'Drop Point Stock', path: '/ops/reports/drop-point-stock', keywords: ['stock', 'drop', 'inventory'] },
+  { title: 'Customer Stock', path: '/ops/reports/customer-stock', keywords: ['stock', 'customer', 'inventory'] },
   { title: 'Invoices', path: '/ops/billing/invoices', keywords: ['billing', 'finance', 'tax', 'invoice'] },
   { title: 'Delivery Orders (DO)', path: '/ops/billing/do', keywords: ['do', 'delivery', 'billing'] },
   { title: 'Official Receipts', path: '/ops/billing/receipts', keywords: ['or', 'payment', 'receipt'] },
@@ -51,12 +68,20 @@ const APP_PAGES = [
   { title: 'Debit Notes', path: '/ops/billing/debit-notes', keywords: ['dn', 'debit', 'charge'] },
   { title: 'Agent Money In', path: '/ops/billing/agent-in', keywords: ['agent', 'topup', 'deposit', 'billing'] },
   { title: 'Agent Money Out', path: '/ops/billing/agent-out', keywords: ['agent', 'payout', 'settle', 'billing'] },
+  { title: 'Agent Credit Notes', path: '/ops/billing/agent-credit', keywords: ['agent', 'credit', 'bilyet'] },
+  { title: 'Agent Debit Notes', path: '/ops/billing/agent-debit', keywords: ['agent', 'debit', 'bilyet'] },
+  { title: 'Customer Wallet', path: '/ops/billing/customer-wallet', keywords: ['wallet', 'customer', 'ledger', 'balance'] },
+  { title: 'Cancellation Policy', path: '/ops/billing/cancellation-settings', keywords: ['cancel', 'policy', 'fees', 'tiers'] },
   { title: 'COD Reconciliation', path: '/ops/cod', keywords: ['cash', 'collect', 'remit', 'settle', 'cod'] },
-  { title: 'Commissions Ledger', path: '/ops/commissions', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
-  { title: 'Partner Wallets & Withdrawals', path: '/ops/partner-wallets', keywords: ['wallets', 'payouts', 'balance'] },
-  { title: 'Commission Rate Rules', path: '/ops/commissions/config', keywords: ['rate', 'config', 'percentage', 'rules'] },
+  { title: 'Commissions Ledger', path: '/ops/commissions/rates?tab=ledger', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
+  { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/rates?tab=wallets', keywords: ['wallets', 'payouts', 'balance'] },
+  { title: 'Commission Rate Rules', path: '/ops/commissions/rates?tab=rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix'] },
+  { title: 'Commission Rates Calculator', path: '/ops/commissions/rates?tab=calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if'] },
+  { title: 'Commission Withdrawals', path: '/ops/commissions/rates?tab=withdrawals', keywords: ['withdrawals', 'payout'] },
+  { title: 'Agent Money Overview', path: '/ops/agents', keywords: ['agents', 'bilyet', 'ledger'] },
   { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
   { title: 'Staff Verification', path: '/ops/staff', keywords: ['staff', 'approval', 'drivers', 'kyc'] },
+  { title: 'Role Access / RBAC', path: '/ops/admin/role-access', keywords: ['rbac', 'roles', 'permissions', 'access'] },
   { title: 'Master Data: Branches', path: '/ops/admin/branches', keywords: ['branches', 'branch', 'office'] },
   { title: 'Master Data: Hubs & Transit', path: '/ops/admin/hubs', keywords: ['hubs', 'gateway', 'transit'] },
   { title: 'Master Data: Drop Points', path: '/ops/admin/drop-points', keywords: ['drop', 'counter', 'locker'] },
@@ -136,12 +161,14 @@ function getBreadcrumbs(pathname, search) {
     if (parts[3]) items.push({ label: parts[3].toUpperCase().replace(/-/g, ' '), path: `/ops/billing/${parts[3]}` })
   } else if (pathname.startsWith('/ops/cod')) {
     items.push({ label: 'COD Reconciliation', path: '/ops/cod' })
-  } else if (pathname.startsWith('/ops/partner-wallets')) {
-    items.push({ label: 'Commissions', path: '/ops/commissions' })
-    items.push({ label: 'Partner Wallets & Withdrawals', path: '/ops/partner-wallets' })
-  } else if (pathname.startsWith('/ops/commissions')) {
-    items.push({ label: 'Commissions', path: '/ops/commissions' })
-    if (pathname.includes('/config')) items.push({ label: 'Rate Rules Config', path: '/ops/commissions/config' })
+  } else if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
+    items.push({ label: 'Commissions', path: '/ops/commissions/rates' })
+    const tab = new URLSearchParams(search || '').get('tab')
+    if (tab === 'calculator') items.push({ label: 'Calculator', path: '/ops/commissions/rates?tab=calculator' })
+    else if (tab === 'ledger') items.push({ label: 'Ledger', path: '/ops/commissions/rates?tab=ledger' })
+    else if (tab === 'wallets') items.push({ label: 'Partner Wallets', path: '/ops/commissions/rates?tab=wallets' })
+    else if (tab === 'withdrawals') items.push({ label: 'Withdrawals', path: '/ops/commissions/rates?tab=withdrawals' })
+    else items.push({ label: 'Rate settings', path: '/ops/commissions/rates' })
   } else if (pathname.startsWith('/ops/cs')) {
     items.push({ label: 'Customer Service', path: '/ops/cs/tickets' })
   } else if (pathname.startsWith('/ops/staff')) {
@@ -158,31 +185,49 @@ function getBreadcrumbs(pathname, search) {
   return items
 }
 
-function getSelectedKey(pathname) {
+function getSelectedKey(pathname, search = '') {
   if (!pathname || pathname === '/' || pathname === '/ops/dashboard') return '/ops/dashboard'
   if (pathname === '/ops/consignments/new') return '/ops/consignments/new'
+  if (pathname.startsWith('/ops/consignments/import-log')) return '/ops/consignments/import-log'
   if (pathname.startsWith('/ops/consignments/import')) return '/ops/consignments/import'
+  if (pathname.startsWith('/ops/consignments/tracking')) return '/ops/consignments/tracking'
+  if (pathname.startsWith('/ops/consignments/cancellations')) return '/ops/consignments/cancellations'
   if (pathname.startsWith('/ops/consignments')) return '/ops/consignments'
   if (pathname.startsWith('/ops/pickups')) return '/ops/pickups'
+  if (pathname.startsWith('/ops/dispatch')) return '/ops/dispatch'
+  if (pathname.startsWith('/ops/seals')) return '/ops/seals'
+  if (pathname.startsWith('/ops/station/manifests')) return '/ops/station/manifests'
   if (pathname.startsWith('/ops/manifests')) return '/ops/manifests'
   if (pathname.startsWith('/ops/returns')) return '/ops/returns'
+  if (pathname.startsWith('/ops/summaries')) return pathname
+  if (pathname.startsWith('/ops/reports/')) return pathname
   if (pathname.startsWith('/network')) return '/network'
+  if (pathname.startsWith('/ops/billing/cancellation-settings')) return '/ops/billing/cancellation-settings'
+  if (pathname.startsWith('/ops/billing/customer-wallet')) return '/ops/billing/customer-wallet'
   if (pathname.startsWith('/ops/billing/')) {
     const parts = pathname.split('/')
     return `/ops/billing/${parts[3] || 'invoices'}`
   }
   if (pathname.startsWith('/ops/billing')) return '/ops/billing/invoices'
   if (pathname.startsWith('/ops/cod')) return '/ops/cod'
-  if (pathname.startsWith('/ops/partner-wallets')) return '/ops/partner-wallets'
-  if (pathname.startsWith('/ops/commissions/config')) return '/ops/commissions/config'
-  if (pathname.startsWith('/ops/commissions')) return '/ops/commissions'
+  if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
+    const tab = new URLSearchParams(search).get('tab')
+    if (tab === 'ledger') return '/ops/commissions/rates?tab=ledger'
+    if (tab === 'wallets') return '/ops/commissions/rates?tab=wallets'
+    if (tab === 'withdrawals') return '/ops/commissions/rates?tab=withdrawals'
+    if (tab === 'calculator') return '/ops/commissions/rates?tab=rates'
+    return '/ops/commissions/rates'
+  }
+  if (pathname.startsWith('/ops/agents')) return '/ops/agents'
   if (pathname.startsWith('/ops/cs')) return '/ops/cs/tickets'
   if (pathname.startsWith('/ops/staff')) return '/ops/staff'
+  if (pathname.startsWith('/ops/admin/role-access')) return '/ops/admin/role-access'
   if (pathname.startsWith('/ops/admin/')) {
     const parts = pathname.split('/')
     return `/ops/admin/${parts[3] || 'branches'}`
   }
   if (pathname.startsWith('/ops/admin')) return '/ops/admin/branches'
+  if (pathname.startsWith('/ops/logs')) return '/ops/logs'
   return pathname
 }
 
@@ -380,7 +425,7 @@ export default function AppLayout() {
   }
 
   // Active menu root key calculation
-  const selectedKey = getSelectedKey(location.pathname)
+  const selectedKey = getSelectedKey(location.pathname, location.search)
 
   // Full Production Navigation: Operations · Finance · Customer Service · Administration
   const menuGroups = [
@@ -408,10 +453,52 @@ export default function AppLayout() {
           visible: can('consignments'),
         },
         {
+          key: '/ops/consignments/tracking',
+          icon: <SearchOutlined />,
+          label: <Link to="/ops/consignments/tracking" style={{ display: 'block', width: '100%' }}>CN Tracking</Link>,
+          visible: can('consignments'),
+        },
+        {
+          key: '/ops/consignments/import',
+          icon: <InboxOutlined />,
+          label: <Link to="/ops/consignments/import" style={{ display: 'block', width: '100%' }}>Batch Import</Link>,
+          visible: can('consignments'),
+        },
+        {
+          key: '/ops/consignments/import-log',
+          icon: <HistoryOutlined />,
+          label: <Link to="/ops/consignments/import-log" style={{ display: 'block', width: '100%' }}>Import Error Log</Link>,
+          visible: can('consignments'),
+        },
+        {
+          key: '/ops/consignments/cancellations',
+          icon: <AuditOutlined />,
+          label: <Link to="/ops/consignments/cancellations" style={{ display: 'block', width: '100%' }}>Cancellation Log</Link>,
+          visible: can('consignments') || isAdmin,
+        },
+        {
           key: '/ops/pickups',
           icon: <CarOutlined />,
           label: <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>Pickups Queue</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/dispatch',
+          icon: <GlobalOutlined />,
+          label: <Link to="/ops/dispatch" style={{ display: 'block', width: '100%' }}>Dispatch & 3PL</Link>,
+          visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/seals',
+          icon: <SafetyCertificateOutlined />,
+          label: <Link to="/ops/seals" style={{ display: 'block', width: '100%' }}>Seal Station</Link>,
+          visible: can('manifests') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/station/manifests',
+          icon: <FileTextOutlined />,
+          label: <Link to="/ops/station/manifests" style={{ display: 'block', width: '100%' }}>Manifest Station</Link>,
+          visible: can('manifests') || can('dispatch') || isAdmin,
         },
         {
           key: '/ops/manifests',
@@ -430,6 +517,92 @@ export default function AppLayout() {
           icon: <BarChartOutlined />,
           label: <Link to="/network" style={{ display: 'block', width: '100%' }}>Network Analytics</Link>,
           visible: can('reports') || can('analytics') || isAdmin,
+        },
+        {
+          key: 'sub-summaries',
+          icon: <BarChartOutlined />,
+          label: 'Status Summaries',
+          visible: can('reports') || can('analytics') || isAdmin,
+          children: [
+            {
+              key: '/ops/summaries',
+              label: <Link to="/ops/summaries" style={{ display: 'block', width: '100%' }}>Overall</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/status',
+              label: <Link to="/ops/summaries/status" style={{ display: 'block', width: '100%' }}>By Status</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/drop-point',
+              label: <Link to="/ops/summaries/drop-point" style={{ display: 'block', width: '100%' }}>By Drop Point</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/branch',
+              label: <Link to="/ops/summaries/branch" style={{ display: 'block', width: '100%' }}>By Branch</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/date',
+              label: <Link to="/ops/summaries/date" style={{ display: 'block', width: '100%' }}>By Date</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/manifest',
+              label: <Link to="/ops/summaries/manifest" style={{ display: 'block', width: '100%' }}>By Manifest</Link>,
+              visible: true,
+            },
+          ],
+        },
+        {
+          key: 'sub-prints',
+          icon: <PrinterOutlined />,
+          label: 'Print & Stock Reports',
+          visible: can('reports') || can('billing') || isAdmin,
+          children: [
+            {
+              key: '/ops/reports/manifest',
+              label: <Link to="/ops/reports/manifest" style={{ display: 'block', width: '100%' }}>Print Manifest</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/cn',
+              label: <Link to="/ops/reports/cn" style={{ display: 'block', width: '100%' }}>Print Consignment</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/invoice',
+              label: <Link to="/ops/reports/invoice" style={{ display: 'block', width: '100%' }}>Print Invoice</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/do',
+              label: <Link to="/ops/reports/do" style={{ display: 'block', width: '100%' }}>Print DO</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/receipt',
+              label: <Link to="/ops/reports/receipt" style={{ display: 'block', width: '100%' }}>Print Receipt</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/drop-point-stock',
+              label: <Link to="/ops/reports/drop-point-stock" style={{ display: 'block', width: '100%' }}>Drop Point Stock</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/customer-stock',
+              label: <Link to="/ops/reports/customer-stock" style={{ display: 'block', width: '100%' }}>Customer Stock</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/customer-summary',
+              label: <Link to="/ops/reports/customer-summary" style={{ display: 'block', width: '100%' }}>Customer Summary</Link>,
+              visible: true,
+            },
+          ],
         },
       ],
     },
@@ -479,6 +652,16 @@ export default function AppLayout() {
               label: <Link to="/ops/billing/agent-out" style={{ display: 'block', width: '100%' }}>Agent Money Out</Link>,
               visible: can('billing') || isAdmin,
             },
+            {
+              key: '/ops/billing/agent-credit',
+              label: <Link to="/ops/billing/agent-credit" style={{ display: 'block', width: '100%' }}>Agent Credit Notes</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/agent-debit',
+              label: <Link to="/ops/billing/agent-debit" style={{ display: 'block', width: '100%' }}>Agent Debit Notes</Link>,
+              visible: can('billing') || isAdmin,
+            },
           ],
         },
         {
@@ -488,25 +671,47 @@ export default function AppLayout() {
           visible: can('cod') || can('billing') || isAdmin,
         },
         {
+          key: '/ops/billing/customer-wallet',
+          icon: <WalletOutlined />,
+          label: <Link to="/ops/billing/customer-wallet" style={{ display: 'block', width: '100%' }}>Customer Wallet</Link>,
+          visible: can('billing') || isAdmin,
+        },
+        {
+          key: '/ops/billing/cancellation-settings',
+          icon: <AuditOutlined />,
+          label: <Link to="/ops/billing/cancellation-settings" style={{ display: 'block', width: '100%' }}>Cancellation Policy</Link>,
+          visible: isAdmin,
+        },
+        {
           key: 'sub-commissions',
           icon: <TeamOutlined />,
           label: 'Commissions & Wallets',
           visible: can('commissions') || can('agent') || isAdmin,
           children: [
             {
-              key: '/ops/commissions',
-              label: <Link to="/ops/commissions" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
+              key: '/ops/commissions/rates',
+              label: <Link to="/ops/commissions/rates?tab=rates" style={{ display: 'block', width: '100%' }}>Rate settings & calculator</Link>,
+              visible: can('commissions') || isAdmin,
+            },
+            {
+              key: '/ops/commissions/rates?tab=ledger',
+              label: <Link to="/ops/commissions/rates?tab=ledger" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
               visible: can('commissions') || can('agent') || isAdmin,
             },
             {
-              key: '/ops/partner-wallets',
-              label: <Link to="/ops/partner-wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
+              key: '/ops/commissions/rates?tab=wallets',
+              label: <Link to="/ops/commissions/rates?tab=wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
               visible: can('commissions') || can('agent') || isAdmin,
             },
             {
-              key: '/ops/commissions/config',
-              label: <Link to="/ops/commissions/config" style={{ display: 'block', width: '100%' }}>Rate Rules Config</Link>,
-              visible: isAdmin,
+              key: '/ops/commissions/rates?tab=withdrawals',
+              label: <Link to="/ops/commissions/rates?tab=withdrawals" style={{ display: 'block', width: '100%' }}>Withdrawals</Link>,
+              visible: can('commissions') || can('agent') || isAdmin,
+            },
+            {
+              key: '/ops/agents',
+              label: <Link to="/ops/agents" style={{ display: 'block', width: '100%' }}>Agent Money Overview</Link>,
+              visible: can('agent') || can('billing') || isAdmin,
             },
           ],
         },
@@ -535,6 +740,12 @@ export default function AppLayout() {
           icon: <SafetyCertificateOutlined />,
           label: <Link to="/ops/staff" style={{ display: 'block', width: '100%' }}>Staff Verification</Link>,
           visible: can('staff') || isAdmin,
+        },
+        {
+          key: '/ops/admin/role-access',
+          icon: <KeyOutlined />,
+          label: <Link to="/ops/admin/role-access" style={{ display: 'block', width: '100%' }}>Role Access (RBAC)</Link>,
+          visible: isAdmin,
         },
         {
           key: 'sub-master-data',

@@ -32,7 +32,7 @@ import {
   SettingOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   apiError,
   getCommissionConfig,
@@ -50,9 +50,29 @@ const { Title, Text, Paragraph } = Typography
 
 export default function CommissionsPage() {
   const [params, setParams] = useSearchParams()
-  const activeTab = params.get('tab') || 'ledger' // 'ledger' | 'config' | 'wallets'
+  const location = useLocation()
+  const navigate = useNavigate()
+  const pathTab = location.pathname.includes('/partner-wallets')
+    ? 'wallets'
+    : location.pathname.includes('/config')
+      ? 'config'
+      : null
+  const activeTab = pathTab || params.get('tab') || 'ledger' // 'ledger' | 'config' | 'wallets'
   const { can, isAdmin, user } = useAuth()
   const canVerify = isAdmin // Super Admin & Admin only per RBAC table
+
+  function selectTab(k) {
+    if (k === 'wallets') {
+      navigate('/ops/partner-wallets')
+      return
+    }
+    if (k === 'config') {
+      navigate('/ops/commissions/config')
+      return
+    }
+    navigate('/ops/commissions')
+    setParams({})
+  }
 
   const [loading, setLoading] = useState(false)
   const [ledgerRows, setLedgerRows] = useState([])
@@ -297,7 +317,7 @@ export default function CommissionsPage() {
       <Card style={{ borderRadius: 8 }} bodyStyle={{ padding: 16 }}>
         <Tabs
           activeKey={activeTab}
-          onChange={(k) => setParams({ tab: k })}
+          onChange={selectTab}
           items={[
             {
               key: 'ledger',

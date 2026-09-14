@@ -54,6 +54,8 @@ const DOC_TYPES = [
   { key: 'do', label: 'Delivery Orders (DO)' },
   { key: 'agent-in', label: 'Agent Money In' },
   { key: 'agent-out', label: 'Agent Money Out' },
+  { key: 'agent-credit', label: 'Agent Credit Notes' },
+  { key: 'agent-debit', label: 'Agent Debit Notes' },
 ]
 
 export default function FinanceBillingPage() {

@@ -491,3 +491,8 @@ code, pre, .font-mono {
   }
 }
 
+.iposb-summary-total td {
+  font-weight: 700 !important;
+  background: #F0FDF4 !important;
+}
+

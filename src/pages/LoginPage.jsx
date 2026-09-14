@@ -22,6 +22,9 @@ import { checkFirstRun } from '../api/client'
 
 const { Title, Text } = Typography
 
+const allowDemoLogin =
+  String(import.meta.env.VITE_ALLOW_DEMO_LOGIN || '').toLowerCase() === 'true'
+
 export default function LoginPage() {
   const { user, login, booting } = useAuth()
   const navigate = useNavigate()
@@ -343,26 +346,27 @@ export default function LoginPage() {
                   />
                 </Form.Item>
 
-                {/* Quick test credentials autofill */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 20,
-                    fontSize: 12,
-                  }}
-                >
-                  <span style={{ color: '#64748B' }}>Default: admin / admin123</span>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={handleQuickFill}
-                    style={{ padding: 0, fontSize: 12, color: '#1B8A5A', fontWeight: 500 }}
+                {allowDemoLogin ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 20,
+                      fontSize: 12,
+                    }}
                   >
-                    Fill Demo
-                  </Button>
-                </div>
+                    <span style={{ color: '#64748B' }}>Default: admin / admin123</span>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={handleQuickFill}
+                      style={{ padding: 0, fontSize: 12, color: '#1B8A5A', fontWeight: 500 }}
+                    >
+                      Fill Demo
+                    </Button>
+                  </div>
+                ) : null}
 
                 <Form.Item style={{ marginBottom: 12 }}>
                   <Button

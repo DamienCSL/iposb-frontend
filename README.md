@@ -1,4 +1,4 @@
-﻿# IPOSB FMS (office web)
+# IPOSB FMS (office web)
 
 React + Vite front end for IPOSB operations staff. Talks to **iposb-api** (Laravel).
 

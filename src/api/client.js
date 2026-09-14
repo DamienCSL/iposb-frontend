@@ -33,7 +33,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status
-    if (status === 401) {
+    const url = String(error?.config?.url || '')
+    const isAuthAttempt =
+      url.includes('/ops/auth/login') ||
+      url.includes('/ops/auth/refresh') ||
+      url.includes('/auth/login')
+    if (status === 401 && !isAuthAttempt) {
       localStorage.removeItem('iposb.staff.session')
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
@@ -480,9 +485,26 @@ export async function listPartnerWallets(params) {
   return data
 }
 
-export async function requestPartnerWalletWithdrawal(body) {
-  const { data } = await api.post('/ops/partner-wallets/withdraw', body)
-  return data
+/**
+ * Compatibility wrapper for Kai-era callers.
+ * Prefer requestCommissionWithdrawal(partnerCode, body).
+ */
+export async function requestPartnerWalletWithdrawal(bodyOrCode, maybeBody) {
+  if (typeof bodyOrCode === 'string') {
+    return requestCommissionWithdrawal(bodyOrCode, maybeBody || {})
+  }
+  const body = bodyOrCode || {}
+  const code =
+    body.partnerCode ||
+    body.partner_code ||
+    body.code ||
+    body.partner_id ||
+    body.partnerId
+  if (!code) {
+    throw new Error('partnerCode is required for withdrawal')
+  }
+  const { partnerCode, partner_code, partner_id, partnerId, code: _c, ...rest } = body
+  return requestCommissionWithdrawal(String(code), rest)
 }
 
 // --- Partner API Key Rotation ---
@@ -627,4 +649,104 @@ export async function getSystemLogStats() {
 export const listCodCollections = listCod
 export const getCodRecord = getCod
 export const collectCodAtDropPoint = collectCod
+
+export async function searchCustomers(q) {
+  const { data } = await api.get('/ops/customers', { params: { q } })
+  return data
+}
+
+export async function geocodeLookup(params) {
+  const { data } = await api.get('/ops/geo/lookup', { params })
+  return data
+}
+
+export async function calculateCommission(body) {
+  const { data } = await api.post('/ops/commissions/calculate', body)
+  return data
+}
+
+export async function previewCommission(cn) {
+  const { data } = await api.get(`/ops/commissions/preview/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function listSeals(params = {}) {
+  const { data } = await api.get('/ops/seals', { params })
+  return data
+}
+
+export async function getSeal(sealNo) {
+  const { data } = await api.get(`/ops/seals/${encodeURIComponent(sealNo)}`)
+  return data
+}
+
+export async function getSealPack(sealNo) {
+  const { data } = await api.get(`/ops/seals/${encodeURIComponent(sealNo)}/pack`)
+  return data
+}
+
+export async function packSealScan(sealNo, barcode, extra = {}) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/pack-scan`, {
+    barcode,
+    ...extra,
+  })
+  return data
+}
+
+export async function createSeal(body) {
+  const { data } = await api.post('/ops/seals', body)
+  return data
+}
+
+export async function addSealMember(sealNo, body) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/members`, body)
+  return data
+}
+
+export async function removeSealMember(sealNo, memberKey) {
+  const { data } = await api.delete(
+    `/ops/seals/${encodeURIComponent(sealNo)}/members/${encodeURIComponent(memberKey)}`,
+  )
+  return data
+}
+
+export async function closeSeal(sealNo) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/close`)
+  return data
+}
+
+export async function openSeal(sealNo, body = {}) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/open`, body)
+  return data
+}
+
+export async function scanSeal(sealNo, body) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/scan`, body)
+  return data
+}
+
+export async function saveManifest(body) {
+  const { data } = await api.post('/ops/manifests', body)
+  return data
+}
+
+export async function addManifestMember(mfgNo, scan, extra = {}) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/members`, {
+    scan,
+    ...extra,
+  })
+  return data
+}
+
+export async function removeManifestMember(mfgNo, memberKey) {
+  const { data } = await api.delete(
+    `/ops/manifests/${encodeURIComponent(mfgNo)}/members/${encodeURIComponent(memberKey)}`,
+  )
+  return data
+}
+
+export async function closeManifest(mfgNo, extra = {}) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/close`, extra)
+  return data
+}
 

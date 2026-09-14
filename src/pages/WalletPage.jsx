@@ -1,99 +1,122 @@
-import { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+import { Button, Card, Col, Form, Input, Row, Space, Statistic, Typography, message } from 'antd'
+import { ReloadOutlined, SearchOutlined, WalletOutlined } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
 import { apiError, getWalletLedger } from '../api/client'
-import { Alert, money } from '../ui/bits'
+import DataTable from '../components/DataTable'
+import { money } from '../ui/bits'
+
+const { Title, Text } = Typography
 
 export default function WalletPage() {
-  const [custAcNo, setCustAcNo] = useState('')
-  const [mobileUserId, setMobileUserId] = useState('')
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
   const [data, setData] = useState({ wallet: null, entries: [] })
-  const [error, setError] = useState('')
 
-  async function load(e) {
-    e?.preventDefault()
-    setError('')
+  async function load(values) {
+    const custAcNo = (values?.custAcNo ?? form.getFieldValue('custAcNo') ?? '').trim()
+    const mobileUserId = (values?.mobileUserId ?? form.getFieldValue('mobileUserId') ?? '').trim()
     if (!custAcNo && !mobileUserId) {
-      setError('Enter a customer account or mobile user id.')
+      message.warning('Enter a customer account or mobile user id.')
       return
     }
+    setLoading(true)
     try {
       const params = {}
       if (custAcNo) params.cust_ac_no = custAcNo
       if (mobileUserId) params.mobile_user_id = mobileUserId
       setData(await getWalletLedger(params))
     } catch (err) {
-      setError(apiError(err))
+      message.error(apiError(err))
+      setData({ wallet: null, entries: [] })
+    } finally {
+      setLoading(false)
     }
   }
 
-  useEffect(() => {
-    if (custAcNo || mobileUserId) load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const wallet = data.wallet
-  const entries = data.entries || []
+  const columns = [
+    {
+      title: 'Date',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 150,
+      render: (v) => String(v || '').slice(0, 16) || '—',
+    },
+    { title: 'Type', dataIndex: 'type', key: 'type', width: 120 },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v) => money(v) },
+    { title: 'Balance', dataIndex: 'balanceAfter', key: 'balanceAfter', render: (v) => money(v) },
+    {
+      title: 'CN',
+      dataIndex: 'cnNo',
+      key: 'cnNo',
+      render: (cn) =>
+        cn ? (
+          <Link to={`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}`} style={{ fontFamily: 'monospace', color: '#1B8A5A' }}>
+            {cn}
+          </Link>
+        ) : (
+          '—'
+        ),
+    },
+    { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true },
+  ]
 
   return (
-    <div>
-      <h3 className="mb-3">Customer Wallet</h3>
-      <p className="text-muted">View wallet balance and refund ledger entries from order cancellations.</p>
-      <Alert error={error} />
-
-      <div className="card mb-3">
-        <div className="card-body">
-          <form className="row g-2 align-items-end" onSubmit={load}>
-            <div className="col-md-4">
-              <label className="form-label">Customer account</label>
-              <input className="form-control" value={custAcNo} onChange={(e) => setCustAcNo(e.target.value)} placeholder="e.g. C0001" />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label">Mobile user id</label>
-              <input className="form-control" value={mobileUserId} onChange={(e) => setMobileUserId(e.target.value)} placeholder="optional" />
-            </div>
-            <div className="col-md-2">
-              <button className="btn btn-primary" type="submit">Load</button>
-            </div>
-          </form>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>Customer Wallet</Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          View wallet balance and refund ledger entries from order cancellations.
+        </Text>
       </div>
 
-      {wallet && (
-        <div className="card mb-3 border-success">
-          <div className="card-body py-2 d-flex justify-content-between align-items-center">
-            <strong>Balance</strong>
-            <span className="fs-5">{money(wallet.balance)}</span>
-          </div>
-        </div>
-      )}
+      <Card size="small">
+        <Form form={form} layout="vertical" onFinish={load}>
+          <Row gutter={12} align="bottom">
+            <Col xs={24} md={8}>
+              <Form.Item name="custAcNo" label="Customer account" style={{ marginBottom: 0 }}>
+                <Input placeholder="e.g. C0001" allowClear />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="mobileUserId" label="Mobile user id" style={{ marginBottom: 0 }}>
+                <Input placeholder="optional" allowClear />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Space>
+                <Button type="primary" htmlType="submit" icon={<SearchOutlined />} loading={loading}>
+                  Load
+                </Button>
+                <Button icon={<ReloadOutlined />} onClick={() => form.submit()} disabled={loading}>
+                  Refresh
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
 
-      <div className="table-responsive">
-        <table className="table table-sm table-striped table-bordered">
-          <thead className="table-dark">
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Balance</th>
-              <th>CN</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-muted py-3">No ledger entries</td></tr>
-            ) : entries.map((e) => (
-              <tr key={e.id}>
-                <td>{String(e.createdAt || '').slice(0, 16)}</td>
-                <td>{e.type}</td>
-                <td>{money(e.amount)}</td>
-                <td>{money(e.balanceAfter)}</td>
-                <td>{e.cnNo || '—'}</td>
-                <td>{e.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {data.wallet ? (
+        <Card size="small">
+          <Statistic
+            title="Wallet balance"
+            value={Number(data.wallet.balance || 0)}
+            precision={2}
+            prefix={<WalletOutlined style={{ color: '#1B8A5A' }} />}
+            suffix="MYR"
+            valueStyle={{ color: '#1B8A5A', fontWeight: 700 }}
+          />
+        </Card>
+      ) : null}
+
+      <DataTable
+        rowKey="id"
+        columns={columns}
+        dataSource={data.entries || []}
+        loading={loading}
+        pagination={{ pageSize: 25, showSizeChanger: false }}
+      />
     </div>
   )
 }

@@ -54,7 +54,7 @@ Upload **everything** in `deploy/cpanel/fms/` including `.htaccess`.
 ## Verify
 
 1. Open `https://iposb.strataaiops.com`
-2. Log in — `admin` / `admin123` if demo users exist on API
+2. Log in with an office user from the API database (demo fill is hidden in production builds)
 3. DevTools → Network — requests go to `/api/...` and return 200
 
 ---
@@ -66,6 +66,7 @@ Upload **everything** in `deploy/cpanel/fms/` including `.htaccess`.
 ```
 VITE_API_URL=/api
 VITE_DISPATCH_KEY=IPOSB_dispatch
+VITE_ALLOW_DEMO_LOGIN=false
 ```
 
 Copy to `.env.production.local` if building manually with `npm run build:production`.

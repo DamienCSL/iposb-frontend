@@ -1,6 +1,47 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Divider,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd'
+import {
+  ApartmentOutlined,
+  AppstoreOutlined,
+  BankOutlined,
+  BarChartOutlined,
+  BranchesOutlined,
+  CarOutlined,
+  CheckCircleOutlined,
+  ClusterOutlined,
+  CustomerServiceOutlined,
+  DollarOutlined,
+  EnvironmentOutlined,
+  FileTextOutlined,
+  IdcardOutlined,
+  InboxOutlined,
+  KeyOutlined,
+  LockOutlined,
+  PrinterOutlined,
+  RiseOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
 import { apiError, getRbacModules, getRbacRoles, updateRbacRole } from '../api/client'
-import { Alert } from '../ui/bits'
+
+const { Title, Text, Paragraph } = Typography
 
 const LOCKED_ROLES = new Set(['Super Admin'])
 
@@ -20,67 +61,81 @@ const ROLE_HINTS = {
 /** Icons + friendly descriptions (non-technical) */
 const MODULE_META = {
   consignments: {
-    icon: 'bi-box-seam',
+    icon: InboxOutlined,
     hint: 'Create, search, track, and cancel shipments',
   },
   dispatch: {
-    icon: 'bi-truck',
-    hint: 'Assign drivers and manage remote / 3PL pickups',
+    icon: CarOutlined,
+    hint: 'Assign drivers for delivery-point first-mile and last-mile jobs',
   },
   summaries: {
-    icon: 'bi-bar-chart-line',
+    icon: BarChartOutlined,
     hint: 'View status summaries and operational reports',
   },
   customerService: {
-    icon: 'bi-headset',
+    icon: CustomerServiceOutlined,
     hint: 'Handle customer tickets and inquiries',
   },
   billing: {
-    icon: 'bi-receipt',
+    icon: FileTextOutlined,
     hint: 'Invoices, receipts, wallets, COD, and commissions',
   },
   dropPoints: {
-    icon: 'bi-geo-alt',
-    hint: 'Drop points, coverage areas, and partner settings',
+    icon: EnvironmentOutlined,
+    hint: 'Drop points, stock, and drop-point money',
   },
   customerReports: {
-    icon: 'bi-graph-up',
+    icon: RiseOutlined,
     hint: 'Customer and drop-point summary reports',
   },
   reports: {
-    icon: 'bi-printer',
+    icon: PrinterOutlined,
     hint: 'Print manifests, consignments, and billing documents',
   },
   users: {
-    icon: 'bi-people',
+    icon: TeamOutlined,
     hint: 'Add and manage staff login accounts',
   },
   branches: {
-    icon: 'bi-building',
+    icon: BankOutlined,
     hint: 'Branch locations and settings',
   },
   hubs: {
-    icon: 'bi-diagram-3',
+    icon: ClusterOutlined,
     hint: 'Scan hubs and hub configuration',
   },
   staff: {
-    icon: 'bi-person-badge',
+    icon: IdcardOutlined,
     hint: 'Approve app sign-ups; manage drivers and dispatchers',
   },
   routing: {
-    icon: 'bi-signpost-split',
+    icon: BranchesOutlined,
     hint: 'Zones, routes, and route codes for planning',
   },
 }
 
 const GROUP_META = {
-  Operations: { icon: 'bi-gear-wide-connected', subtitle: 'Daily shipping and customer work' },
-  Finance: { icon: 'bi-cash-stack', subtitle: 'Money, invoices, and refunds' },
-  Network: { icon: 'bi-pin-map', subtitle: 'Drop points and coverage' },
-  Reports: { icon: 'bi-file-earmark-text', subtitle: 'Printouts and summaries' },
-  Administration: { icon: 'bi-shield-check', subtitle: 'Setup for managers and IT' },
-  Other: { icon: 'bi-grid', subtitle: 'Other areas' },
+  Operations: { icon: SettingOutlined, subtitle: 'Daily shipping and customer work' },
+  Finance: { icon: DollarOutlined, subtitle: 'Money, invoices, and refunds' },
+  Network: { icon: EnvironmentOutlined, subtitle: 'Drop points and local money' },
+  Reports: { icon: FileTextOutlined, subtitle: 'Printouts and summaries' },
+  Administration: { icon: SafetyCertificateOutlined, subtitle: 'Setup for managers and IT' },
+  Other: { icon: AppstoreOutlined, subtitle: 'Other areas' },
 }
+
+const DEMO_LOGINS = [
+  { role: 'Super Admin', user: 'admin', note: 'Full access — edit Staff Access settings' },
+  { role: 'Admin', user: 'office_admin', note: 'Head office — most daily modules' },
+  { role: 'Hub Manager', user: 'hubmgr01', note: 'Hub scanning, consignments, dispatch' },
+  { role: 'Drop Point Manager', user: 'droppoint01', note: 'Drop points, bilyet, local stock' },
+  { role: 'Operations', user: 'ops01', note: 'Consignments, dispatch, summaries' },
+  { role: 'Agent', user: 'agent01', note: 'Penang drop-point agent view' },
+  { role: 'Billing', user: 'inv01', note: 'Invoices, COD, wallet, commissions' },
+  { role: 'Customer Service', user: 'csl01', note: 'CS tickets and tracking' },
+  { role: 'Others', user: 'staff01', note: 'Limited access — try your custom settings' },
+]
+
+const brandPrimary = { background: '#1B8A5A', borderColor: '#1B8A5A' }
 
 export default function RoleAccessPage() {
   const [modules, setModules] = useState([])
@@ -91,7 +146,6 @@ export default function RoleAccessPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
 
   const roleRow = useMemo(
     () => roles.find((r) => r.role === selectedRole),
@@ -155,7 +209,6 @@ export default function RoleAccessPage() {
     if (!selectedRole || !roleRow) return
     setEnabled([...(roleRow.modules || [])])
     setDefaultRoute(roleRow.defaultRoute || '/')
-    setMessage('')
   }, [selectedRole, roleRow])
 
   useEffect(() => {
@@ -180,304 +233,366 @@ export default function RoleAccessPage() {
     })
   }
 
-  async function onSave(e) {
-    e.preventDefault()
+  async function onSave() {
     if (!selectedRole || locked) return
     setSaving(true)
     setError('')
-    setMessage('')
     try {
       const res = await updateRbacRole(selectedRole, { modules: enabled, defaultRoute })
       const updated = res.role
       setRoles((prev) => prev.map((r) => (r.role === updated.role ? updated : r)))
-      setMessage(`Access settings saved for “${selectedRole}”. They will see the changes next time they log in.`)
+      message.success(`Access settings saved for “${selectedRole}”. They will see the changes next time they log in.`)
     } catch (err) {
-      setError(apiError(err) || err.message || 'Could not save — please try again')
+      const msg = apiError(err) || err.message || 'Could not save — please try again'
+      setError(msg)
+      message.error(msg)
     } finally {
       setSaving(false)
     }
   }
 
+  const enabledCount = enabled.length
+  const totalModules = modules.filter((m) => m.code !== 'roleAccess').length
+
   if (loading) {
     return (
-      <div className="role-access-page">
-        <div className="role-access-loading">
-          <div className="spinner-border text-success" role="status" />
-          <p className="text-muted mt-3 mb-0">Loading access settings…</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 280 }}>
+        <Space direction="vertical" align="center" size={12}>
+          <Spin size="large" style={{ color: '#1B8A5A' }} />
+          <Text type="secondary">Loading access settings…</Text>
+        </Space>
       </div>
     )
   }
 
-  const enabledCount = enabled.length
-  const totalModules = modules.filter((m) => m.code !== 'roleAccess').length
-
   return (
-    <div className="role-access-page">
-      <header className="role-access-hero mb-4">
-        <div className="role-access-hero-icon">
-          <i className="bi bi-person-lock" aria-hidden />
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
         <div>
-          <h2 className="mb-2">Staff access settings</h2>
-          <p className="text-muted mb-0 lead-ish">
+          <Title level={4} style={{ margin: 0, fontWeight: 600, color: '#0F1B2D' }}>
+            Staff Access Settings
+          </Title>
+          <Text type="secondary" style={{ fontSize: 12 }}>
             Choose what each job role can see in the system and which page opens when they log in.
-            You do not need technical knowledge — just tick the areas they should use.
-          </p>
+          </Text>
         </div>
-      </header>
+        <Tag icon={<SafetyCertificateOutlined />} color="success" style={{ borderColor: '#1B8A5A', color: '#1B8A5A' }}>
+          RBAC Control Tower
+        </Tag>
+      </div>
 
-      {error ? <Alert error={error} /> : null}
-      {message ? <Alert ok={message} /> : null}
+      {error ? (
+        <Alert type="error" showIcon message="Could not complete request" description={error} closable onClose={() => setError('')} />
+      ) : null}
 
-      {/* Step 1 — Pick a role */}
-      <section className="card role-access-section mb-4">
-        <div className="card-body">
-          <div className="role-access-step">
-            <span className="role-access-step-num">1</span>
+      <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 16 } }}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <div>
+            <Text strong style={{ color: '#0F1B2D', fontSize: 14 }}>
+              Who are you setting up?
+            </Text>
             <div>
-              <h5 className="mb-1">Who are you setting up?</h5>
-              <p className="text-muted small mb-0">Select a job role (e.g. Hub Manager, Billing).</p>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Select a job role to review or edit module permissions.
+              </Text>
             </div>
           </div>
 
-          <div className="role-access-role-grid mt-3">
-            {roles.map((r) => {
-              const isSelected = r.role === selectedRole
+          <Select
+            showSearch
+            optionFilterProp="label"
+            value={selectedRole || undefined}
+            onChange={setSelectedRole}
+            placeholder="Select a role"
+            style={{ width: '100%', maxWidth: 420 }}
+            options={roles.map((r) => {
               const isLocked = LOCKED_ROLES.has(r.role) || r.locked
-              return (
-                <button
-                  key={r.role}
-                  type="button"
-                  className={`role-access-role-card${isSelected ? ' selected' : ''}${isLocked ? ' locked' : ''}`}
-                  onClick={() => setSelectedRole(r.role)}
-                >
-                  <div className="role-access-role-card-top">
-                    <i className={`bi ${isLocked ? 'bi-shield-fill-check' : 'bi-person-badge'}`} aria-hidden />
-                    {isLocked ? <span className="badge text-bg-secondary ms-auto">Protected</span> : null}
-                  </div>
-                  <strong>{r.role}</strong>
-                  <span className="small text-muted d-block mt-1">
-                    {ROLE_HINTS[r.role] || 'Configure module access below.'}
-                  </span>
-                  {!isLocked ? (
-                    <span className="role-access-role-count small">
-                      {(r.modules || []).length} area{(r.modules || []).length === 1 ? '' : 's'} allowed
-                    </span>
-                  ) : null}
-                </button>
-              )
+              return {
+                value: r.role,
+                label: r.role,
+                disabled: false,
+                searchLabel: r.role,
+                isLocked,
+                moduleCount: (r.modules || []).length,
+              }
             })}
-          </div>
-        </div>
-      </section>
+            optionRender={(option) => (
+              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Space size={8}>
+                  {option.data.isLocked ? (
+                    <LockOutlined style={{ color: '#6B7280' }} />
+                  ) : (
+                    <UserOutlined style={{ color: '#1B8A5A' }} />
+                  )}
+                  <span>{option.data.label}</span>
+                </Space>
+                {option.data.isLocked ? (
+                  <Tag>Protected</Tag>
+                ) : (
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {option.data.moduleCount} area{option.data.moduleCount === 1 ? '' : 's'}
+                  </Text>
+                )}
+              </Space>
+            )}
+          />
+
+          {selectedRole ? (
+            <Paragraph style={{ margin: 0, fontSize: 13, color: '#5B6B7C' }}>
+              {ROLE_HINTS[selectedRole] || 'Configure module access below.'}
+            </Paragraph>
+          ) : null}
+        </Space>
+      </Card>
 
       {locked ? (
-        <section className="card role-access-section border-success">
-          <div className="card-body text-center py-5">
-            <i className="bi bi-shield-lock-fill text-success display-4" aria-hidden />
-            <h5 className="mt-3">{selectedRole}</h5>
-            <p className="text-muted mb-0 mx-auto" style={{ maxWidth: 420 }}>
-              This role always has full access to protect system security. No changes are needed here.
-            </p>
-          </div>
-        </section>
+        <Alert
+          type="warning"
+          showIcon
+          icon={<LockOutlined />}
+          message={`${selectedRole} is protected`}
+          description="This role always has full access to protect system security. Permissions cannot be changed and save is disabled."
+        />
       ) : (
-        <form onSubmit={onSave}>
-          {/* Step 2 — Modules */}
-          <section className="card role-access-section mb-4">
-            <div className="card-body">
-              <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-                <div className="role-access-step mb-0">
-                  <span className="role-access-step-num">2</span>
-                  <div>
-                    <h5 className="mb-1">What can they use?</h5>
-                    <p className="text-muted small mb-0">
-                      Turn on each part of the system this role should see in the menu.
-                    </p>
-                  </div>
-                </div>
-                <div className="role-access-summary-pill">
-                  <strong>{enabledCount}</strong> of {totalModules} areas turned on
-                </div>
-              </div>
-
-              {Object.entries(groupedModules).map(([group, items]) => {
-                const gMeta = GROUP_META[group] || GROUP_META.Other
-                const codes = items.map((i) => i.code)
-                const groupOn = codes.filter((c) => enabled.includes(c)).length
-                const allOn = groupOn === codes.length
-
-                return (
-                  <div key={group} className="role-access-group mb-4">
-                    <div className="role-access-group-head">
-                      <div>
-                        <i className={`bi ${gMeta.icon} me-2 text-success`} aria-hidden />
-                        <strong>{group}</strong>
-                        <span className="text-muted small ms-2">{gMeta.subtitle}</span>
-                      </div>
-                      <div className="btn-group btn-group-sm">
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary"
-                          onClick={() => setGroupAll(codes, true)}
-                        >
-                          Allow all
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary"
-                          onClick={() => setGroupAll(codes, false)}
-                          disabled={groupOn === 0}
-                        >
-                          Remove all
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="role-access-module-grid">
-                      {items.map((mod) => {
-                        const meta = MODULE_META[mod.code] || { icon: 'bi-app', hint: mod.label }
-                        const on = enabled.includes(mod.code)
-                        return (
-                          <label
-                            key={mod.code}
-                            className={`role-access-module-card${on ? ' on' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="visually-hidden"
-                              checked={on}
-                              onChange={() => toggleModule(mod.code)}
-                            />
-                            <div className="role-access-module-icon">
-                              <i className={`bi ${meta.icon}`} aria-hidden />
-                            </div>
-                            <div className="role-access-module-text">
-                              <strong>{mod.label}</strong>
-                              <span>{meta.hint}</span>
-                            </div>
-                            <div className="role-access-toggle" aria-hidden>
-                              <span className="role-access-toggle-knob" />
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    <div className="text-muted small mt-1">
-                      {groupOn} of {codes.length} allowed in this section
-                      {allOn ? ' · all on' : ''}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* Step 3 — Home page */}
-          <section className="card role-access-section mb-4">
-            <div className="card-body">
-              <div className="role-access-step mb-3">
-                <span className="role-access-step-num">3</span>
+        <>
+          <Card
+            size="small"
+            style={{ borderRadius: 8 }}
+            styles={{ body: { padding: 16 } }}
+            title={
+              <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                 <div>
-                  <h5 className="mb-1">Where should they land after login?</h5>
-                  <p className="text-muted small mb-0">
+                  <Text strong style={{ color: '#0F1B2D' }}>
+                    What can they use?
+                  </Text>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                      Turn on each part of the system this role should see in the menu.
+                    </Text>
+                  </div>
+                </div>
+                <Tag color="processing">
+                  <strong>{enabledCount}</strong> of {totalModules} areas on
+                </Tag>
+              </Space>
+            }
+          >
+            {Object.entries(groupedModules).map(([group, items], idx) => {
+              const gMeta = GROUP_META[group] || GROUP_META.Other
+              const GroupIcon = gMeta.icon
+              const codes = items.map((i) => i.code)
+              const groupOn = codes.filter((c) => enabled.includes(c)).length
+              const allOn = groupOn === codes.length
+
+              return (
+                <div key={group}>
+                  {idx > 0 ? <Divider style={{ margin: '16px 0' }} /> : null}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <Space align="start" size={8}>
+                      <GroupIcon style={{ color: '#1B8A5A', fontSize: 16, marginTop: 2 }} />
+                      <div>
+                        <Text strong style={{ color: '#0F1B2D' }}>
+                          {group}
+                        </Text>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {gMeta.subtitle}
+                          </Text>
+                        </div>
+                      </div>
+                    </Space>
+                    <Space size={8}>
+                      <Button size="small" onClick={() => setGroupAll(codes, true)} disabled={locked || allOn}>
+                        Allow all
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setGroupAll(codes, false)}
+                        disabled={locked || groupOn === 0}
+                      >
+                        Remove all
+                      </Button>
+                    </Space>
+                  </div>
+
+                  <Row gutter={[12, 12]}>
+                    {items.map((mod) => {
+                      const meta = MODULE_META[mod.code] || { icon: AppstoreOutlined, hint: mod.label }
+                      const ModIcon = meta.icon
+                      const on = enabled.includes(mod.code)
+                      return (
+                        <Col key={mod.code} xs={24} sm={12} lg={8}>
+                          <Card
+                            size="small"
+                            hoverable={!locked}
+                            onClick={() => toggleModule(mod.code)}
+                            style={{
+                              borderRadius: 8,
+                              borderColor: on ? '#1B8A5A' : undefined,
+                              background: on ? 'rgba(27, 138, 90, 0.04)' : undefined,
+                              cursor: locked ? 'not-allowed' : 'pointer',
+                              height: '100%',
+                            }}
+                            styles={{ body: { padding: 12 } }}
+                          >
+                            <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
+                              <Space align="start" size={10}>
+                                <ModIcon style={{ color: on ? '#1B8A5A' : '#6B7280', fontSize: 18, marginTop: 2 }} />
+                                <div>
+                                  <Text strong style={{ color: '#0F1B2D', display: 'block' }}>
+                                    {mod.label}
+                                  </Text>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {meta.hint}
+                                  </Text>
+                                </div>
+                              </Space>
+                              <Checkbox
+                                checked={on}
+                                disabled={locked}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleModule(mod.code)}
+                              />
+                            </Space>
+                          </Card>
+                        </Col>
+                      )
+                    })}
+                  </Row>
+
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+                    {groupOn} of {codes.length} allowed in this section
+                    {allOn ? ' · all on' : ''}
+                  </Text>
+                </div>
+              )
+            })}
+          </Card>
+
+          <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 16 } }}>
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <div>
+                <Text strong style={{ color: '#0F1B2D', fontSize: 14 }}>
+                  Where should they land after login?
+                </Text>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
                     Pick the first screen they see — usually the dashboard or their main work area.
-                  </p>
+                  </Text>
                 </div>
               </div>
 
-              <div className="role-access-route-grid">
-                {routeOptions.map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`role-access-route-card${defaultRoute === opt.value ? ' selected' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="defaultRoute"
-                      className="visually-hidden"
-                      value={opt.value}
-                      checked={defaultRoute === opt.value}
-                      onChange={() => setDefaultRoute(opt.value)}
-                    />
-                    <strong>{opt.label}</strong>
-                    <span className="small text-muted">{opt.desc}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </section>
+              <Select
+                value={defaultRoute}
+                onChange={setDefaultRoute}
+                disabled={locked}
+                style={{ width: '100%', maxWidth: 480 }}
+                options={routeOptions.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                  desc: opt.desc,
+                }))}
+                optionRender={(option) => (
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#0F1B2D' }}>{option.data.label}</div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {option.data.desc}
+                    </Text>
+                  </div>
+                )}
+              />
+            </Space>
+          </Card>
 
-          <div className="role-access-save-bar">
-            <p className="text-muted small mb-0 me-auto">
-              Changes apply to everyone with the <strong>{selectedRole}</strong> role after they sign in again.
-            </p>
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg px-4"
-              disabled={saving || enabled.length === 0}
+          <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 16 } }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
             >
-              {saving ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <i className="bi bi-check2-circle me-2" aria-hidden />
-                  Save access for {selectedRole}
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+              <Text type="secondary" style={{ fontSize: 12, margin: 0 }}>
+                Changes apply to everyone with the <Text strong>{selectedRole}</Text> role after they sign in again.
+              </Text>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={saving}
+                disabled={locked || enabled.length === 0}
+                onClick={onSave}
+                style={brandPrimary}
+              >
+                Save access for {selectedRole}
+              </Button>
+            </div>
+          </Card>
+        </>
       )}
 
-      <section className="card role-access-section mt-4">
-        <div className="card-body">
-          <h5 className="mb-2">
-            <i className="bi bi-key me-2 text-success" aria-hidden />
-            Try it: demo logins
-          </h5>
-          <p className="text-muted small mb-3">
-            Log out, then sign in as one of these users to see what each role experiences.
-            Password for all: <strong>admin123</strong>
-          </p>
-          <div className="table-responsive">
-            <table className="table table-sm table-bordered align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th>Job role</th>
-                  <th>Username</th>
-                  <th>Good for testing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ['Super Admin', 'admin', 'Full access — edit Staff Access settings'],
-                  ['Admin', 'office_admin', 'Head office — most daily modules'],
-                  ['Hub Manager', 'hubmgr01', 'Hub scanning, consignments, dispatch'],
-                  ['Drop Point Manager', 'droppoint01', 'Drop points, bilyet, local stock'],
-                  ['Operations', 'ops01', 'Consignments, dispatch, summaries'],
-                  ['Agent', 'agent01', 'Penang drop-point agent view'],
-                  ['Billing', 'inv01', 'Invoices, COD, wallet, commissions'],
-                  ['Customer Service', 'csl01', 'CS tickets and tracking'],
-                  ['Others', 'staff01', 'Limited access — try your custom settings'],
-                ].map(([role, user, note]) => (
-                  <tr key={user}>
-                    <td>{role}</td>
-                    <td>
-                      <code>{user}</code>
-                    </td>
-                    <td className="small text-muted">{note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <Card
+        size="small"
+        style={{ borderRadius: 8 }}
+        styles={{ body: { padding: 16 } }}
+        title={
+          <Space>
+            <KeyOutlined style={{ color: '#1B8A5A' }} />
+            <span style={{ color: '#0F1B2D' }}>Try it: demo logins</span>
+          </Space>
+        }
+      >
+        <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
+          Log out, then sign in as one of these users to see what each role experiences. Password for all:{' '}
+          <Text strong code>
+            admin123
+          </Text>
+        </Paragraph>
+        <Table
+          size="small"
+          pagination={false}
+          rowKey="user"
+          dataSource={DEMO_LOGINS}
+          columns={[
+            {
+              title: 'Job role',
+              dataIndex: 'role',
+              key: 'role',
+              render: (v) => <Text strong style={{ color: '#0F1B2D' }}>{v}</Text>,
+            },
+            {
+              title: 'Username',
+              dataIndex: 'user',
+              key: 'user',
+              render: (v) => <Tag icon={<ApartmentOutlined />}>{v}</Tag>,
+            },
+            {
+              title: 'Good for testing',
+              dataIndex: 'note',
+              key: 'note',
+              render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text>,
+            },
+          ]}
+        />
+      </Card>
     </div>
   )
 }

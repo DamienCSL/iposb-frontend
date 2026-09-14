@@ -1,30 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Radio,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+  message,
+} from 'antd'
+import {
+  BankOutlined,
+  CalculatorOutlined,
+  HistoryOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+  WalletOutlined,
+} from '@ant-design/icons'
+import {
   accrueCommission,
   advanceCommissionWithdrawal,
   apiError,
+  calculateCommission,
   getCommissionConfig,
   listCommissionWithdrawals,
   listCommissions,
   listPartnerWallets,
+  previewCommission,
   requestCommissionWithdrawal,
   updateCommissionConfig,
   verifyCommission,
 } from '../api/client'
-import { Alert, money } from '../ui/bits'
+import DataTable from '../components/DataTable'
+import StatusTag from '../components/StatusTag'
+import { money } from '../ui/bits'
+import { useSearchParams } from 'react-router-dom'
 
-const TABS = [
-  { id: 'rates', label: 'Rate settings' },
-  { id: 'ledger', label: 'Commission ledger' },
-  { id: 'wallets', label: 'Partner wallets' },
-  { id: 'withdrawals', label: 'Withdrawals' },
+const { Title, Text, Paragraph } = Typography
+
+const BRAND = '#1B8A5A'
+
+const FEE_MODES = [
+  { code: 'air', label: 'Air' },
+  { code: 'road', label: 'Land' },
+  { code: 'sea', label: 'Sea' },
 ]
 
-const ROLE_ICONS = {
-  drop_point: 'bi-shop',
-  driver: 'bi-truck',
-  dispatcher: 'bi-headset',
-}
+const MATRIX_MODES = [
+  { code: '*', label: 'All modes' },
+  ...FEE_MODES,
+]
 
 function fieldValue(config, field) {
   if (!config) return ''
@@ -35,11 +70,80 @@ function fieldValue(config, field) {
   return v == null ? '' : v
 }
 
+function emptyFeeRow() {
+  return {
+    id: 0,
+    transportMode: 'road',
+    rateCode: '',
+    origin: '',
+    destination: '',
+    serviceType: '',
+    pcsMin: 1,
+    pcsMax: 999999,
+    weightMin: 0,
+    weightMax: 9999.9,
+    baseAmount: 0,
+    perPiece: 0,
+    perKg: 0,
+    description: '',
+    isActive: false,
+    sortOrder: 10,
+  }
+}
+
+function roleLabel(code, catalog) {
+  const hit = (catalog || []).find((r) => r.code === code)
+  return hit?.label || code
+}
+
+function formatRate(r) {
+  const code = String(r.lineCode || '')
+  if (code.startsWith('PCT_')) {
+    const n = Number(r.rate)
+    return `${Number.isFinite(n) ? n : r.rate}%`
+  }
+  return money(r.rate)
+}
+
+function partnerTypeLabel(code) {
+  const c = String(code || '')
+  if (c.startsWith('DRV-')) return 'Driver'
+  if (c.startsWith('DSP-')) return 'Dispatcher'
+  if (c.startsWith('HUB-')) return 'Hub / linehaul'
+  if (c.startsWith('DPT-')) return 'Delivery point'
+  return 'Drop point'
+}
+
+function SaveFooter({ saving, onReset, label = 'Save settings' }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+      <Button onClick={onReset} disabled={saving}>
+        Reset changes
+      </Button>
+      <Button type="primary" htmlType="submit" loading={saving} style={{ background: BRAND, borderColor: BRAND }}>
+        {saving ? 'Saving…' : label}
+      </Button>
+    </div>
+  )
+}
+
 export default function CommissionPage() {
-  const [tab, setTab] = useState('rates')
+  const [params, setParams] = useSearchParams()
+  const tabFromUrl = params.get('tab') || 'rates'
+  const [tab, setTab] = useState(
+    ['rates', 'calculator', 'ledger', 'wallets', 'withdrawals'].includes(tabFromUrl) ? tabFromUrl : 'rates',
+  )
   const [config, setConfig] = useState(null)
   const [draft, setDraft] = useState({})
-  const [roleTab, setRoleTab] = useState('drop_point')
+  const [engineDraft, setEngineDraft] = useState({
+    commissionEngine: 'legacy_rm',
+    deliveryFeeEnabled: false,
+    slaPayee: 'dispatcher',
+  })
+  const [feeRates, setFeeRates] = useState([])
+  const [pctMatrix, setPctMatrix] = useState([])
+  const [slaTiers, setSlaTiers] = useState([])
+  const [rateSection, setRateSection] = useState('engine')
   const [saving, setSaving] = useState(false)
   const [ledger, setLedger] = useState({ rows: [], total: 0 })
   const [wallets, setWallets] = useState({ rows: [] })
@@ -48,11 +152,41 @@ export default function CommissionPage() {
   const [cn, setCn] = useState('')
   const [accrueCn, setAccrueCn] = useState('')
   const [withdrawForm, setWithdrawForm] = useState({ partnerCode: '', amount: '', note: '' })
-  const [error, setError] = useState('')
-  const [ok, setOk] = useState('')
+  const [calcForm, setCalcForm] = useState({
+    transportMode: 'road',
+    pcs: '1',
+    weight: '5',
+    deliveryFee: '',
+    originService: 'DROP_COUNTER',
+    outcome: 'doorstep',
+    collectHours: '4',
+    cnPreview: '',
+  })
+  const [calcResult, setCalcResult] = useState(null)
+  const [calcCnLines, setCalcCnLines] = useState(null)
+  const [calcBusy, setCalcBusy] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const roles = useMemo(() => config?.roles || [], [config])
-  const activeRole = roles.find((r) => r.id === roleTab) || roles[0]
+  const franchiseeRoles = useMemo(() => config?.franchiseeRoles || [], [config])
+
+  const navSections = useMemo(() => {
+    const franchisee = [
+      { id: 'engine', label: 'Engine & switches', hint: 'legacy RM vs % matrix' },
+      { id: 'delivery_fee', label: 'Customer delivery fee', hint: 'Air / Land / Sea tariffs' },
+      { id: 'pct_matrix', label: 'Franchisee % matrix', hint: '% of delivery fee' },
+      { id: 'sla', label: 'Collect SLA T1–T5', hint: 'DP arrival → customer collect' },
+    ]
+    const legacy = (roles || []).map((r) => ({
+      id: r.id,
+      label: r.label,
+      hint: 'Legacy absolute RM',
+      role: r,
+    }))
+    return [...franchisee, ...legacy]
+  }, [roles])
+
+  const activeLegacyRole = roles.find((r) => r.id === rateSection)
 
   function syncDraft(cfg) {
     const next = {}
@@ -62,15 +196,22 @@ export default function CommissionPage() {
       }
     }
     setDraft(next)
+    setEngineDraft({
+      commissionEngine: cfg?.commissionEngine === 'pct_matrix' ? 'pct_matrix' : 'legacy_rm',
+      deliveryFeeEnabled: !!cfg?.deliveryFeeEnabled,
+      slaPayee: cfg?.slaPayee || 'dispatcher',
+    })
+    setFeeRates(Array.isArray(cfg?.deliveryFeeRates) ? cfg.deliveryFeeRates.map((r) => ({ ...r })) : [])
+    setPctMatrix(Array.isArray(cfg?.pctMatrix) ? cfg.pctMatrix.map((r) => ({ ...r })) : [])
+    setSlaTiers(Array.isArray(cfg?.slaTiers) ? cfg.slaTiers.map((r) => ({ ...r })) : [])
   }
 
   async function load() {
-    setError('')
+    setLoading(true)
     try {
       const cfg = await getCommissionConfig()
       setConfig(cfg)
       syncDraft(cfg)
-      if (!roles.length && cfg.roles?.[0]) setRoleTab(cfg.roles[0].id)
       if (tab === 'ledger') {
         setLedger(await listCommissions({ status: status === 'ALL' ? '' : status, cn: cn || undefined }))
       } else if (tab === 'wallets') {
@@ -79,26 +220,57 @@ export default function CommissionPage() {
         setWithdrawals(await listCommissionWithdrawals({ status: 'ALL' }))
       }
     } catch (e) {
-      setError(apiError(e))
+      message.error(apiError(e))
+    } finally {
+      setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const next = params.get('tab') || 'rates'
+    if (['rates', 'calculator', 'ledger', 'wallets', 'withdrawals'].includes(next) && next !== tab) {
+      setTab(next)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, status])
 
+  function selectTab(next) {
+    setTab(next)
+    setParams(next === 'rates' ? {} : { tab: next }, { replace: true })
+  }
+
   function setField(key, value) {
     setDraft((d) => ({ ...d, [key]: value }))
   }
 
-  async function onSaveRates(e) {
-    e.preventDefault()
+  function updateFeeRow(idx, patch) {
+    setFeeRates((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  function updateMatrixRow(idx, patch) {
+    setPctMatrix((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  function updateSlaRow(idx, patch) {
+    setSlaTiers((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  async function onSaveRates() {
     setSaving(true)
-    setError('')
-    setOk('')
     try {
-      const payload = {}
+      const payload = {
+        commissionEngine: engineDraft.commissionEngine,
+        deliveryFeeEnabled: !!engineDraft.deliveryFeeEnabled,
+        slaPayee: engineDraft.slaPayee,
+        deliveryFeeRates: feeRates,
+        pctMatrix,
+        slaTiers,
+      }
       for (const role of roles) {
         for (const field of role.fields || []) {
           let v = draft[field.key]
@@ -109,9 +281,9 @@ export default function CommissionPage() {
       const r = await updateCommissionConfig(payload)
       setConfig(r.config || r)
       syncDraft(r.config || r)
-      setOk('Commission rates saved. New deliveries will use these amounts.')
+      message.success('Settings saved. New quotes / accruals use these values (existing ledger lines unchanged).')
     } catch (err) {
-      setError(apiError(err))
+      message.error(apiError(err))
     } finally {
       setSaving(false)
     }
@@ -120,390 +292,1409 @@ export default function CommissionPage() {
   async function onVerify(id) {
     try {
       await verifyCommission(id)
-      setOk('Commission verified and released to wallet.')
+      message.success('Commission verified and released to wallet.')
       load()
     } catch (e) {
-      setError(apiError(e))
+      message.error(apiError(e))
     }
   }
 
-  async function onAccrue(e) {
-    e.preventDefault()
+  async function onAccrue() {
     if (!accrueCn.trim()) return
     try {
       const r = await accrueCommission(accrueCn.trim().toUpperCase())
-      setOk(r.skipped ? `Skipped: ${r.reason}` : `Commission accrued for ${r.cnNo}`)
+      message.success(r.skipped ? `Skipped: ${r.reason}` : `Commission accrued for ${r.cnNo}`)
       setAccrueCn('')
       load()
     } catch (err) {
-      setError(apiError(err))
+      message.error(apiError(err))
     }
   }
 
-  async function onWithdraw(e) {
-    e.preventDefault()
+  async function onWithdraw() {
     try {
       await requestCommissionWithdrawal(withdrawForm.partnerCode, {
         amount: withdrawForm.amount,
         note: withdrawForm.note,
       })
-      setOk('Withdrawal requested.')
+      message.success('Withdrawal requested.')
       setWithdrawForm({ partnerCode: '', amount: '', note: '' })
       load()
     } catch (err) {
-      setError(apiError(err))
+      message.error(apiError(err))
     }
   }
 
   async function onAdvance(id, action) {
     try {
       await advanceCommissionWithdrawal(id, action)
-      setOk(`Withdrawal ${action}.`)
+      message.success(`Withdrawal ${action}.`)
       load()
     } catch (e) {
-      setError(apiError(e))
+      message.error(apiError(e))
+    }
+  }
+
+  async function onCalculate() {
+    setCalcBusy(true)
+    setCalcCnLines(null)
+    try {
+      const payload = {
+        transportMode: calcForm.transportMode,
+        cn_pcs: Number(calcForm.pcs) || 1,
+        cn_wt: Number(calcForm.weight) || 0,
+        originService: calcForm.originService,
+        outcome: calcForm.outcome,
+        collectHours: calcForm.outcome === 'collect' ? Number(calcForm.collectHours) || 0 : undefined,
+        commissionEngine: engineDraft.commissionEngine,
+        deliveryFeeEnabled: engineDraft.deliveryFeeEnabled,
+        slaPayee: engineDraft.slaPayee,
+        deliveryFeeRates: feeRates,
+        pctMatrix,
+        slaTiers,
+        ...draft,
+      }
+      if (calcForm.deliveryFee !== '' && calcForm.deliveryFee != null) {
+        payload.deliveryFee = Number(calcForm.deliveryFee)
+      }
+      const r = await calculateCommission(payload)
+      setCalcResult(r)
+      message.success('Calculator updated (preview only — nothing posted).')
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setCalcBusy(false)
+    }
+  }
+
+  async function onPreviewCn() {
+    if (!calcForm.cnPreview.trim()) return
+    setCalcBusy(true)
+    try {
+      const r = await previewCommission(calcForm.cnPreview.trim().toUpperCase())
+      setCalcCnLines(r.lines || [])
+      message.success(`CN preview loaded for ${calcForm.cnPreview.trim().toUpperCase()}`)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setCalcBusy(false)
     }
   }
 
   const rows = ledger.rows || []
   const walletRows = wallets.rows || []
   const wdRows = withdrawals.rows || []
+  const usingPct = engineDraft.commissionEngine === 'pct_matrix'
+
+  const feeColumns = [
+    {
+      title: 'On',
+      width: 50,
+      render: (_, row, idx) => (
+        <Checkbox checked={!!row.isActive} onChange={(e) => updateFeeRow(idx, { isActive: e.target.checked })} />
+      ),
+    },
+    {
+      title: 'Mode',
+      width: 100,
+      render: (_, row, idx) => (
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          value={row.transportMode || 'road'}
+          onChange={(v) => updateFeeRow(idx, { transportMode: v })}
+          options={FEE_MODES.map((m) => ({ value: m.code, label: m.label }))}
+        />
+      ),
+    },
+    {
+      title: 'Code',
+      width: 100,
+      render: (_, row, idx) => (
+        <Input
+          size="small"
+          value={row.rateCode || ''}
+          placeholder="CODE"
+          onChange={(e) => updateFeeRow(idx, { rateCode: e.target.value.toUpperCase() })}
+        />
+      ),
+    },
+    {
+      title: (
+        <span>
+          Pcs range
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>min – max</div>
+        </span>
+      ),
+      width: 160,
+      render: (_, row, idx) => (
+        <Space size={4}>
+          <InputNumber
+            size="small"
+            style={{ width: 64 }}
+            value={row.pcsMin ?? 0}
+            onChange={(v) => updateFeeRow(idx, { pcsMin: v })}
+          />
+          <Text type="secondary">–</Text>
+          <InputNumber
+            size="small"
+            style={{ width: 72 }}
+            value={row.pcsMax ?? 999999}
+            onChange={(v) => updateFeeRow(idx, { pcsMax: v })}
+          />
+        </Space>
+      ),
+    },
+    {
+      title: (
+        <span>
+          Kg range
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>min – max</div>
+        </span>
+      ),
+      width: 160,
+      render: (_, row, idx) => (
+        <Space size={4}>
+          <InputNumber
+            size="small"
+            step={0.01}
+            style={{ width: 64 }}
+            value={row.weightMin ?? 0}
+            onChange={(v) => updateFeeRow(idx, { weightMin: v })}
+          />
+          <Text type="secondary">–</Text>
+          <InputNumber
+            size="small"
+            step={0.01}
+            style={{ width: 72 }}
+            value={row.weightMax ?? 9999.9}
+            onChange={(v) => updateFeeRow(idx, { weightMax: v })}
+          />
+        </Space>
+      ),
+    },
+    {
+      title: (
+        <span>
+          Base
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>flat RM</div>
+        </span>
+      ),
+      width: 90,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          step={0.01}
+          style={{ width: '100%' }}
+          value={row.baseAmount ?? 0}
+          onChange={(v) => updateFeeRow(idx, { baseAmount: v })}
+        />
+      ),
+    },
+    {
+      title: (
+        <span>
+          RM/pc
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>per piece</div>
+        </span>
+      ),
+      width: 90,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          step={0.0001}
+          style={{ width: '100%' }}
+          value={row.perPiece ?? 0}
+          onChange={(v) => updateFeeRow(idx, { perPiece: v })}
+        />
+      ),
+    },
+    {
+      title: (
+        <span>
+          RM/kg
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>per kg</div>
+        </span>
+      ),
+      width: 90,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          step={0.0001}
+          style={{ width: '100%' }}
+          value={row.perKg ?? 0}
+          onChange={(v) => updateFeeRow(idx, { perKg: v })}
+        />
+      ),
+    },
+    {
+      title: 'Lane / note',
+      render: (_, row, idx) => (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Input
+            size="small"
+            placeholder="Description"
+            value={row.description || ''}
+            onChange={(e) => updateFeeRow(idx, { description: e.target.value })}
+          />
+          <Space size={4} style={{ width: '100%' }}>
+            <Input
+              size="small"
+              placeholder="Origin"
+              value={row.origin || ''}
+              onChange={(e) => updateFeeRow(idx, { origin: e.target.value.toUpperCase() })}
+            />
+            <Input
+              size="small"
+              placeholder="Dest"
+              value={row.destination || ''}
+              onChange={(e) => updateFeeRow(idx, { destination: e.target.value.toUpperCase() })}
+            />
+          </Space>
+        </Space>
+      ),
+    },
+  ]
+
+  const matrixColumns = [
+    {
+      title: 'On',
+      width: 50,
+      render: (_, row, idx) => (
+        <Checkbox checked={!!row.enabled} onChange={(e) => updateMatrixRow(idx, { enabled: e.target.checked })} />
+      ),
+    },
+    {
+      title: 'Mode',
+      width: 120,
+      render: (_, row, idx) => (
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          value={row.transportMode || '*'}
+          onChange={(v) => updateMatrixRow(idx, { transportMode: v })}
+          options={MATRIX_MODES.map((m) => ({ value: m.code, label: m.label }))}
+        />
+      ),
+    },
+    {
+      title: 'Role',
+      render: (_, row) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{roleLabel(row.roleCode, franchiseeRoles)}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{row.roleCode}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '%',
+      width: 130,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          min={0}
+          step={0.0001}
+          addonAfter="%"
+          style={{ width: '100%' }}
+          value={row.pct ?? 0}
+          onChange={(v) => updateMatrixRow(idx, { pct: v })}
+        />
+      ),
+    },
+    {
+      title: 'Note',
+      render: (_, row, idx) => (
+        <Input
+          size="small"
+          value={row.description || ''}
+          onChange={(e) => updateMatrixRow(idx, { description: e.target.value })}
+        />
+      ),
+    },
+  ]
+
+  const slaColumns = [
+    {
+      title: 'On',
+      width: 50,
+      render: (_, row, idx) => (
+        <Checkbox checked={!!row.enabled} onChange={(e) => updateSlaRow(idx, { enabled: e.target.checked })} />
+      ),
+    },
+    {
+      title: 'Tier',
+      width: 80,
+      render: (_, row) => <Text strong>{row.tierCode}</Text>,
+    },
+    {
+      title: 'Label',
+      render: (_, row, idx) => (
+        <Input
+          size="small"
+          value={row.label || ''}
+          onChange={(e) => updateSlaRow(idx, { label: e.target.value })}
+        />
+      ),
+    },
+    {
+      title: 'Max hours',
+      width: 130,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          min={0}
+          addonAfter="h"
+          style={{ width: '100%' }}
+          value={row.maxHours ?? 0}
+          onChange={(v) => updateSlaRow(idx, { maxHours: v })}
+        />
+      ),
+    },
+    {
+      title: '%',
+      width: 130,
+      render: (_, row, idx) => (
+        <InputNumber
+          size="small"
+          min={0}
+          step={0.0001}
+          addonAfter="%"
+          style={{ width: '100%' }}
+          value={row.pct ?? 0}
+          onChange={(v) => updateSlaRow(idx, { pct: v })}
+        />
+      ),
+    },
+  ]
+
+  const ledgerColumns = [
+    {
+      title: 'CN',
+      dataIndex: 'cnNo',
+      key: 'cnNo',
+      render: (v) => (
+        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: BRAND }}>{v}</span>
+      ),
+    },
+    {
+      title: 'Partner',
+      key: 'partner',
+      render: (_, r) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{r.partnerCode}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{partnerTypeLabel(r.partnerCode)}</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Line',
+      key: 'line',
+      render: (_, r) => (
+        <div>
+          <div>{r.lineDesc}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{r.lineCode}</Text>
+        </div>
+      ),
+    },
+    { title: 'Qty', dataIndex: 'qty', key: 'qty', width: 70 },
+    { title: 'Rate', key: 'rate', render: (_, r) => formatRate(r) },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      align: 'right',
+      render: (v) => <strong style={{ color: '#0F1B2D' }}>{money(v)}</strong>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v) => <StatusTag status={v} />,
+    },
+    {
+      title: '',
+      key: 'action',
+      align: 'right',
+      render: (_, r) =>
+        r.status === 'PROCESSING' ? (
+          <Button
+            size="small"
+            type="primary"
+            style={{ background: BRAND, borderColor: BRAND }}
+            onClick={() => onVerify(r.id)}
+          >
+            Verify
+          </Button>
+        ) : null,
+    },
+  ]
+
+  const walletColumns = [
+    {
+      title: 'Partner',
+      dataIndex: 'partnerCode',
+      key: 'partnerCode',
+      render: (v) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: 'Type',
+      key: 'type',
+      render: (_, w) => w.partnerType || partnerTypeLabel(w.partnerCode),
+    },
+    {
+      title: 'Available',
+      dataIndex: 'balance',
+      key: 'balance',
+      align: 'right',
+      render: (v) => <strong style={{ color: BRAND }}>{money(v)}</strong>,
+    },
+    {
+      title: 'Pending',
+      dataIndex: 'pendingBalance',
+      key: 'pendingBalance',
+      align: 'right',
+      render: (v) => money(v),
+    },
+  ]
+
+  const withdrawalColumns = [
+    { title: 'Request', dataIndex: 'requestNo', key: 'requestNo' },
+    { title: 'Partner', dataIndex: 'partnerCode', key: 'partnerCode' },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      align: 'right',
+      render: (v) => money(v),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v) => <StatusTag status={v} />,
+    },
+    {
+      title: '',
+      key: 'actions',
+      align: 'right',
+      render: (_, w) => (
+        <Space size={4} wrap>
+          {w.status === 'REQUESTED' && (
+            <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => onAdvance(w.id, 'approve')}>
+              Approve
+            </Button>
+          )}
+          {w.status === 'APPROVED' && (
+            <Button size="small" onClick={() => onAdvance(w.id, 'paid')}>Paid</Button>
+          )}
+          {w.status === 'PAID' && (
+            <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => onAdvance(w.id, 'cleared')}>
+              Cleared
+            </Button>
+          )}
+          {['REQUESTED', 'APPROVED'].includes(w.status) && (
+            <Button size="small" danger onClick={() => onAdvance(w.id, 'reject')}>Reject</Button>
+          )}
+        </Space>
+      ),
+    },
+  ]
+
+  const calcLineColumns = [
+    {
+      title: 'Role',
+      key: 'role',
+      render: (_, line) => line.roleLabel || line.roleCode,
+    },
+    {
+      title: 'Paid to',
+      key: 'paidTo',
+      render: (_, line) => {
+        if (line.paidTo === 'delivery_point') return <Tag color="blue">Delivery point</Tag>
+        if (line.paidTo === 'drop_point') return <Tag>Drop point</Tag>
+        if (line.paidTo === 'dispatcher') return <Tag color="cyan">Dispatcher</Tag>
+        return <Text type="secondary">—</Text>
+      },
+    },
+    {
+      title: 'Line',
+      dataIndex: 'lineCode',
+      key: 'lineCode',
+      render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text>,
+    },
+    {
+      title: '%',
+      dataIndex: 'pct',
+      key: 'pct',
+      align: 'right',
+      render: (v) => (v == null ? '—' : `${v}%`),
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      align: 'right',
+      render: (v) => <strong>{money(v)}</strong>,
+    },
+  ]
+
+  const cnPreviewColumns = [
+    { title: 'Partner', dataIndex: 'partnerCode', key: 'partnerCode' },
+    {
+      title: 'Line',
+      key: 'line',
+      render: (_, line) => (
+        <div>
+          <div>{line.lineDesc}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{line.lineCode}</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      align: 'right',
+      render: (v) => money(v),
+    },
+  ]
+
+  function renderRatesPanel() {
+    return (
+      <Form layout="vertical" onFinish={onSaveRates}>
+        <Row gutter={12}>
+          <Col xs={24} lg={6}>
+            <Card size="small" style={{ position: 'sticky', top: 16 }}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                {navSections.map((sec) => {
+                  const active = rateSection === sec.id
+                  return (
+                    <Button
+                      key={sec.id}
+                      type={active ? 'primary' : 'text'}
+                      block
+                      style={{
+                        textAlign: 'left',
+                        height: 'auto',
+                        padding: '8px 12px',
+                        ...(active ? { background: BRAND, borderColor: BRAND } : {}),
+                      }}
+                      onClick={() => setRateSection(sec.id)}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{sec.label}</div>
+                        <div style={{ fontSize: 11, opacity: active ? 0.85 : 0.65 }}>{sec.hint}</div>
+                      </div>
+                    </Button>
+                  )
+                })}
+              </Space>
+              <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 6 }}>
+                <Text strong style={{ display: 'block', marginBottom: 6 }}>Active engine</Text>
+                {usingPct ? (
+                  <Tag color="success">% of delivery fee</Tag>
+                ) : (
+                  <Tag>Legacy RM (fallback)</Tag>
+                )}
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  Delivery-fee quoting:{' '}
+                  {engineDraft.deliveryFeeEnabled ? (
+                    <Text style={{ color: BRAND }}>on</Text>
+                  ) : (
+                    <Text type="secondary">off</Text>
+                  )}
+                </div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                  {config?.withdrawalWindowOpen ? 'Withdrawal window open' : 'Withdrawal window closed'}
+                </Text>
+              </div>
+            </Card>
+          </Col>
+
+          <Col xs={24} lg={18}>
+            {rateSection === 'engine' && (
+              <Card size="small" title="Engine & switches">
+                <Paragraph type="secondary" style={{ marginTop: 0 }}>
+                  Keep legacy RM until the company confirms franchisee %. Then switch to the matrix.
+                </Paragraph>
+                <Form.Item label={<Text strong>Commission engine</Text>}>
+                  <Radio.Group
+                    value={engineDraft.commissionEngine}
+                    onChange={(e) => setEngineDraft((d) => ({ ...d, commissionEngine: e.target.value }))}
+                    style={{ width: '100%' }}
+                  >
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Card size="small" style={{ borderColor: engineDraft.commissionEngine === 'legacy_rm' ? BRAND : undefined }}>
+                        <Radio value="legacy_rm">
+                          <Text strong>Legacy absolute RM</Text>
+                          <div><Text type="secondary" style={{ fontSize: 12 }}>
+                            Current hub-count / lorry / BP dwell / flat dispatcher rates (fallback).
+                            Driver commission is not used (covered by linehaul / subline).
+                          </Text></div>
+                        </Radio>
+                      </Card>
+                      <Card size="small" style={{ borderColor: engineDraft.commissionEngine === 'pct_matrix' ? BRAND : undefined }}>
+                        <Radio value="pct_matrix">
+                          <Text strong>Franchisee % of delivery fee</Text>
+                          <div><Text type="secondary" style={{ fontSize: 12 }}>
+                            Mixed accrual by scan event using the % matrix and collect SLA.
+                          </Text></div>
+                        </Radio>
+                      </Card>
+                    </Space>
+                  </Radio.Group>
+                </Form.Item>
+                <Form.Item>
+                  <Space align="start">
+                    <Switch
+                      checked={!!engineDraft.deliveryFeeEnabled}
+                      onChange={(checked) => setEngineDraft((d) => ({ ...d, deliveryFeeEnabled: checked }))}
+                      style={engineDraft.deliveryFeeEnabled ? { background: BRAND } : undefined}
+                    />
+                    <div>
+                      <Text strong>Quote customer delivery fee by transport mode</Text>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Uses Air / Land / Sea bands from the Delivery fee table. When off, uses existing freight quote.
+                        </Text>
+                      </div>
+                    </div>
+                  </Space>
+                </Form.Item>
+                <Form.Item
+                  label={<Text strong>Collect SLA payee</Text>}
+                  extra="Who receives the collect-SLA % when the customer picks up at the drop point."
+                  style={{ maxWidth: 320 }}
+                >
+                  <Select
+                    value={engineDraft.slaPayee}
+                    onChange={(v) => setEngineDraft((d) => ({ ...d, slaPayee: v }))}
+                    options={[
+                      { value: 'dispatcher', label: 'Dispatcher' },
+                      { value: 'dest_dp', label: 'Destination delivery node' },
+                      { value: 'both', label: 'Both' },
+                    ]}
+                  />
+                </Form.Item>
+                <SaveFooter saving={saving} onReset={() => syncDraft(config)} />
+              </Card>
+            )}
+
+            {rateSection === 'delivery_fee' && (
+              <Card
+                size="small"
+                title={
+                  <div>
+                    <div>Customer delivery fee</div>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                      Price the shipper pays (Air / Land / Sea). Activate bands and turn on quoting in Engine.
+                    </Text>
+                  </div>
+                }
+                extra={
+                  <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => setFeeRates((rows) => [...rows, emptyFeeRow()])}>
+                    Add band
+                  </Button>
+                }
+              >
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                  message="Pricing rule"
+                  description={
+                    <div>
+                      <code>Fee = Base + (Pieces × RM/pc) + (Weight kg × RM/kg)</code>
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                        <li><strong>Pcs range</strong> — which piece counts this band covers</li>
+                        <li><strong>Kg range</strong> — which weights this band covers</li>
+                        <li><strong>Base</strong> — flat starting charge (RM)</li>
+                        <li><strong>RM/pc</strong> / <strong>RM/kg</strong> — per piece / per kg</li>
+                      </ul>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Example: Base 10, RM/pc 2, RM/kg 1, CN = 3 pcs / 5 kg → 10 + (3×2) + (5×1) = <strong>RM 21</strong>
+                      </Text>
+                    </div>
+                  }
+                />
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(r, i) => r.id || `new-${i}`}
+                  columns={feeColumns}
+                  dataSource={feeRates}
+                  scroll={{ x: 1100 }}
+                  locale={{ emptyText: 'No fee bands yet. Add a band for Air, Land, or Sea.' }}
+                />
+                <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+                  Tip: Air often uses <strong>RM/pc</strong> only; Land uses <strong>RM/pc + RM/kg</strong>; Sea uses
+                  <strong> RM/kg + RM/pc</strong>. Leave origin/dest blank for a nationwide band.
+                </Paragraph>
+                <SaveFooter saving={saving} onReset={() => syncDraft(config)} />
+              </Card>
+            )}
+
+            {rateSection === 'pct_matrix' && (
+              <Card
+                size="small"
+                title={
+                  <div>
+                    <div>Franchisee % matrix</div>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                      Each enabled role earns this % of the CN delivery fee into its franchisee wallet.
+                      Mode-specific rows override “All modes”.
+                    </Text>
+                  </div>
+                }
+              >
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(r, i) => r.id || `${r.roleCode}-${i}`}
+                  columns={matrixColumns}
+                  dataSource={pctMatrix}
+                  locale={{ emptyText: 'Matrix not loaded — run migration 045 / reload config.' }}
+                />
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginTop: 12 }}
+                  message="Drop vs delivery point stacking"
+                  description={
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                      <li>First mile <strong>drop at counter</strong>: origin drop % → origin drop point only</li>
+                      <li>First mile <strong>courier pickup</strong>: origin DP own % + origin drop % both → origin delivery point</li>
+                      <li>Last mile <strong>self-collect</strong>: dest drop % → dest drop; dest DP own % → dest delivery point</li>
+                      <li>Last mile <strong>doorstep</strong>: dest DP own % + dest drop % both → dest delivery point</li>
+                    </ul>
+                  }
+                />
+                <SaveFooter saving={saving} onReset={() => syncDraft(config)} />
+              </Card>
+            )}
+
+            {rateSection === 'sla' && (
+              <Card
+                size="small"
+                title={
+                  <div>
+                    <div>Collect SLA (T1–T5)</div>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                      {config?.slaClockHint
+                        || 'Clock: parcel arrives at drop point → customer collects. Shorter dwell = higher tier (T1 best).'}
+                    </Text>
+                  </div>
+                }
+              >
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(r) => r.id || r.tierCode}
+                  columns={slaColumns}
+                  dataSource={slaTiers}
+                  locale={{ emptyText: 'No SLA tiers loaded.' }}
+                />
+                <SaveFooter saving={saving} onReset={() => syncDraft(config)} />
+              </Card>
+            )}
+
+            {activeLegacyRole ? (
+              <Card
+                size="small"
+                title={
+                  <div>
+                    <div>{activeLegacyRole.label}</div>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                      {activeLegacyRole.hint}
+                      {' · '}
+                      <Text style={{ color: '#D97706' }}>Legacy RM fallback</Text>
+                      {usingPct ? ' (inactive while % matrix engine is on)' : ''}
+                    </Text>
+                  </div>
+                }
+              >
+                <Row gutter={[12, 12]}>
+                  {(activeLegacyRole.fields || []).map((field) => (
+                    <Col key={field.key} xs={24} md={field.type === 'bool' ? 24 : 12}>
+                      {field.type === 'bool' ? (
+                        <Space align="start">
+                          <Switch
+                            checked={!!draft[field.key]}
+                            onChange={(checked) => setField(field.key, checked)}
+                            style={draft[field.key] ? { background: BRAND } : undefined}
+                          />
+                          <div>
+                            <Text strong>{field.label}</Text>
+                            {field.hint ? <div><Text type="secondary" style={{ fontSize: 12 }}>{field.hint}</Text></div> : null}
+                          </div>
+                        </Space>
+                      ) : (
+                        <Form.Item
+                          label={field.label}
+                          extra={field.hint || undefined}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <InputNumber
+                            min={0}
+                            step={field.type === 'money' ? 0.01 : 1}
+                            style={{ width: '100%' }}
+                            value={draft[field.key] === '' || draft[field.key] == null ? undefined : Number(draft[field.key])}
+                            onChange={(v) => setField(field.key, v)}
+                            addonBefore={field.type === 'money' ? 'RM' : undefined}
+                            addonAfter={field.type === 'int' && /day/i.test(field.label) ? 'days' : undefined}
+                          />
+                        </Form.Item>
+                      )}
+                    </Col>
+                  ))}
+                </Row>
+                <SaveFooter saving={saving} onReset={() => syncDraft(config)} label="Save commission rates" />
+                {activeLegacyRole.id === 'drop_point' ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginTop: 12 }}
+                    message="Legacy BP dwell"
+                    description="Warehouse nights T0–T5 (absolute RM). Separate from the new collect-SLA clock (hours until customer pickup)."
+                  />
+                ) : null}
+              </Card>
+            ) : null}
+
+            {!['engine', 'delivery_fee', 'pct_matrix', 'sla'].includes(rateSection) && !activeLegacyRole ? (
+              <Alert type="info" message="Loading rate settings…" showIcon />
+            ) : null}
+          </Col>
+        </Row>
+      </Form>
+    )
+  }
+
+  function renderCalculator() {
+    return (
+      <Row gutter={12}>
+        <Col xs={24} lg={10}>
+          <Card
+            size="small"
+            title="What-if calculator"
+            style={{ marginBottom: 12 }}
+          >
+            <Paragraph type="secondary" style={{ marginTop: 0 }}>
+              Uses your <strong>current Rate settings draft</strong> (even if not saved yet). Does not post to wallets.
+            </Paragraph>
+            <Form layout="vertical" onFinish={onCalculate}>
+              <Row gutter={12}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Transport mode">
+                    <Select
+                      value={calcForm.transportMode}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, transportMode: v }))}
+                      options={FEE_MODES.map((m) => ({ value: m.code, label: m.label }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={12} md={6}>
+                  <Form.Item label="Pieces">
+                    <InputNumber
+                      min={1}
+                      style={{ width: '100%' }}
+                      value={Number(calcForm.pcs) || 1}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, pcs: String(v ?? 1) }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={12} md={6}>
+                  <Form.Item label="Weight (kg)">
+                    <InputNumber
+                      min={0}
+                      step={0.01}
+                      style={{ width: '100%' }}
+                      value={Number(calcForm.weight) || 0}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, weight: String(v ?? 0) }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item
+                    label="Delivery fee override (optional)"
+                    extra="Blank = match active Air/Land/Sea band from Rate settings (if amounts are set)."
+                  >
+                    <InputNumber
+                      min={0}
+                      step={0.01}
+                      prefix="RM"
+                      style={{ width: '100%' }}
+                      placeholder="Leave blank to use fee table"
+                      value={calcForm.deliveryFee === '' ? undefined : Number(calcForm.deliveryFee)}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, deliveryFee: v == null ? '' : String(v) }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="First-mile (pickup type)">
+                    <Select
+                      value={calcForm.originService}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, originService: v }))}
+                      options={[
+                        { value: 'DROP_COUNTER', label: 'Drop at counter (drop point earns first-mile %)' },
+                        { value: 'ADDRESS_PICKUP', label: 'Courier address pickup (first-mile % → delivery point)' },
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Delivery outcome">
+                    <Select
+                      value={calcForm.outcome}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, outcome: v }))}
+                      options={[
+                        { value: 'doorstep', label: 'Doorstep POD' },
+                        { value: 'collect', label: 'Self-collect at drop point' },
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+                {calcForm.outcome === 'collect' ? (
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Collect dwell (hours)" extra="DP arrival → customer pickup (SLA tier).">
+                      <InputNumber
+                        min={0}
+                        step={0.1}
+                        style={{ width: '100%' }}
+                        value={Number(calcForm.collectHours) || 0}
+                        onChange={(v) => setCalcForm((f) => ({ ...f, collectHours: String(v ?? 0) }))}
+                      />
+                    </Form.Item>
+                  </Col>
+                ) : null}
+              </Row>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+                Engine in draft: <strong>{usingPct ? '% matrix' : 'Legacy RM'}</strong>
+                {' · '}SLA payee: <strong>{engineDraft.slaPayee}</strong>
+              </Text>
+              <Button type="primary" htmlType="submit" loading={calcBusy} style={{ background: BRAND, borderColor: BRAND }}>
+                Calculate split
+              </Button>
+            </Form>
+          </Card>
+
+          <Card size="small" title="Preview real CN (saved rates)">
+            <Form layout="inline" onFinish={onPreviewCn} style={{ rowGap: 8 }}>
+              <Form.Item label="Consignment no." style={{ flex: 1, marginBottom: 0 }}>
+                <Input
+                  value={calcForm.cnPreview}
+                  placeholder="CN number"
+                  onChange={(e) => setCalcForm((f) => ({ ...f, cnPreview: e.target.value.toUpperCase() }))}
+                />
+              </Form.Item>
+              <Form.Item style={{ marginBottom: 0 }}>
+                <Button type="default" htmlType="submit" loading={calcBusy}>Preview</Button>
+              </Form.Item>
+            </Form>
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={14}>
+          <Card
+            size="small"
+            title={
+              <Space>
+                <span>Split result</span>
+                {calcResult ? (
+                  <Tag color={calcResult.engine === 'pct_matrix' ? 'success' : 'default'}>
+                    {calcResult.engine === 'pct_matrix' ? '% matrix' : 'legacy RM'}
+                  </Tag>
+                ) : null}
+              </Space>
+            }
+            extra={calcResult?.note ? <Text type="secondary" style={{ fontSize: 12 }}>{calcResult.note}</Text> : null}
+          >
+            {!calcResult ? (
+              <Text type="secondary">Enter scenario details and click Calculate split.</Text>
+            ) : (
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Row gutter={12}>
+                  <Col xs={24} sm={8}>
+                    <Card size="small" style={{ height: '100%' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>Delivery fee</Text>
+                      <div style={{ fontSize: 22, fontWeight: 600, color: BRAND }}>{money(calcResult.deliveryFee)}</div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{calcResult.feeLabel}</Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Card size="small" style={{ height: '100%' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>Total commission</Text>
+                      <div style={{ fontSize: 22, fontWeight: 600 }}>{money(calcResult.totalCommission)}</div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {calcResult.pieces} pcs · {calcResult.weight} kg · {calcResult.transportModeLabel}
+                      </Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Card size="small" style={{ height: '100%' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>IPOSB keep</Text>
+                      <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {calcResult.iposbKeep == null ? '—' : money(calcResult.iposbKeep)}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {calcResult.iposbKeep == null ? 'N/A on legacy RM' : 'Fee − franchisee total'}
+                      </Text>
+                    </Card>
+                  </Col>
+                </Row>
+
+                {calcResult.feeBreakdown ? (
+                  <Card size="small" title="Customer delivery fee calculation" style={{ background: '#fafafa' }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                      {calcResult.feeBreakdown.rule}
+                    </Text>
+                    {calcResult.feeSource === 'override' ? (
+                      <Text>Manual override = <strong>{money(calcResult.feeBreakdown.total)}</strong></Text>
+                    ) : calcResult.feeBreakdown.matched ? (
+                      <>
+                        <Table
+                          size="small"
+                          pagination={false}
+                          rowKey="part"
+                          dataSource={[
+                            { part: 'Base', how: 'Flat starting charge', rm: calcResult.feeBreakdown.basePart },
+                            {
+                              part: 'Pieces',
+                              how: `${calcResult.feeBreakdown.pieces} pcs × ${Number(calcResult.feeBreakdown.perPiece)} RM/pc`,
+                              rm: calcResult.feeBreakdown.piecePart,
+                            },
+                            {
+                              part: 'Weight',
+                              how: `${calcResult.feeBreakdown.weight} kg × ${Number(calcResult.feeBreakdown.perKg)} RM/kg`,
+                              rm: calcResult.feeBreakdown.kgPart,
+                            },
+                            {
+                              part: 'Total delivery fee',
+                              how: calcResult.feeBreakdown.rateCode
+                                ? `Band ${calcResult.feeBreakdown.rateCode}`
+                                : (calcResult.feeLabel || 'Matched band'),
+                              rm: calcResult.feeBreakdown.total,
+                              strong: true,
+                            },
+                          ]}
+                          columns={[
+                            { title: 'Part', dataIndex: 'part', key: 'part', render: (v, r) => (r.strong ? <strong>{v}</strong> : v) },
+                            { title: 'How calculated', dataIndex: 'how', key: 'how', render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text> },
+                            { title: 'RM', dataIndex: 'rm', key: 'rm', align: 'right', render: (v, r) => (r.strong ? <strong>{money(v)}</strong> : money(v)) },
+                          ]}
+                        />
+                        <Text code style={{ fontSize: 12 }}>
+                          {calcResult.feeBreakdown.formulaPlain || calcResult.feeBreakdown.formula}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text type="secondary">
+                        No matching active fee band. Enter a manual fee override, or activate a band on
+                        Customer delivery fee and leave override blank.
+                      </Text>
+                    )}
+                  </Card>
+                ) : null}
+
+                {calcResult.sla ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={
+                      <span>
+                        Collect SLA <strong>{calcResult.sla.tierCode}</strong>
+                        {' '}(≤ {calcResult.sla.maxHours}h) → {calcResult.sla.pct}%
+                        {calcResult.collectHours != null ? ` · dwell ${calcResult.collectHours}h` : ''}
+                      </span>
+                    }
+                  />
+                ) : null}
+
+                {calcResult.originService === 'ADDRESS_PICKUP' ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={
+                      <span>
+                        Courier pickup: <strong>origin delivery point</strong> earns its own % plus origin drop %
+                        (stacked, e.g. 10% + 10% = 20%).
+                      </span>
+                    }
+                  />
+                ) : (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={
+                      <span>
+                        Drop at counter: <strong>origin drop point</strong> earns origin drop % only (origin DP own % not paid).
+                      </span>
+                    }
+                  />
+                )}
+
+                {calcResult.outcome === 'doorstep' ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={
+                      <span>
+                        Doorstep: <strong>dest delivery point</strong> earns its own % plus dest drop % (stacked).
+                      </span>
+                    }
+                  />
+                ) : (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={
+                      <span>
+                        Self-collect: <strong>dest drop</strong> earns dest drop %; <strong>dest delivery point</strong> still earns its own % (feeds the drop).
+                      </span>
+                    }
+                  />
+                )}
+
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(line, i) => `${line.lineCode}-${i}`}
+                  columns={calcLineColumns}
+                  dataSource={calcResult.lines || []}
+                  locale={{ emptyText: 'No commission lines — set % / RM rates or enter a delivery fee.' }}
+                />
+              </Space>
+            )}
+          </Card>
+
+          {calcCnLines ? (
+            <Card size="small" title="CN accrual preview (saved engine)" style={{ marginTop: 12 }}>
+              <Table
+                size="small"
+                pagination={false}
+                rowKey={(line, i) => line.id || i}
+                columns={cnPreviewColumns}
+                dataSource={calcCnLines}
+                locale={{ emptyText: 'No lines for this CN' }}
+              />
+            </Card>
+          ) : null}
+        </Col>
+      </Row>
+    )
+  }
+
+  function renderLedger() {
+    return (
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Card size="small">
+          <Form
+            layout="vertical"
+            onFinish={() => load()}
+          >
+            <Row gutter={12} align="bottom">
+              <Col xs={24} md={6}>
+                <Form.Item label="Status" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={status}
+                    onChange={setStatus}
+                    options={['PROCESSING', 'AVAILABLE', 'ALL'].map((s) => ({ value: s, label: s }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="CN filter" style={{ marginBottom: 0 }}>
+                  <Input value={cn} onChange={(e) => setCn(e.target.value.toUpperCase())} allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={4}>
+                <Button type="primary" htmlType="submit" style={{ background: BRAND, borderColor: BRAND }}>
+                  Filter
+                </Button>
+              </Col>
+            </Row>
+          </Form>
+        </Card>
+
+        <Card size="small">
+          <Form layout="vertical" onFinish={onAccrue}>
+            <Row gutter={12} align="bottom">
+              <Col xs={24} md={8}>
+                <Form.Item label="Manual accrue / catch-up (CN)" style={{ marginBottom: 0 }}>
+                  <Input
+                    value={accrueCn}
+                    placeholder="CN number"
+                    onChange={(e) => setAccrueCn(e.target.value.toUpperCase())}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={4}>
+                <Button htmlType="submit">Accrue</Button>
+              </Col>
+            </Row>
+          </Form>
+        </Card>
+
+        <DataTable
+          columns={ledgerColumns}
+          dataSource={rows}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+          locale={{ emptyText: 'No commission lines' }}
+        />
+      </Space>
+    )
+  }
+
+  function renderWallets() {
+    return (
+      <DataTable
+        columns={walletColumns}
+        dataSource={walletRows}
+        rowKey="partnerCode"
+        loading={loading}
+        pagination={{ pageSize: 15 }}
+        locale={{ emptyText: 'No wallets yet' }}
+      />
+    )
+  }
+
+  function renderWithdrawals() {
+    return (
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Card size="small">
+          <Form layout="vertical" onFinish={onWithdraw}>
+            <Row gutter={12} align="bottom">
+              <Col xs={24} md={6}>
+                <Form.Item
+                  label="Partner code"
+                  required
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input
+                    required
+                    value={withdrawForm.partnerCode}
+                    placeholder="e.g. DRV-12 or DSP-3"
+                    onChange={(e) => setWithdrawForm({ ...withdrawForm, partnerCode: e.target.value.toUpperCase() })}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={4}>
+                <Form.Item label="Amount" required style={{ marginBottom: 0 }}>
+                  <InputNumber
+                    min={0}
+                    step={0.01}
+                    style={{ width: '100%' }}
+                    value={withdrawForm.amount === '' ? undefined : Number(withdrawForm.amount)}
+                    onChange={(v) => setWithdrawForm({ ...withdrawForm, amount: v == null ? '' : String(v) })}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="Note" style={{ marginBottom: 0 }}>
+                  <Input
+                    value={withdrawForm.note}
+                    onChange={(e) => setWithdrawForm({ ...withdrawForm, note: e.target.value })}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={4}>
+                <Button type="primary" htmlType="submit" style={{ background: BRAND, borderColor: BRAND }}>
+                  Request
+                </Button>
+              </Col>
+            </Row>
+          </Form>
+        </Card>
+
+        <DataTable
+          columns={withdrawalColumns}
+          dataSource={wdRows}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+          locale={{ emptyText: 'No withdrawals' }}
+        />
+      </Space>
+    )
+  }
 
   return (
-    <div>
-      <h3 className="mb-2">Commission & Partner Wallets</h3>
-      <p className="text-muted mb-3">
-        Set how much drop points, drivers, and dispatchers earn when a parcel is delivered.
-        Changes apply to new accruals — already posted lines are not rewritten.
-      </p>
-      <Alert error={error} ok={ok} />
-
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`btn btn-sm ${tab === t.id ? 'btn-primary' : 'btn-outline-secondary'}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>
+            Commission & Partner Wallets
+          </Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Configure customer delivery fees, franchisee % splits, collect SLA, and legacy RM fallback rates.
+            Changes apply to new quotes and accruals — posted ledger lines are not rewritten.
+          </Text>
+        </div>
+        <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+          Refresh
+        </Button>
       </div>
 
-      {tab === 'rates' && (
-        <form onSubmit={onSaveRates}>
-          <div className="row g-3">
-            <div className="col-lg-3">
-              <div className="list-group sticky-top" style={{ top: '1rem' }}>
-                {roles.map((role) => (
-                  <button
-                    key={role.id}
-                    type="button"
-                    className={`list-group-item list-group-item-action ${roleTab === role.id ? 'active' : ''}`}
-                    onClick={() => setRoleTab(role.id)}
-                  >
-                    <div className="d-flex align-items-center gap-2">
-                      <i className={`bi ${ROLE_ICONS[role.id] || 'bi-cash-coin'}`} />
-                      <div>
-                        <div className="fw-semibold">{role.label}</div>
-                        <div className={`small ${roleTab === role.id ? 'text-white-50' : 'text-muted'}`}>
-                          {(role.fields || []).length} settings
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="card mt-3 border-0 bg-light">
-                <div className="card-body small">
-                  <div className="fw-semibold mb-1">Quick summary</div>
-                  {config?.bpDwellEnabled ? (
-                    <div>
-                      BP dwell T0–T5:{' '}
-                      {[config.bpDwellTiers?.T0, config.bpDwellTiers?.T1, config.bpDwellTiers?.T2,
-                        config.bpDwellTiers?.T3, config.bpDwellTiers?.T4, config.bpDwellTiers?.T5]
-                        .map((v) => money(v)).join(' · ')}
-                    </div>
-                  ) : (
-                    <div>BP flat delivery {money(config?.deliveryPerKg)}/kg</div>
-                  )}
-                  <div className="mt-1">
-                    Driver {config?.driverEnabled ? money(config.driverPerDelivery) : 'off'} ·
-                    Dispatcher {config?.dispatcherEnabled ? money(config.dispatcherPerDelivery) : 'off'}
-                  </div>
-                  <div className="mt-1 text-muted">
-                    {config?.withdrawalWindowOpen ? 'Withdrawal window open' : 'Withdrawal window closed'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-lg-9">
-              {activeRole ? (
-                <div className="card shadow-sm">
-                  <div className="card-header bg-white">
-                    <div className="d-flex align-items-center gap-2">
-                      <i className={`bi ${ROLE_ICONS[activeRole.id] || 'bi-cash-coin'} fs-5`} />
-                      <div>
-                        <h5 className="mb-0">{activeRole.label}</h5>
-                        <div className="small text-muted">{activeRole.hint}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="card-body">
-                    <div className="row g-3">
-                      {(activeRole.fields || []).map((field) => (
-                        <div
-                          key={field.key}
-                          className={field.type === 'bool' ? 'col-12' : 'col-md-6'}
-                        >
-                          {field.type === 'bool' ? (
-                            <div className="form-check form-switch">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id={`cf-${field.key}`}
-                                checked={!!draft[field.key]}
-                                onChange={(e) => setField(field.key, e.target.checked)}
-                              />
-                              <label className="form-check-label" htmlFor={`cf-${field.key}`}>
-                                <span className="fw-semibold">{field.label}</span>
-                                {field.hint ? (
-                                  <div className="small text-muted">{field.hint}</div>
-                                ) : null}
-                              </label>
-                            </div>
-                          ) : (
-                            <>
-                              <label className="form-label" htmlFor={`cf-${field.key}`}>
-                                {field.label}
-                              </label>
-                              <div className="input-group">
-                                {field.type === 'money' ? (
-                                  <span className="input-group-text">RM</span>
-                                ) : null}
-                                <input
-                                  id={`cf-${field.key}`}
-                                  type="number"
-                                  step={field.type === 'money' ? '0.01' : '1'}
-                                  min="0"
-                                  className="form-control"
-                                  value={draft[field.key] ?? ''}
-                                  onChange={(e) => setField(field.key, e.target.value)}
-                                />
-                                {field.type === 'int' && /day/i.test(field.label) ? (
-                                  <span className="input-group-text">days</span>
-                                ) : null}
-                              </div>
-                              {field.hint ? (
-                                <div className="form-text">{field.hint}</div>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="card-footer bg-white d-flex justify-content-between align-items-center">
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary btn-sm"
-                      onClick={() => syncDraft(config)}
-                      disabled={saving}
-                    >
-                      Reset changes
-                    </button>
-                    <button className="btn btn-primary" type="submit" disabled={saving}>
-                      {saving ? 'Saving…' : 'Save commission rates'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="alert alert-light border">Loading rate settings…</div>
-              )}
-
-              {activeRole?.id === 'drop_point' ? (
-                <div className="alert alert-info mt-3 mb-0 small">
-                  <strong>How BP dwell pay works:</strong> clock starts when the parcel arrives at the
-                  destination warehouse (HUB / station). Same-day delivery = T0 (highest). Each overnight
-                  stay steps down. Approved returns use the return rate. Max hold is an ops SLA — force-return
-                  automation can follow later.
-                </div>
-              ) : null}
-              {activeRole?.id === 'driver' ? (
-                <div className="alert alert-info mt-3 mb-0 small">
-                  Paid to partner code <code>DRV-&#123;driverId&#125;</code> for the assigned courier when POD
-                  succeeds. Pickup pay is stored for later use; delivery pay accrues today.
-                </div>
-              ) : null}
-              {activeRole?.id === 'dispatcher' ? (
-                <div className="alert alert-info mt-3 mb-0 small">
-                  Paid to partner code <code>DSP-&#123;dispatcherId&#125;</code> for the staff who assigned the
-                  job, when the consignment is delivered.
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </form>
-      )}
-
-      {tab === 'ledger' && (
-        <>
-          <div className="card mb-3"><div className="card-body">
-            <form className="row g-2 align-items-end" onSubmit={(e) => { e.preventDefault(); load() }}>
-              <div className="col-md-3">
-                <label className="form-label small">Status</label>
-                <select className="form-select form-select-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {['PROCESSING', 'AVAILABLE', 'ALL'].map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="col-md-3">
-                <label className="form-label small">CN filter</label>
-                <input className="form-control form-control-sm" value={cn} onChange={(e) => setCn(e.target.value.toUpperCase())} />
-              </div>
-              <div className="col-md-2"><button className="btn btn-primary btn-sm" type="submit">Filter</button></div>
-            </form>
-          </div></div>
-
-          <div className="card mb-3"><div className="card-body">
-            <form className="row g-2 align-items-end" onSubmit={onAccrue}>
-              <div className="col-md-4">
-                <label className="form-label small">Manual accrue (delivered / returned CN)</label>
-                <input className="form-control form-control-sm" value={accrueCn} onChange={(e) => setAccrueCn(e.target.value.toUpperCase())} placeholder="CN number" />
-              </div>
-              <div className="col-md-2"><button className="btn btn-outline-primary btn-sm" type="submit">Accrue</button></div>
-            </form>
-          </div></div>
-
-          <div className="table-responsive">
-            <table className="table table-sm table-striped table-bordered align-middle">
-              <thead className="table-dark">
-                <tr>
-                  <th>CN</th>
-                  <th>Partner</th>
-                  <th>Line</th>
-                  <th>Qty</th>
-                  <th>Rate</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center text-muted py-3">No commission lines</td></tr>
-                ) : rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.cnNo}</td>
-                    <td>
-                      <div>{r.partnerCode}</div>
-                      <div className="small text-muted">{partnerTypeLabel(r.partnerCode)}</div>
-                    </td>
-                    <td>
-                      <div>{r.lineDesc}</div>
-                      <div className="small text-muted">{r.lineCode}</div>
-                    </td>
-                    <td>{r.qty}</td>
-                    <td>{money(r.rate)}</td>
-                    <td className="fw-semibold">{money(r.amount)}</td>
-                    <td>
-                      <span className={`badge ${r.status === 'AVAILABLE' ? 'text-bg-success' : 'text-bg-warning'}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td>
-                      {r.status === 'PROCESSING' && (
-                        <button type="button" className="btn btn-sm btn-outline-success" onClick={() => onVerify(r.id)}>
-                          Verify
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {tab === 'wallets' && (
-        <div className="table-responsive">
-          <table className="table table-sm table-striped table-bordered">
-            <thead className="table-dark">
-              <tr><th>Partner</th><th>Type</th><th>Available</th><th>Pending</th></tr>
-            </thead>
-            <tbody>
-              {walletRows.length === 0 ? (
-                <tr><td colSpan={4} className="text-center text-muted py-3">No wallets yet</td></tr>
-              ) : walletRows.map((w) => (
-                <tr key={w.partnerCode}>
-                  <td>{w.partnerCode}</td>
-                  <td>{w.partnerType || partnerTypeLabel(w.partnerCode)}</td>
-                  <td>{money(w.balance)}</td>
-                  <td>{money(w.pendingBalance)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {tab === 'withdrawals' && (
-        <>
-          <div className="card mb-3"><div className="card-body">
-            <form className="row g-2 align-items-end" onSubmit={onWithdraw}>
-              <div className="col-md-3">
-                <label className="form-label small">Partner code</label>
-                <input className="form-control form-control-sm" required value={withdrawForm.partnerCode} onChange={(e) => setWithdrawForm({ ...withdrawForm, partnerCode: e.target.value.toUpperCase() })} placeholder="e.g. DRV-12 or DSP-3" />
-              </div>
-              <div className="col-md-2">
-                <label className="form-label small">Amount</label>
-                <input type="number" step="0.01" className="form-control form-control-sm" required value={withdrawForm.amount} onChange={(e) => setWithdrawForm({ ...withdrawForm, amount: e.target.value })} />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label small">Note</label>
-                <input className="form-control form-control-sm" value={withdrawForm.note} onChange={(e) => setWithdrawForm({ ...withdrawForm, note: e.target.value })} />
-              </div>
-              <div className="col-md-2"><button className="btn btn-primary btn-sm" type="submit">Request</button></div>
-            </form>
-          </div></div>
-
-          <div className="table-responsive">
-            <table className="table table-sm table-striped table-bordered">
-              <thead className="table-dark">
-                <tr><th>Request</th><th>Partner</th><th>Amount</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                {wdRows.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center text-muted py-3">No withdrawals</td></tr>
-                ) : wdRows.map((w) => (
-                  <tr key={w.id}>
-                    <td>{w.requestNo}</td>
-                    <td>{w.partnerCode}</td>
-                    <td>{money(w.amount)}</td>
-                    <td>{w.status}</td>
-                    <td className="text-nowrap">
-                      {w.status === 'REQUESTED' && <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => onAdvance(w.id, 'approve')}>Approve</button>}
-                      {w.status === 'APPROVED' && <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => onAdvance(w.id, 'paid')}>Paid</button>}
-                      {w.status === 'PAID' && <button type="button" className="btn btn-sm btn-outline-success me-1" onClick={() => onAdvance(w.id, 'cleared')}>Cleared</button>}
-                      {['REQUESTED', 'APPROVED'].includes(w.status) && <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => onAdvance(w.id, 'reject')}>Reject</button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      <Card size="small" styles={{ body: { padding: 16 } }}>
+        <Tabs
+          activeKey={tab}
+          onChange={selectTab}
+          items={[
+            {
+              key: 'rates',
+              label: (
+                <Space>
+                  <SettingOutlined />
+                  <span>Rate settings</span>
+                </Space>
+              ),
+              children: renderRatesPanel(),
+            },
+            {
+              key: 'calculator',
+              label: (
+                <Space>
+                  <CalculatorOutlined />
+                  <span>Calculator</span>
+                </Space>
+              ),
+              children: renderCalculator(),
+            },
+            {
+              key: 'ledger',
+              label: (
+                <Space>
+                  <HistoryOutlined />
+                  <span>Commission ledger</span>
+                </Space>
+              ),
+              children: renderLedger(),
+            },
+            {
+              key: 'wallets',
+              label: (
+                <Space>
+                  <WalletOutlined />
+                  <span>Partner wallets</span>
+                </Space>
+              ),
+              children: renderWallets(),
+            },
+            {
+              key: 'withdrawals',
+              label: (
+                <Space>
+                  <BankOutlined />
+                  <span>Withdrawals</span>
+                </Space>
+              ),
+              children: renderWithdrawals(),
+            },
+          ]}
+        />
+      </Card>
     </div>
   )
-}
-
-function partnerTypeLabel(code) {
-  const c = String(code || '')
-  if (c.startsWith('DRV-')) return 'Driver'
-  if (c.startsWith('DSP-')) return 'Dispatcher'
-  if (c.startsWith('HUB-')) return 'Hub / lorry'
-  return 'Drop point'
 }

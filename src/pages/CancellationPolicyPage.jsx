@@ -1,73 +1,78 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { Alert, Card, Skeleton, Table, Typography, message } from 'antd'
 import { apiError, getCancellationConfig } from '../api/client'
-import { Alert, money } from '../ui/bits'
+import { money } from '../ui/bits'
+
+const { Title, Text } = Typography
 
 export default function CancellationPolicyPage() {
   const [config, setConfig] = useState(null)
-  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     getCancellationConfig()
       .then(setConfig)
-      .catch((e) => setError(apiError(e)))
+      .catch((err) => message.error(apiError(err)))
+      .finally(() => setLoading(false))
   }, [])
 
-  return (
-    <div>
-      <h3 className="mb-3">Cancellation &amp; processing fees</h3>
-      <p className="text-muted">
-        Fixed processing-fee tiers per client specification. Admin users cannot modify these percentages.
-        Eligible requests are processed immediately — no manual approval workflow.
-      </p>
-      <Alert error={error} />
+  const columns = [
+    { title: 'Parcel stage', dataIndex: 'label', key: 'label' },
+    {
+      title: 'Processing fee',
+      dataIndex: 'feePct',
+      key: 'feePct',
+      width: 140,
+      render: (v) => <Text strong>{v}%</Text>,
+    },
+  ]
 
-      {!config ? (
-        <p className="text-muted">Loading…</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>Cancellation & Processing Fees</Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          Fixed processing-fee tiers. Admin users cannot modify these percentages. Eligible requests are processed immediately.
+        </Text>
+      </div>
+
+      {loading ? (
+        <Skeleton active paragraph={{ rows: 6 }} />
       ) : (
         <>
-          <div className="table-responsive mb-4">
-            <table className="table table-sm table-bordered align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th>Parcel stage</th>
-                  <th style={{ width: '8rem' }}>Processing fee</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(config.tiers || []).map((tier) => (
-                  <tr key={tier.tier}>
-                    <td>{tier.label}</td>
-                    <td>{tier.feePct}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Card size="small" styles={{ body: { padding: 0 } }}>
+            <Table
+              rowKey="tier"
+              size="small"
+              pagination={false}
+              columns={columns}
+              dataSource={config?.tiers || []}
+            />
+          </Card>
 
-          <div className="card">
-            <div className="card-body">
-              <h5 className="card-title">Policy</h5>
-              <ul className="mb-0">
-                <li>Customers may request cancellation after pickup or drop-off at a service point.</li>
-                <li>
-                  <strong>Blocked:</strong> once the parcel is in transit or handed to the courier for delivery.
-                </li>
-                <li>After deducting the processing fee, the remaining amount is refunded to the customer wallet.</li>
-                <li>All cancellations are recorded in the audit log with fee, refund, and credit note references.</li>
-                <li>
-                  <strong>Not for address changes.</strong> To change the delivery address, create a new order/CN.
-                </li>
-                <li>
-                  At the 0% tier, the parcel is still at the service point — the customer may self-collect instead of
-                  cancelling.
-                </li>
-              </ul>
-            </div>
-          </div>
+          <Card size="small" title="Policy">
+            <ul style={{ margin: 0, paddingLeft: 18, color: '#374151', fontSize: 13, lineHeight: 1.7 }}>
+              <li>Customers may request cancellation after pickup or drop-off at a service point.</li>
+              <li>
+                <Text strong>Blocked:</Text> once the parcel is in transit or handed to the courier for delivery.
+              </li>
+              <li>After deducting the processing fee, the remaining amount is refunded to the customer wallet.</li>
+              <li>All cancellations are recorded in the audit log with fee, refund, and credit note references.</li>
+              <li>
+                <Text strong>Not for address changes.</Text> To change the delivery address, create a new order/CN.
+              </li>
+              <li>
+                At the 0% tier, the parcel is still at the service point — the customer may self-collect instead of cancelling.
+              </li>
+            </ul>
+          </Card>
 
-          <p className="text-muted small mt-3">
-            Example: RM 100 order at 30% tier → processing fee {money(30)}, wallet refund {money(70)}.
-          </p>
+          <Alert
+            type="info"
+            showIcon
+            message={`Example: RM 100 order at 30% tier → processing fee ${money(30)}, wallet refund ${money(70)}.`}
+          />
         </>
       )}
     </div>

@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Button, Card, Descriptions, Form, Input, Typography, message } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import { apiError, generateInvoice, getBilling, listBilling, previewInvoice, saveBilling } from '../api/client'
 import { Alert, Pager, SystemCodeField, money } from '../ui/bits'
+
+const { Title, Text } = Typography
 
 const DROP_POINT_COLS = [
   ['bilyet_no', 'Bilyet No'],
@@ -476,39 +480,69 @@ export function BillingEntryPage({ doc, title }) {
 export function TrackingLookupPage({ doc, title, idKey }) {
   const [id, setId] = useState('')
   const [row, setRow] = useState(null)
-  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  async function onSubmit(e) {
-    e.preventDefault()
-    setError('')
+  async function onSubmit() {
+    if (!String(id || '').trim()) {
+      message.warning(`Enter ${idKey}`)
+      return
+    }
+    setLoading(true)
     try {
       const r = await getBilling(doc, id)
       setRow(r.row)
     } catch (err) {
-      setError(apiError(err))
+      message.error(apiError(err))
       setRow(null)
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div>
-      <h3 className="mb-3">{title}</h3>
-      <Alert error={error} />
-      <form className="row g-2 mb-3" onSubmit={onSubmit}>
-        <div className="col-md-4"><input className="form-control" placeholder={idKey} value={id} onChange={(e) => setId(e.target.value)} required /></div>
-        <div className="col-md-2"><button className="btn btn-primary" type="submit">Look up</button></div>
-      </form>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>{title}</Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>Look up a billing document by number.</Text>
+      </div>
+
+      <Card size="small">
+        <Form layout="inline" onFinish={onSubmit} style={{ rowGap: 8 }}>
+          <Form.Item style={{ flex: 1, minWidth: 220, marginBottom: 0 }}>
+            <Input
+              placeholder={idKey}
+              value={id}
+              onChange={(e) => setId(e.target.value)}
+              allowClear
+            />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<SearchOutlined />}
+              loading={loading}
+              style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
+            >
+              Look up
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+
       {row ? (
-        <div className="card"><div className="card-body">
-          <table className="table table-sm mb-0">
-            <tbody>
-              {Object.entries(row).map(([k, v]) => (
-                <tr key={k}><th style={{ width: 220 }}>{k}</th><td>{v == null ? '—' : String(v)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div></div>
-      ) : <p className="text-muted">Enter a number to look up.</p>}
+        <Card size="small">
+          <Descriptions size="small" column={1} bordered>
+            {Object.entries(row).map(([k, v]) => (
+              <Descriptions.Item key={k} label={k}>
+                {v == null ? '—' : String(v)}
+              </Descriptions.Item>
+            ))}
+          </Descriptions>
+        </Card>
+      ) : (
+        <Text type="secondary">Enter a number to look up.</Text>
+      )}
     </div>
   )
 }

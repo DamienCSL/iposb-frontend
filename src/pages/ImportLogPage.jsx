@@ -1,111 +1,217 @@
-import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Alert, Button, Card, Descriptions, Space, Tag, Typography, message } from 'antd'
+import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiError, getImportBatch, listImportBatches } from '../api/client'
-import { Alert, Pager } from '../ui/bits'
+import DataTable from '../components/DataTable'
+import ListPageLayout from '../components/ListPageLayout'
+import StatusTag from '../components/StatusTag'
 
-const statusBadge = (s) => (s === 'ok' ? 'bg-success' : s === 'partial' ? 'bg-warning text-dark' : s === 'failed' ? 'bg-danger' : 'bg-secondary')
-const statusLabel = (s) => (s === 'ok' ? 'No issues' : s === 'partial' ? 'Some rows failed' : s === 'failed' ? 'Import failed' : s)
+const { Title, Text } = Typography
+
+function statusColor(s) {
+  if (s === 'ok') return 'success'
+  if (s === 'partial') return 'warning'
+  if (s === 'failed') return 'error'
+  return 'default'
+}
+
+function statusLabel(s) {
+  if (s === 'ok') return 'No issues'
+  if (s === 'partial') return 'Some rows failed'
+  if (s === 'failed') return 'Import failed'
+  return s || '—'
+}
 
 export default function ImportLogPage() {
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const id = Number(params.get('id') || 0)
   const q = params.get('q') || ''
   const page = Number(params.get('page') || 1)
-  const [list, setList] = useState({ rows: [], totalPages: 1 })
-  const [detail, setDetail] = useState(null)
   const [search, setSearch] = useState(q)
-  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [list, setList] = useState({ rows: [], totalPages: 1, total: 0 })
+  const [detail, setDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  async function loadList() {
+    setLoading(true)
+    try {
+      const res = await listImportBatches({ q, page })
+      setList(res)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadDetail(batchId) {
+    if (!batchId) {
+      setDetail(null)
+      return
+    }
+    setDetailLoading(true)
+    try {
+      setDetail(await getImportBatch(batchId))
+    } catch {
+      setDetail(null)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
 
   useEffect(() => {
-    listImportBatches({ q, page }).then(setList).catch((e) => setError(apiError(e)))
-    if (id) getImportBatch(id).then(setDetail).catch(() => setDetail(null))
-    else setDetail(null)
-  }, [q, page, id])
+    loadList()
+  }, [q, page])
+
+  useEffect(() => {
+    loadDetail(id || 0)
+  }, [id])
 
   const batch = detail?.batch
   const errors = detail?.errors || []
 
+  const columns = [
+    {
+      title: 'When',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 160,
+      render: (v) => <Text style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v || '—'}</Text>,
+    },
+    { title: 'File', dataIndex: 'file_name', key: 'file_name', ellipsis: true },
+    { title: 'By', dataIndex: 'imported_by', key: 'imported_by', width: 120 },
+    { title: 'Created', dataIndex: 'created_count', key: 'created_count', width: 80 },
+    { title: 'Updated', dataIndex: 'updated_count', key: 'updated_count', width: 80 },
+    { title: 'Issues', dataIndex: 'error_count', key: 'error_count', width: 80 },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      render: (s) => <Tag color={statusColor(s)}>{statusLabel(s)}</Tag>,
+    },
+    {
+      title: '',
+      key: 'actions',
+      width: 90,
+      render: (_, row) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => setParams({ q, page: String(page), id: String(row.id) })}
+        >
+          View
+        </Button>
+      ),
+    },
+  ]
+
+  const errorColumns = [
+    { title: 'Excel row', dataIndex: 'row_no', key: 'row_no', width: 100 },
+    {
+      title: 'CN',
+      dataIndex: 'cn_no',
+      key: 'cn_no',
+      render: (cn) =>
+        cn ? (
+          <Link to={`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}`} style={{ fontFamily: 'monospace', fontWeight: 600, color: '#1B8A5A' }}>
+            {cn}
+          </Link>
+        ) : (
+          '—'
+        ),
+    },
+    { title: 'Issue', dataIndex: 'error_code', key: 'error_code', width: 140 },
+    { title: 'Why it failed', dataIndex: 'message', key: 'message' },
+  ]
+
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div>
-          <h3 className="mb-0">Import Error Log</h3>
-          <p className="text-muted mb-0">Review why consignment spreadsheet rows were skipped or failed.</p>
+          <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>Import Error Log</Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Review why consignment spreadsheet rows were skipped or failed.
+          </Text>
         </div>
-        <Link className="btn btn-outline-secondary btn-sm" to="/consignments">Back to Consignment List</Link>
-      </div>
-      <Alert error={error} />
-      <div className="card mb-3">
-        <div className="card-body">
-          <form className="row g-2 align-items-end" onSubmit={(e) => { e.preventDefault(); setParams({ q: search, page: 1, id: id || undefined }) }}>
-            <div className="col-md-4">
-              <label className="form-label">Search</label>
-              <input className="form-control form-control-sm" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="File name, user, or summary" />
-            </div>
-            <div className="col-md-2">
-              <button className="btn btn-primary btn-sm" type="submit">Search</button>{' '}
-              <Link className="btn btn-outline-secondary btn-sm" to="/consignments/import-log">Reset</Link>
-            </div>
-          </form>
-        </div>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadList}>Refresh</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/ops/consignments')}>
+            Consignments
+          </Button>
+        </Space>
       </div>
 
       {batch ? (
-        <div className={`card mb-3 border-${batch.status === 'ok' ? 'success' : 'danger'}`}>
-          <div className="card-header d-flex justify-content-between">
-            <strong>Import #{batch.id}</strong>
-            <span className={`badge ${statusBadge(batch.status)}`}>{statusLabel(batch.status)}</span>
-          </div>
-          <div className="card-body">
-            <div className="row g-3 small">
-              <div className="col-md-3"><strong>When</strong><br />{batch.created_at}</div>
-              <div className="col-md-3"><strong>File</strong><br />{batch.file_name || '—'}</div>
-              <div className="col-md-2"><strong>Imported by</strong><br />{batch.imported_by || '—'}</div>
-              <div className="col-md-4"><strong>Result</strong><br />{batch.summary}</div>
+        <Card
+          loading={detailLoading}
+          size="small"
+          title={
+            <Space>
+              <Text strong>Import #{batch.id}</Text>
+              <Tag color={statusColor(batch.status)}>{statusLabel(batch.status)}</Tag>
+            </Space>
+          }
+          extra={
+            <Button type="link" size="small" onClick={() => setParams({ q, page: String(page) })}>
+              Close
+            </Button>
+          }
+          styles={{ body: { paddingTop: 12 } }}
+        >
+          <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
+            <Descriptions.Item label="When">{batch.created_at || '—'}</Descriptions.Item>
+            <Descriptions.Item label="File">{batch.file_name || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Imported by">{batch.imported_by || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Result">{batch.summary || '—'}</Descriptions.Item>
+          </Descriptions>
+          {errors.length ? (
+            <div style={{ marginTop: 12 }}>
+              <DataTable
+                rowKey="id"
+                columns={errorColumns}
+                dataSource={errors}
+                pagination={false}
+                size="small"
+              />
             </div>
-            {errors.length ? (
-              <div className="table-responsive mt-3">
-                <table className="table table-sm table-striped table-bordered">
-                  <thead className="table-dark"><tr><th>Excel row</th><th>Consignment Number</th><th>Issue</th><th>Why it failed</th></tr></thead>
-                  <tbody>
-                    {errors.map((err) => (
-                      <tr key={err.id}>
-                        <td>{err.row_no}</td>
-                        <td>{err.cn_no ? <Link to={`/consignments/tracking?cn=${encodeURIComponent(err.cn_no)}`}>{err.cn_no}</Link> : '—'}</td>
-                        <td>{err.error_code}</td>
-                        <td>{err.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <div className="alert alert-success mt-3 mb-0">This import had no row errors.</div>}
-          </div>
-        </div>
+          ) : (
+            <Alert type="success" showIcon style={{ marginTop: 12 }} message="This import had no row errors." />
+          )}
+        </Card>
       ) : null}
 
-      <h5 className="mb-2">Recent imports</h5>
-      <div className="table-responsive">
-        <table className="table table-sm table-striped table-bordered">
-          <thead className="table-dark"><tr><th>When</th><th>File</th><th>By</th><th>Created</th><th>Updated</th><th>Issues</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {(list.rows || []).map((b) => (
-              <tr key={b.id} className={id === Number(b.id) ? 'table-warning' : ''}>
-                <td className="text-nowrap">{b.created_at}</td>
-                <td>{b.file_name}</td>
-                <td>{b.imported_by}</td>
-                <td>{b.created_count}</td>
-                <td>{b.updated_count}</td>
-                <td>{b.error_count}</td>
-                <td><span className={`badge ${statusBadge(b.status)}`}>{statusLabel(b.status)}</span></td>
-                <td><Link className="btn btn-sm btn-outline-primary" to={`/consignments/import-log?id=${b.id}`}>View</Link></td>
-              </tr>
-            ))}
-            {(list.rows || []).length === 0 ? <tr><td colSpan={8} className="text-muted">No imports yet.</td></tr> : null}
-          </tbody>
-        </table>
-      </div>
-      <Pager page={page} totalPages={list.totalPages || 1} onPage={(p) => setParams({ q, page: p, id: id || undefined })} />
+      <ListPageLayout
+        title="Recent imports"
+        searchPlaceholder="File name, user, or summary"
+        searchValue={search}
+        onSearchChange={setSearch}
+        actions={[
+          {
+            key: 'search',
+            label: 'Search',
+            icon: <SearchOutlined />,
+            type: 'primary',
+            onClick: () => setParams({ q: search, page: '1', ...(id ? { id: String(id) } : {}) }),
+          },
+        ]}
+        columns={columns}
+        dataSource={list.rows || []}
+        loading={loading}
+        rowKey="id"
+        pagination={{
+          current: page,
+          pageSize: 20,
+          total: list.total || (list.totalPages || 1) * 20,
+          onChange: (p) => setParams({ q, page: String(p), ...(id ? { id: String(id) } : {}) }),
+        }}
+        emptyText="No imports yet"
+        emptyDescription="Batch import a spreadsheet from Consignments to see history here."
+      />
     </div>
   )
 }

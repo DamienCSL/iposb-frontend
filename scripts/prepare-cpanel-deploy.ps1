@@ -67,7 +67,9 @@ try {
         if (Test-Path "package-lock.json") {
             npm ci
             if ($LASTEXITCODE -ne 0) {
-                throw "npm ci failed. Close apps locking node_modules or use -SkipInstall."
+                Write-Host "  npm ci failed - falling back to npm install." -ForegroundColor DarkYellow
+                npm install
+                if ($LASTEXITCODE -ne 0) { throw "npm install failed." }
             }
         }
         else {
@@ -89,9 +91,12 @@ try {
             $env:VITE_API_ORIGIN = $SingleHost
         }
         if (-not $env:VITE_DISPATCH_KEY) {
-            Write-Host "  Tip: set VITE_DISPATCH_KEY to match API DISPATCH_API_KEY." -ForegroundColor DarkYellow
+            $env:VITE_DISPATCH_KEY = "IPOSB_dispatch"
+            Write-Host "  Using VITE_DISPATCH_KEY=IPOSB_dispatch (override env if production uses another key)." -ForegroundColor DarkYellow
         }
+        $env:VITE_ALLOW_DEMO_LOGIN = "false"
     }
+    $env:VITE_ALLOW_DEMO_LOGIN = "false"
 
     npm run build
     if ($LASTEXITCODE -ne 0) {
@@ -100,14 +105,19 @@ try {
     if (-not (Test-Path "dist\index.html")) {
         throw "Build failed: dist\index.html missing."
     }
+    $spaHtaccess = Join-Path $WebRoot "public\.htaccess"
+    if (Test-Path $spaHtaccess) {
+        Copy-Item -LiteralPath $spaHtaccess -Destination (Join-Path $WebRoot "dist\.htaccess") -Force
+    }
     if (-not (Test-Path "dist\.htaccess")) {
         Write-Host "  Warning: dist\.htaccess missing - SPA routes may 404 on refresh." -ForegroundColor DarkYellow
     }
 }
 finally {
-    Remove-Item Env:VITE_API_URL -ErrorAction SilentlyContinue
-    Remove-Item Env:VITE_API_ORIGIN -ErrorAction SilentlyContinue
-    Pop-Location
+        Remove-Item Env:VITE_API_URL -ErrorAction SilentlyContinue
+        Remove-Item Env:VITE_API_ORIGIN -ErrorAction SilentlyContinue
+        Remove-Item Env:VITE_ALLOW_DEMO_LOGIN -ErrorAction SilentlyContinue
+        Pop-Location
 }
 
 $fmsOut = Join-Path $WebRoot "deploy\cpanel\fms"
@@ -117,6 +127,10 @@ if (Test-Path $fmsOut) {
 }
 New-Item -ItemType Directory -Path $fmsOut -Force | Out-Null
 Copy-Item -Path (Join-Path $WebRoot "dist\*") -Destination $fmsOut -Recurse -Force
+$distHtaccess = Join-Path $WebRoot "dist\.htaccess"
+if (Test-Path $distHtaccess) {
+    Copy-Item -LiteralPath $distHtaccess -Destination (Join-Path $fmsOut ".htaccess") -Force
+}
 
 $apiNote = if ($UseEnvFile) { "(from .env.production.local)" } elseif ($viteApiUrl -eq "/api") { "$FmsUrl/api" } else { $viteApiUrl }
 $generatedAt = Get-Date -Format "yyyy-MM-dd HH:mm"
@@ -136,7 +150,7 @@ $checklist = @(
     ""
     "=== Verify ==="
     "* Open FMS URL - login page loads"
-    "* Log in (admin / admin123 if demo users exist on API)"
+    "* Log in with an office user from the API database"
     "* Browser DevTools Network - API calls succeed"
     ""
     "Notes:"

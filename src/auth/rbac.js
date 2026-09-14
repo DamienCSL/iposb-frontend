@@ -8,6 +8,8 @@ export const DROPPOINT_MANAGER = 'Droppoint Manager'
 /**
  * Roles assignable in FMS User Management (t_user).
  * Seller / Receiver are consignment parties — not login roles.
+ * Shipper billing accounts use Customer Registration (t_customer).
+ * Mobile app logins use t_mobile_user (customer / driver / dispatcher).
  */
 export const STAFF_ASSIGNABLE_ROLES = [
   SUPER_ADMIN,
