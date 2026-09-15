@@ -348,13 +348,91 @@ export async function getCsTicket(id) {
   return data
 }
 
+export async function createCsTicket(body) {
+  const { data } = await api.post('/ops/cs/tickets', body)
+  return data
+}
+
+export async function assignCsTicket(id, body) {
+  const { data } = await api.patch(`/ops/cs/tickets/${id}/assign`, body)
+  return data
+}
+
+export async function startCsTicket(id) {
+  const { data } = await api.post(`/ops/cs/tickets/${id}/start`)
+  return data
+}
+
+export async function processCsTicket(id) {
+  const { data } = await api.post(`/ops/cs/tickets/${id}/process`)
+  return data
+}
+
 export async function replyCsTicket(id, body) {
-  const { data } = await api.post(`/ops/cs/tickets/${id}/reply`, { body })
+  const payload = typeof body === 'string' ? { body } : body
+  const { data } = await api.post(`/ops/cs/tickets/${id}/reply`, payload)
   return data
 }
 
 export async function closeCsTicket(id) {
   const { data } = await api.post(`/ops/cs/tickets/${id}/close`)
+  return data
+}
+
+export async function reopenCsTicket(id) {
+  const { data } = await api.post(`/ops/cs/tickets/${id}/reopen`)
+  return data
+}
+
+export async function addCsReminder(id, body) {
+  const { data } = await api.post(`/ops/cs/tickets/${id}/reminders`, body)
+  return data
+}
+
+export async function listCsReminders(id) {
+  const { data } = await api.get(`/ops/cs/tickets/${id}/reminders`)
+  return data
+}
+
+export async function getAgentStatement(code, params = {}) {
+  const { data } = await api.get(`/ops/agents/${encodeURIComponent(code)}/statement`, { params })
+  return data
+}
+
+export async function getAgentStock(code, params = {}) {
+  const { data } = await api.get(`/ops/agents/${encodeURIComponent(code)}/stock`, { params })
+  return data
+}
+
+export async function getImportBatchErrors(id) {
+  const { data } = await api.get(`/ops/import-batches/${id}/errors`)
+  return data
+}
+
+export async function exportImportBatchErrors(id) {
+  const response = await api.get(`/ops/import-batches/${id}/errors/export`, {
+    responseType: 'blob',
+  })
+  let filename = `import_batch_${id}_errors.csv`
+  const disposition = response.headers?.['content-disposition']
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/)
+    if (match?.[1]) filename = match[1]
+  }
+  const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  return true
+}
+
+export async function retryImportBatch(id) {
+  const { data } = await api.post(`/ops/import-batches/${id}/retry`)
   return data
 }
 
@@ -660,7 +738,22 @@ export async function searchCustomers(q) {
 }
 
 export async function geocodeLookup(params) {
-  const { data } = await api.get('/ops/geo/lookup', { params })
+  const body =
+    typeof params === 'string'
+      ? { address: params }
+      : {
+          address: params?.address || params?.address_line1 || params?.q || '',
+          hint: params?.hint || params?.countryHint || undefined,
+        }
+  const { data } = await api.post('/ops/geo/lookup', body)
+  return data
+}
+
+export async function geocodeBackfill(resource, limit = 25) {
+  const { data } = await api.post('/ops/geo/backfill', {
+    resource: resource || 'all',
+    limit,
+  })
   return data
 }
 

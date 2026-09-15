@@ -568,6 +568,21 @@ export default function AppLayout() {
               label: <Link to="/ops/summaries/manifest" style={{ display: 'block', width: '100%' }}>By Manifest</Link>,
               visible: true,
             },
+            {
+              key: '/ops/summaries/consignee',
+              label: <Link to="/ops/summaries/consignee" style={{ display: 'block', width: '100%' }}>By Consignee</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/consigner',
+              label: <Link to="/ops/summaries/consigner" style={{ display: 'block', width: '100%' }}>By Consigner</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/summaries/shipper',
+              label: <Link to="/ops/summaries/shipper" style={{ display: 'block', width: '100%' }}>By Shipper</Link>,
+              visible: true,
+            },
           ],
         },
         {
@@ -616,6 +631,11 @@ export default function AppLayout() {
               label: <Link to="/ops/reports/customer-summary" style={{ display: 'block', width: '100%' }}>Customer Summary</Link>,
               visible: true,
             },
+            {
+              key: '/ops/reports/drop-point-summary',
+              label: <Link to="/ops/reports/drop-point-summary" style={{ display: 'block', width: '100%' }}>Drop Point Summary</Link>,
+              visible: true,
+            },
           ],
         },
       ],
@@ -637,13 +657,28 @@ export default function AppLayout() {
               visible: can('billing') || isAdmin,
             },
             {
+              key: '/ops/billing/invoices/tracking',
+              label: <Link to="/ops/billing/invoices/tracking" style={{ display: 'block', width: '100%' }}>Invoice Tracking</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
               key: '/ops/billing/do',
               label: <Link to="/ops/billing/do" style={{ display: 'block', width: '100%' }}>Delivery Orders (DO)</Link>,
               visible: can('billing') || isAdmin,
             },
             {
+              key: '/ops/billing/do/tracking',
+              label: <Link to="/ops/billing/do/tracking" style={{ display: 'block', width: '100%' }}>DO Tracking</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
               key: '/ops/billing/receipts',
               label: <Link to="/ops/billing/receipts" style={{ display: 'block', width: '100%' }}>Official Receipts</Link>,
+              visible: can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/billing/receipts/tracking',
+              label: <Link to="/ops/billing/receipts/tracking" style={{ display: 'block', width: '100%' }}>Receipt Tracking</Link>,
               visible: can('billing') || isAdmin,
             },
             {

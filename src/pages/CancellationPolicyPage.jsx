@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Card, Skeleton, Table, Typography, message } from 'antd'
+import { LockOutlined } from '@ant-design/icons'
 import { apiError, getCancellationConfig } from '../api/client'
 import { money } from '../ui/bits'
 
@@ -28,12 +29,14 @@ export default function CancellationPolicyPage() {
     },
   ]
 
+  const locked = config?.feesLocked !== false
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
         <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>Cancellation & Processing Fees</Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          Fixed processing-fee tiers. Admin users cannot modify these percentages. Eligible requests are processed immediately.
+          Live fee tiers loaded from the backend. Percentages are fixed by policy and cannot be edited in the UI.
         </Text>
       </div>
 
@@ -41,6 +44,18 @@ export default function CancellationPolicyPage() {
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : (
         <>
+          <Alert
+            type={locked ? 'warning' : 'info'}
+            showIcon
+            icon={locked ? <LockOutlined /> : undefined}
+            message={locked ? 'Fee tiers are locked' : 'Fee configuration'}
+            description={
+              locked
+                ? 'The API rejects updates to processing-fee percentages (403). This page is read-only by design — change requires a product/policy decision and backend unlock.'
+                : 'Configuration can be updated via PUT /ops/billing/cancellation-config.'
+            }
+          />
+
           <Card size="small" styles={{ body: { padding: 0 } }}>
             <Table
               rowKey="tier"
@@ -65,6 +80,12 @@ export default function CancellationPolicyPage() {
               <li>
                 At the 0% tier, the parcel is still at the service point — the customer may self-collect instead of cancelling.
               </li>
+              {config?.refundToWalletDefault != null && (
+                <li>Default refund to wallet: <Text strong>{config.refundToWalletDefault ? 'Yes' : 'No'}</Text></li>
+              )}
+              {config?.requiresApproval != null && (
+                <li>Requires approval workflow: <Text strong>{config.requiresApproval ? 'Yes' : 'No'}</Text></li>
+              )}
             </ul>
           </Card>
 

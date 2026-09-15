@@ -204,24 +204,15 @@ export default function App() {
                 <Route path="/billing/cancellation-settings" element={<Navigate to="/ops/billing/cancellation-settings" replace />} />
                 <Route path="/billing/*" element={<Navigate to="/ops/billing/invoices" replace />} />
 
-                <Route path="/drop-points" element={<Navigate to="/ops/admin/drop-points" replace />} />
-                <Route path="/drop-points/bilyet-in" element={<Navigate to="/ops/billing/agent-in" replace />} />
-                <Route path="/drop-points/bilyet-out" element={<Navigate to="/ops/billing/agent-out" replace />} />
-                <Route path="/drop-points/credit-notes" element={<Navigate to="/ops/billing/agent-credit" replace />} />
-                <Route path="/drop-points/debit-notes" element={<Navigate to="/ops/billing/agent-debit" replace />} />
-                <Route path="/agent/bilyet-in" element={<Navigate to="/ops/billing/agent-in" replace />} />
-                <Route path="/agent/bilyet-out" element={<Navigate to="/ops/billing/agent-out" replace />} />
-                <Route path="/agent/credit-notes" element={<Navigate to="/ops/billing/agent-credit" replace />} />
-                <Route path="/agent/debit-notes" element={<Navigate to="/ops/billing/agent-debit" replace />} />
-                <Route path="/agent/stock" element={<Navigate to="/ops/reports/drop-point-stock" replace />} />
-                <Route path="/agent/*" element={<Navigate to="/ops/agents" replace />} />
-
                 <Route path="/cs/tickets" element={<Navigate to="/ops/cs/tickets" replace />} />
                 <Route path="/cs/*" element={<Navigate to="/ops/cs/tickets" replace />} />
 
                 <Route path="/admin/staff" element={<Navigate to="/ops/staff" replace />} />
                 <Route path="/admin/users" element={<Navigate to="/ops/admin/users" replace />} />
                 <Route path="/admin/role-access" element={<Navigate to="/ops/admin/role-access" replace />} />
+                <Route path="/admin/customers" element={<Navigate to="/ops/admin/customers" replace />} />
+                <Route path="/admin/dispatchers" element={<Navigate to="/ops/admin/dispatchers" replace />} />
+                <Route path="/admin/route-codes" element={<Navigate to="/ops/admin/route-codes" replace />} />
                 <Route path="/admin/branches" element={<Navigate to="/ops/admin/branches" replace />} />
                 <Route path="/admin/hubs" element={<Navigate to="/ops/admin/hubs" replace />} />
                 <Route path="/admin/delivery-points" element={<Navigate to="/ops/admin/zones" replace />} />
@@ -231,6 +222,22 @@ export default function App() {
                 <Route path="/admin/routes" element={<Navigate to="/ops/admin/routes" replace />} />
                 <Route path="/admin/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
                 <Route path="/admin/*" element={<Navigate to="/ops/admin/branches" replace />} />
+
+                <Route path="/drop-points/bilyet-in/list" element={<Navigate to="/ops/billing/agent-in" replace />} />
+                <Route path="/drop-points/bilyet-out/list" element={<Navigate to="/ops/billing/agent-out" replace />} />
+                <Route path="/drop-points/credit-notes/list" element={<Navigate to="/ops/billing/agent-credit" replace />} />
+                <Route path="/drop-points/debit-notes/list" element={<Navigate to="/ops/billing/agent-debit" replace />} />
+                <Route path="/drop-points/bilyet-in" element={<Navigate to="/ops/billing/agent-in?mode=entry" replace />} />
+                <Route path="/drop-points/bilyet-out" element={<Navigate to="/ops/billing/agent-out?mode=entry" replace />} />
+                <Route path="/drop-points/credit-notes" element={<Navigate to="/ops/billing/agent-credit?mode=entry" replace />} />
+                <Route path="/drop-points/debit-notes" element={<Navigate to="/ops/billing/agent-debit?mode=entry" replace />} />
+                <Route path="/drop-points" element={<Navigate to="/ops/admin/drop-points" replace />} />
+                <Route path="/agent/bilyet-in" element={<Navigate to="/ops/billing/agent-in" replace />} />
+                <Route path="/agent/bilyet-out" element={<Navigate to="/ops/billing/agent-out" replace />} />
+                <Route path="/agent/credit-notes" element={<Navigate to="/ops/billing/agent-credit" replace />} />
+                <Route path="/agent/debit-notes" element={<Navigate to="/ops/billing/agent-debit" replace />} />
+                <Route path="/agent/stock" element={<Navigate to="/ops/reports/drop-point-stock" replace />} />
+                <Route path="/agent/*" element={<Navigate to="/ops/agents" replace />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/ops/dashboard" replace />} />

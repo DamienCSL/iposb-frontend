@@ -41,7 +41,6 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
-  SearchOutlined,
   SettingOutlined,
   ShopOutlined,
   TeamOutlined,
@@ -52,14 +51,26 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   apiError,
   deleteMaster,
+  geocodeBackfill,
   listMaster,
   rotateApiKey,
   saveMaster,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import DataTable from '../../components/DataTable'
+import GeoLocationPicker from '../../components/GeoLocationPicker'
+import CodeLookupField from '../../components/CodeLookupField'
 import ListPageLayout from '../../components/ListPageLayout'
 import StatusTag from '../../components/StatusTag'
+
+const GEO_PAIRS = {
+  hubs: { lat: 'lat', lng: 'lng', label: 'Pin hub location on map' },
+  'drop-points': { lat: 'lat', lng: 'lng', label: 'Pin drop point on map' },
+  zones: { lat: 'lat', lng: 'lng', label: 'Pin delivery point on map' },
+  areas: { lat: 'lat', lng: 'lng', label: 'Pin area centroid on map' },
+  drivers: { lat: 'base_lat', lng: 'base_lng', label: 'Driver base / depot pin' },
+}
+
+const GEO_BACKFILL_RESOURCES = ['hubs', 'drop-points', 'zones', 'areas']
 
 const { Title, Text, Paragraph } = Typography
 
@@ -194,7 +205,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'branch_code', label: 'Branch Code', required: true, placeholder: 'e.g. BKI' },
+      { name: 'branch_code', label: 'Branch Code', required: true, placeholder: 'e.g. BKI', generate: 'branch_code' },
       { name: 'branch_name', label: 'Branch Name', required: true, placeholder: 'e.g. Kota Kinabalu' },
       { name: 'phone', label: 'Phone Number', placeholder: '+60 88 123456' },
       { name: 'address_line1', label: 'Address', type: 'textarea' },
@@ -210,15 +221,28 @@ export const MASTER_SCHEMAS = {
       { title: 'Hub Code', dataIndex: 'hub_code', key: 'hub_code', render: (v) => <Tag color="cyan">{v}</Tag> },
       { title: 'Hub Name', dataIndex: 'hub_name', key: 'hub_name', render: (v) => <strong>{v}</strong> },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
-      { title: 'Level', dataIndex: 'hub_level', key: 'hub_level' },
+      { title: 'Type', dataIndex: 'hub_type', key: 'hub_type', render: (v, r) => v || r.hub_level || '—' },
+      { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'hub_code', label: 'Hub Code', required: true, placeholder: 'e.g. BKI-HUB' },
+      { name: 'hub_code', label: 'Hub Code', required: true, placeholder: 'e.g. BKI-HUB', generate: 'hub_code', useBranch: true },
       { name: 'hub_name', label: 'Hub Name', required: true, placeholder: 'e.g. Central Gateway Hub' },
-      { name: 'branch_code', label: 'Branch Code', required: true },
+      { name: 'branch_code', label: 'Branch Code', required: true, lookup: 'branches' },
+      {
+        name: 'hub_type',
+        label: 'Hub Type',
+        type: 'select',
+        options: [
+          { label: 'Main hub (KK — only one)', value: 'main' },
+          { label: 'Mini hub (other city)', value: 'mini' },
+        ],
+      },
       { name: 'hub_level', label: 'Level', placeholder: 'GATEWAY or TRANSIT' },
-      { name: 'parent_hub_code', label: 'Parent Hub (Optional)' },
+      { name: 'parent_hub_code', label: 'Parent Hub (Optional)', lookup: 'hubs' },
+      { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
+      { name: 'lat', label: 'Latitude', type: 'number', geo: true },
+      { name: 'lng', label: 'Longitude', type: 'number', geo: true },
     ],
     pk: 'id',
   },
@@ -230,16 +254,22 @@ export const MASTER_SCHEMAS = {
     columns: [
       { title: 'Drop Code', dataIndex: 'drop_code', key: 'drop_code', render: (v) => <Tag color="geekblue">{v}</Tag> },
       { title: 'Name', dataIndex: 'drop_name', key: 'drop_name', render: (v) => <strong>{v}</strong> },
-      { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
+      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code' },
+      { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Type', dataIndex: 'drop_type', key: 'drop_type' },
+      { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'drop_code', label: 'Drop Point Code', required: true },
+      { name: 'drop_code', label: 'Drop Point Code', required: true, generate: 'drop_code', useBranch: true },
       { name: 'drop_name', label: 'Drop Point Name', required: true },
-      { name: 'branch_code', label: 'Branch Code', required: true },
-      { name: 'hub_code', label: 'Hub Code', required: true },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL', lookup: 'delivery-points' },
+      { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       { name: 'drop_type', label: 'Type', placeholder: 'STATION, PARTNER, or LOCKER' },
+      { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
+      { name: 'lat', label: 'Latitude', type: 'number', geo: true },
+      { name: 'lng', label: 'Longitude', type: 'number', geo: true },
     ],
     pk: 'id',
   },
@@ -260,9 +290,9 @@ export const MASTER_SCHEMAS = {
       },
     ],
     fields: [
-      { name: 'area_code', label: 'Area Code', required: true, placeholder: 'e.g. KK-CBD' },
+      { name: 'area_code', label: 'Area Code', required: true, placeholder: 'e.g. KK-CBD', generate: 'coverage' },
       { name: 'area_name', label: 'Area Name', required: true, placeholder: 'e.g. Kota Kinabalu CBD' },
-      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL', lookup: 'delivery-points' },
       {
         name: 'owner_type',
         label: 'Owner Type',
@@ -297,11 +327,14 @@ export const MASTER_SCHEMAS = {
     fields: [
       { name: 'full_name', label: 'Full Name', required: true },
       { name: 'phone', label: 'Phone', required: true },
-      { name: 'loc_id', label: 'Branch / Location', required: true, placeholder: 'e.g. BKI' },
-      { name: 'route_cd', label: 'Assigned Route Code' },
+      { name: 'loc_id', label: 'Branch / Location / Hub', required: true, placeholder: 'e.g. BKI', lookup: 'hubs', allowCustom: true },
+      { name: 'route_cd', label: 'Assigned Route Code', lookup: 'route-codes' },
+      { name: 'home_drop_point_id', label: 'Home Drop Point ID' },
       { name: 'preferred_zones', label: 'Preferred Zones', placeholder: 'e.g. BKI, BKI-NORTH' },
       { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
       { name: 'mobile_password', label: 'Mobile Login Password', type: 'password', required: true },
+      { name: 'base_lat', label: 'Base latitude', type: 'number', geo: true },
+      { name: 'base_lng', label: 'Base longitude', type: 'number', geo: true },
     ],
     pk: 'driver_id',
   },
@@ -314,16 +347,19 @@ export const MASTER_SCHEMAS = {
       { title: 'Code', dataIndex: 'dispatcher_code', key: 'dispatcher_code', render: (v) => <Tag>{v}</Tag> },
       { title: 'Name', dataIndex: 'full_name', key: 'full_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-      { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
-      { title: 'Zone', dataIndex: 'zone_code', key: 'zone_code' },
+      { title: 'Area', dataIndex: 'area_code', key: 'area_code' },
+      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => v || r.zone_code || '—' },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'dispatcher_code', label: 'Dispatcher Code', required: true },
+      { name: 'dispatcher_code', label: 'Dispatcher Code', required: true, generate: 'dispatcher_code', useBranch: true },
       { name: 'full_name', label: 'Full Name', required: true },
-      { name: 'branch_code', label: 'Branch Code', required: true },
-      { name: 'zone_code', label: 'Zone Code' },
+      { name: 'area_code', label: 'Assigned Area Code', lookup: 'areas' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', lookup: 'delivery-points' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
+      { name: 'zone_code', label: 'Zone Code (legacy)', lookup: 'delivery-points', allowCustom: true },
       { name: 'phone', label: 'Phone' },
+      { name: 'email', label: 'Email' },
     ],
     pk: 'id',
   },
@@ -339,7 +375,7 @@ export const MASTER_SCHEMAS = {
       { title: 'API Integration', dataIndex: 'has_api_key', key: 'has_api_key', render: () => <Tag color="green">Active</Tag> },
     ],
     fields: [
-      { name: 'partner_code', label: 'Partner Code', required: true, placeholder: 'e.g. JNT, DHL' },
+      { name: 'partner_code', label: 'Partner Code', required: true, placeholder: 'e.g. JNT, DHL', generate: 'partner_code' },
       { name: 'partner_name', label: 'Partner Name', required: true },
       { name: 'phone', label: 'Phone' },
       { name: 'contact_person', label: 'Contact Person' },
@@ -356,13 +392,17 @@ export const MASTER_SCHEMAS = {
       { title: 'Name', dataIndex: 'delivery_point_name', key: 'delivery_point_name', render: (v, r) => <strong>{v || r.zone_name}</strong> },
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
+      { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, generate: 'delivery_point_code', useBranch: true },
       { name: 'delivery_point_name', label: 'Name', required: true },
-      { name: 'hub_code', label: 'Hub Code', required: true },
-      { name: 'branch_code', label: 'Branch Code' },
+      { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
+      { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
+      { name: 'lat', label: 'Latitude', type: 'number', geo: true },
+      { name: 'lng', label: 'Longitude', type: 'number', geo: true },
     ],
     pk: 'id',
   },
@@ -376,14 +416,25 @@ export const MASTER_SCHEMAS = {
       { title: 'Area Name', dataIndex: 'area_name', key: 'area_name', render: (v) => <strong>{v}</strong> },
       { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code' },
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
+      { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'area_code', label: 'Area Code', required: true },
+      { name: 'area_code', label: 'Area Code', required: true, generate: 'area_code', useBranch: true },
       { name: 'area_name', label: 'Area Name', required: true },
-      { name: 'delivery_point_code', label: 'Parent Delivery Point', required: true },
-      { name: 'hub_code', label: 'Hub Code' },
-      { name: 'branch_code', label: 'Branch Code' },
+      { name: 'delivery_point_code', label: 'Parent Delivery Point', required: true, lookup: 'delivery-points' },
+      { name: 'hub_code', label: 'Hub Code', lookup: 'hubs' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
+      {
+        name: 'match_keywords',
+        label: 'Address Match Keywords',
+        type: 'textarea',
+        placeholder: 'Comma-separated keywords for last-mile address matching',
+      },
+      { name: 'address_line1', label: 'Area Address / Landmark', type: 'textarea' },
+      { name: 'notes', label: 'Notes', type: 'textarea' },
+      { name: 'lat', label: 'Centroid latitude', type: 'number', geo: true },
+      { name: 'lng', label: 'Centroid longitude', type: 'number', geo: true },
     ],
     pk: 'id',
   },
@@ -395,14 +446,15 @@ export const MASTER_SCHEMAS = {
     columns: [
       { title: 'Route Code', dataIndex: 'route_cd', key: 'route_cd', render: (v) => <Tag color="gold">{v}</Tag> },
       { title: 'Name', dataIndex: 'route_name', key: 'route_name', render: (v) => <strong>{v}</strong> },
+      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => v || r.zone_code || '—' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
-      { title: 'Zone', dataIndex: 'zone_code', key: 'zone_code' },
     ],
     fields: [
-      { name: 'route_cd', label: 'Route Code', required: true },
+      { name: 'route_cd', label: 'Route Code', required: true, generate: 'route_cd', useBranch: true },
       { name: 'route_name', label: 'Route Name', required: true },
-      { name: 'branch_code', label: 'Branch Code', required: true },
-      { name: 'zone_code', label: 'Zone Code' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', lookup: 'delivery-points' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
+      { name: 'zone_code', label: 'Zone Code (legacy)', lookup: 'delivery-points', allowCustom: true },
     ],
     pk: 'id',
   },
@@ -419,9 +471,9 @@ export const MASTER_SCHEMAS = {
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'rule_code', label: 'Rule Code', required: true },
-      { name: 'origin_zone', label: 'Origin Zone', required: true },
-      { name: 'destination_zone', label: 'Destination Zone', required: true },
+      { name: 'rule_code', label: 'Rule Code', required: true, generate: 'rule_code' },
+      { name: 'origin_zone', label: 'Origin Delivery Point', required: true, lookup: 'delivery-points' },
+      { name: 'destination_zone', label: 'Destination Delivery Point', required: true, lookup: 'delivery-points' },
       { name: 'priority', label: 'Priority', type: 'number' },
     ],
     pk: 'id',
@@ -439,14 +491,14 @@ export const MASTER_SCHEMAS = {
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
     ],
     fields: [
-      { name: 'cust_ac_no', label: 'Account Number', required: true },
+      { name: 'cust_ac_no', label: 'Account Number', required: true, generate: 'cust_ac_no' },
       { name: 'cust_name', label: 'Customer Name', required: true },
       { name: 'cust_tel', label: 'Phone' },
       { name: 'cust_email', label: 'Email' },
       { name: 'cust_addr1', label: 'Address line 1', type: 'textarea' },
       { name: 'cust_postcode', label: 'Postcode' },
       { name: 'cust_state', label: 'State / City' },
-      { name: 'branch_code', label: 'Branch Code' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
     ],
     pk: 'id',
   },
@@ -463,10 +515,10 @@ export const MASTER_SCHEMAS = {
       { title: 'Commission %', dataIndex: 'commission_rate', key: 'commission_rate', render: (v) => `${v || 5}%` },
     ],
     fields: [
-      { name: 'agent_cd', label: 'Agent Code', required: true },
+      { name: 'agent_cd', label: 'Agent Code', required: true, generate: 'agent_cd' },
       { name: 'agent_name', label: 'Agent Name', required: true },
       { name: 'phone', label: 'Phone' },
-      { name: 'branch_code', label: 'Branch Code' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       { name: 'commission_rate', label: 'Commission Rate (%)', type: 'number' },
     ],
     pk: 'id',
@@ -486,7 +538,7 @@ export const MASTER_SCHEMAS = {
     fields: [
       { name: 'username', label: 'Username', required: true },
       { name: 'name', label: 'Full Name', required: true },
-      { name: 'branch_code', label: 'Branch Code' },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       {
         name: 'app_role',
         label: 'Role',
@@ -529,6 +581,11 @@ export default function MasterAdminPage() {
 
   const currentResource = pathResource || 'branches'
   const schema = MASTER_SCHEMAS[currentResource] || MASTER_SCHEMAS.branches
+  const geoPair = GEO_PAIRS[currentResource] || null
+  const formFields = useMemo(
+    () => (schema.fields || []).filter((f) => !f.geo),
+    [schema],
+  )
 
   // Find active category
   const activeCategory = useMemo(() => {
@@ -544,8 +601,12 @@ export default function MasterAdminPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [routeCodes, setRouteCodes] = useState([])
+  const [backfilling, setBackfilling] = useState(false)
   const [form] = Form.useForm()
+  const watchedLat = Form.useWatch(geoPair?.lat, form)
+  const watchedLng = Form.useWatch(geoPair?.lng, form)
+  const watchedBranchCode = Form.useWatch('branch_code', form)
+  const addressHint = Form.useWatch('address_line1', form) || ''
 
   // API Key Rotation State (Strictly required for 3PL)
   const [rotateModal, setRotateModal] = useState({ open: false, partner: null })
@@ -576,19 +637,9 @@ export default function MasterAdminPage() {
     }
   }
 
-  async function loadRouteCodes() {
-    try {
-      const res = await listMaster('route-codes')
-      setRouteCodes(res?.data || res?.rows || (Array.isArray(res) ? res : []))
-    } catch {
-      setRouteCodes([])
-    }
-  }
-
   useEffect(() => {
     setSearch('')
     loadData()
-    if (currentResource === 'drivers') loadRouteCodes()
   }, [currentResource])
 
   function openCreate() {
@@ -644,6 +695,31 @@ export default function MasterAdminPage() {
     } catch (err) {
       message.error(apiError(err))
     }
+  }
+
+  async function handleGeocodeBackfill() {
+    if (!canManageMaster) {
+      message.warning('Access Restricted: Geocode backfill is restricted to Admin and Station PICs.')
+      return
+    }
+    const apiResource = currentResource === 'zones' ? 'delivery-points' : currentResource
+    Modal.confirm({
+      title: 'Backfill missing coordinates?',
+      content: `Geocode up to 25 ${schema.title.toLowerCase()} records that have an address but no lat/lng.`,
+      okText: 'Backfill',
+      onOk: async () => {
+        setBackfilling(true)
+        try {
+          const data = await geocodeBackfill(apiResource, 25)
+          message.success(data?.message || `Updated ${data?.updated || 0} record(s)`)
+          loadData()
+        } catch (err) {
+          message.error(apiError(err))
+        } finally {
+          setBackfilling(false)
+        }
+      },
+    })
   }
 
   // Partner API Key Rotate handler
@@ -1017,6 +1093,17 @@ export default function MasterAdminPage() {
             icon: <ReloadOutlined />,
             onClick: loadData,
           },
+          ...(canManageMaster && GEO_BACKFILL_RESOURCES.includes(currentResource)
+            ? [
+                {
+                  key: 'backfill',
+                  label: 'Backfill coordinates',
+                  icon: <EnvironmentOutlined />,
+                  loading: backfilling,
+                  onClick: handleGeocodeBackfill,
+                },
+              ]
+            : []),
         ]}
         onNewClick={canManageMaster ? openCreate : undefined}
         newButtonText={canManageMaster ? `New ${schema.singular}` : undefined}
@@ -1038,7 +1125,8 @@ export default function MasterAdminPage() {
         }
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={460}
+        width={geoPair ? 640 : 460}
+        destroyOnClose
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
@@ -1065,40 +1153,76 @@ export default function MasterAdminPage() {
           />
         )}
         <Form form={form} layout="vertical" onFinish={handleSubmit} disabled={!canManageMaster}>
-          {schema.fields.map((f) => (
+          {formFields.map((f) => (
             <Form.Item
               key={f.name}
               label={f.label}
               name={f.name}
               rules={f.required ? [{ required: true, message: `${f.label} is required` }] : []}
+              extra={
+                f.generate && !editingItem
+                  ? 'Search existing or click Gen to create a system code'
+                  : f.lookup
+                    ? 'Search from master data — or open Manage to create one'
+                    : undefined
+              }
             >
               {f.type === 'textarea' ? (
                 <Input.TextArea rows={3} placeholder={f.placeholder} />
               ) : f.type === 'select' ? (
                 <Select placeholder={f.placeholder} options={f.options} />
-              ) : currentResource === 'drivers' && f.name === 'route_cd' ? (
-                <Select
-                  placeholder="Select an approved route code"
-                  showSearch
-                  allowClear
-                  optionFilterProp="label"
-                  options={[
-                    ...routeCodes,
-                    ...(editingItem?.route_cd && !routeCodes.some((route) => route.route_cd === editingItem.route_cd)
-                      ? [{ route_cd: editingItem.route_cd, route_name: 'Legacy assignment' }]
-                      : []),
-                  ].map((route) => ({
-                    value: route.route_cd,
-                    label: `${route.route_cd}${route.route_name ? ` — ${route.route_name}` : ''}`,
-                  }))}
+              ) : f.lookup || f.generate ? (
+                <CodeLookupField
+                  kind={f.lookup || null}
+                  generateKind={f.generate || null}
+                  allowCustom={Boolean(f.allowCustom || (!f.lookup && f.generate))}
+                  allowClear={!f.required}
+                  showGenerate={Boolean(f.generate)}
+                  showManageLink={Boolean(f.lookup || f.generate)}
+                  branchCode={f.useBranch ? watchedBranchCode : undefined}
+                  placeholder={f.placeholder || `Search ${f.label.toLowerCase()}…`}
                 />
               ) : f.type === 'password' ? (
                 <Input.Password placeholder={f.placeholder} />
+              ) : f.type === 'number' ? (
+                <Input type="number" step="any" placeholder={f.placeholder} />
               ) : (
                 <Input placeholder={f.placeholder} />
               )}
             </Form.Item>
           ))}
+
+          {geoPair ? (
+            <>
+              <Form.Item name={geoPair.lat} hidden>
+                <Input />
+              </Form.Item>
+              <Form.Item name={geoPair.lng} hidden>
+                <Input />
+              </Form.Item>
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ fontSize: 13 }}>{geoPair.label}</Text>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  Search a place or click the map to pin. Drag to fine-tune. Saving with an address and no pin still auto-geocodes when possible.
+                </div>
+              </div>
+              <GeoLocationPicker
+                key={`${currentResource}-${editingItem?.[schema.pk] || 'new'}`}
+                label={geoPair.label}
+                lat={watchedLat}
+                lng={watchedLng}
+                addressHint={String(addressHint || '').trim()}
+                height={280}
+                onChange={({ lat, lng }) => {
+                  form.setFieldsValue({
+                    [geoPair.lat]: lat ?? '',
+                    [geoPair.lng]: lng ?? '',
+                  })
+                }}
+                onError={(msg) => message.error(msg)}
+              />
+            </>
+          ) : null}
         </Form>
       </Drawer>
 

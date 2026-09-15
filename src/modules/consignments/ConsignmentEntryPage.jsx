@@ -46,6 +46,16 @@ import {
 const { Title, Text } = Typography
 
 const BRAND = '#1B8A5A'
+const MUTED = '#475569'
+const LABEL = '#1E293B'
+
+function FieldHint({ children }) {
+  return (
+    <div style={{ marginTop: 4, fontSize: 12.5, lineHeight: 1.45, color: MUTED }}>
+      {children}
+    </div>
+  )
+}
 
 function money(x) {
   if (x == null || x === '') return '—'
@@ -662,9 +672,27 @@ export default function ConsignmentEntryPage() {
 
   const cardHead = { background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }
   const cardStyle = { borderRadius: 8, border: '1px solid #E2E8F0', marginBottom: 16 }
+  const formItemProps = { style: { marginBottom: 0 } }
 
   return (
-    <div style={{ maxWidth: 1280, margin: '0 auto', paddingBottom: 48 }}>
+    <div className="cn-entry" style={{ maxWidth: 1280, margin: '0 auto', paddingBottom: 48 }}>
+      <style>{`
+        .cn-entry .ant-form-item-label > label {
+          color: ${LABEL} !important;
+          font-weight: 600 !important;
+          font-size: 13px !important;
+        }
+        .cn-entry .ant-select-selection-item,
+        .cn-entry .ant-picker-input > input {
+          font-size: 13px;
+        }
+        .cn-entry .ant-radio-button-wrapper {
+          white-space: normal;
+          height: auto;
+          line-height: 1.3;
+          padding: 8px 12px;
+        }
+      `}</style>
       <div style={{ marginBottom: 16 }}>
         <Breadcrumb
           items={[
@@ -691,7 +719,7 @@ export default function ConsignmentEntryPage() {
               <Title level={4} style={{ margin: 0, color: '#0F172A' }}>
                 {isExisting && form.cn_no ? `Edit ${form.cn_no}` : 'New consignment'}
               </Title>
-              <Text type="secondary" style={{ fontSize: 13 }}>
+              <Text style={{ fontSize: 13.5, color: MUTED }}>
                 Fill the steps below. Delivery points set hubs automatically.
               </Text>
             </div>
@@ -718,13 +746,13 @@ export default function ConsignmentEntryPage() {
           <Card
             size="small"
             title={<Text strong>1 · Basics</Text>}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>CN, customer, service, parcel</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>CN, customer, service, parcel</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Row gutter={[16, 12]}>
-              <Col xs={24} md={14}>
-                <Form.Item label="Consignment number" required style={{ marginBottom: 8 }}>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} xl={14}>
+                <Form.Item label="Consignment number" required {...formItemProps}>
                   <Space.Compact style={{ width: '100%' }}>
                     <Input
                       value={form.cn_no}
@@ -748,12 +776,10 @@ export default function ConsignmentEntryPage() {
                     </Button>
                   </Space.Compact>
                 </Form.Item>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Generate for a new CN, or type an existing number and Load to edit.
-                </Text>
+                <FieldHint>Generate for a new CN, or type an existing number and Load to edit.</FieldHint>
               </Col>
-              <Col xs={24} md={10}>
-                <Form.Item label="Customer account" required style={{ marginBottom: 0 }}>
+              <Col xs={24} xl={10}>
+                <Form.Item label="Customer account" required {...formItemProps}>
                   <CustomerPicker
                     value={form.cust_ac_no}
                     onSelect={(c) => {
@@ -766,8 +792,9 @@ export default function ConsignmentEntryPage() {
                   />
                 </Form.Item>
               </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Service" style={{ marginBottom: 0 }}>
+
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Service type" {...formItemProps}>
                   <Select
                     value={form.srv_typ}
                     onChange={(v) => set('srv_typ', v)}
@@ -775,12 +802,15 @@ export default function ConsignmentEntryPage() {
                       value: s.code,
                       label: s.cd_desc || s.label || s.code,
                     }))}
+                    optionLabelProp="label"
+                    popupMatchSelectWidth={false}
+                    dropdownStyle={{ minWidth: 220 }}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
               </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Package" style={{ marginBottom: 0 }}>
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Package type" {...formItemProps}>
                   <Select
                     value={form.pkg_typ}
                     onChange={(v) => set('pkg_typ', v)}
@@ -792,41 +822,8 @@ export default function ConsignmentEntryPage() {
                   />
                 </Form.Item>
               </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Pickup date" style={{ marginBottom: 0 }}>
-                  <DatePicker
-                    style={{ width: '100%' }}
-                    format="YYYY-MM-DD"
-                    allowClear={false}
-                    value={form.pu_dt ? dayjs(form.pu_dt) : null}
-                    onChange={(d) => set('pu_dt', d ? d.format('YYYY-MM-DD') : '')}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Weight (kg)" required style={{ marginBottom: 0 }}>
-                  <InputNumber
-                    min={0.1}
-                    step={0.1}
-                    style={{ width: '100%' }}
-                    value={form.cn_wt === '' ? null : Number(form.cn_wt)}
-                    onChange={(v) => set('cn_wt', v == null ? '' : String(v))}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Pieces" required style={{ marginBottom: 0 }}>
-                  <InputNumber
-                    min={1}
-                    precision={0}
-                    style={{ width: '100%' }}
-                    value={form.cn_pcs === '' ? null : Number(form.cn_pcs)}
-                    onChange={(v) => set('cn_pcs', v == null ? '1' : String(v))}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item label="Payment" style={{ marginBottom: 0 }}>
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Payment mode" {...formItemProps}>
                   <Select
                     value={form.pay_mode || 'PPD'}
                     onChange={(mode) => {
@@ -841,13 +838,51 @@ export default function ConsignmentEntryPage() {
                       { value: 'PPD', label: 'Prepaid / Account' },
                       { value: 'COD', label: 'Cash on Delivery' },
                     ]}
+                    optionLabelProp="label"
+                    popupMatchSelectWidth={false}
+                    dropdownStyle={{ minWidth: 220 }}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
               </Col>
+
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Pickup date" {...formItemProps}>
+                  <DatePicker
+                    style={{ width: '100%' }}
+                    format="YYYY-MM-DD"
+                    allowClear={false}
+                    value={form.pu_dt ? dayjs(form.pu_dt) : null}
+                    onChange={(d) => set('pu_dt', d ? d.format('YYYY-MM-DD') : '')}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={12} lg={8}>
+                <Form.Item label="Weight (kg)" required {...formItemProps}>
+                  <InputNumber
+                    min={0.1}
+                    step={0.1}
+                    style={{ width: '100%' }}
+                    value={form.cn_wt === '' ? null : Number(form.cn_wt)}
+                    onChange={(v) => set('cn_wt', v == null ? '' : String(v))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={12} lg={8}>
+                <Form.Item label="Pieces" required {...formItemProps}>
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    value={form.cn_pcs === '' ? null : Number(form.cn_pcs)}
+                    onChange={(v) => set('cn_pcs', v == null ? '1' : String(v))}
+                  />
+                </Form.Item>
+              </Col>
+
               {form.pay_mode === 'COD' ? (
-                <Col xs={12} sm={8} md={6}>
-                  <Form.Item label="COD collect (RM)" style={{ marginBottom: 0 }}>
+                <Col xs={24} sm={12} lg={8}>
+                  <Form.Item label="COD collect (RM)" {...formItemProps}>
                     <InputNumber
                       min={0}
                       step={0.01}
@@ -858,6 +893,7 @@ export default function ConsignmentEntryPage() {
                       onChange={(v) => set('cash_amt', v == null ? '' : String(v))}
                     />
                   </Form.Item>
+                  <FieldHint>Leave blank to use the quoted freight total.</FieldHint>
                 </Col>
               ) : null}
             </Row>
@@ -867,11 +903,11 @@ export default function ConsignmentEntryPage() {
           <Card
             size="small"
             title={<Text strong>2 · Route</Text>}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>Pick delivery points — hubs fill in</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Pick delivery points — hubs fill in</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Row gutter={[16, 12]}>
+            <Row gutter={[16, 16]}>
               <Col xs={24} md={12}>
                 <Form.Item label="Origin delivery point" required style={{ marginBottom: 4 }}>
                   <Select
@@ -881,12 +917,14 @@ export default function ConsignmentEntryPage() {
                     value={form.origin_zone || undefined}
                     options={zoneSelectOptions}
                     onChange={pickOriginDp}
+                    popupMatchSelectWidth={false}
+                    dropdownStyle={{ minWidth: 320 }}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Hub: <Text strong>{form.cn_origin || '—'}</Text>
-                </Text>
+                <FieldHint>
+                  Hub: <Text strong style={{ color: LABEL }}>{form.cn_origin || '—'}</Text>
+                </FieldHint>
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item label="Destination delivery point" required style={{ marginBottom: 4 }}>
@@ -897,12 +935,14 @@ export default function ConsignmentEntryPage() {
                     value={form.destination_zone || undefined}
                     options={zoneSelectOptions}
                     onChange={pickDestDp}
+                    popupMatchSelectWidth={false}
+                    dropdownStyle={{ minWidth: 320 }}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Hub: <Text strong>{form.cn_dstn || '—'}</Text>
-                </Text>
+                <FieldHint>
+                  Hub: <Text strong style={{ color: LABEL }}>{form.cn_dstn || '—'}</Text>
+                </FieldHint>
               </Col>
               <Col span={24}>
                 <div
@@ -910,16 +950,26 @@ export default function ConsignmentEntryPage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
-                    padding: '10px 14px',
+                    padding: '12px 14px',
                     background: '#F8FAFC',
                     borderRadius: 6,
                     border: '1px solid #E2E8F0',
+                    flexWrap: 'wrap',
+                    minHeight: 44,
                   }}
                 >
-                  <EnvironmentOutlined style={{ color: BRAND }} />
-                  <Text>{originLabel}</Text>
-                  <Text type="secondary">→</Text>
-                  <Text>{destLabel}</Text>
+                  <EnvironmentOutlined style={{ color: BRAND, fontSize: 16 }} />
+                  {form.origin_zone || form.destination_zone ? (
+                    <>
+                      <Text strong style={{ color: LABEL }}>{originLabel}</Text>
+                      <Text style={{ color: MUTED }}>→</Text>
+                      <Text strong style={{ color: LABEL }}>{destLabel}</Text>
+                    </>
+                  ) : (
+                    <Text style={{ color: MUTED }}>
+                      Select origin and destination delivery points to preview the route.
+                    </Text>
+                  )}
                 </div>
               </Col>
             </Row>
@@ -929,11 +979,11 @@ export default function ConsignmentEntryPage() {
           <Card
             size="small"
             title={<Text strong>3 · First mile</Text>}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>How the parcel enters the network</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>How the parcel enters the network</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Form.Item style={{ marginBottom: 12 }}>
+            <Form.Item style={{ marginBottom: 16 }}>
               <Radio.Group
                 buttonStyle="solid"
                 value={form.origin_service || 'DROP_COUNTER'}
@@ -970,12 +1020,12 @@ export default function ConsignmentEntryPage() {
                         label: `${d.drop_code} — ${d.drop_name}${d.delivery_point_code ? ` · ${d.delivery_point_code}` : ''}`,
                       }))}
                       onChange={(id) => (id ? pickOriginDrop(id) : set('origin_drop_point_id', ''))}
+                      popupMatchSelectWidth={false}
+                      dropdownStyle={{ minWidth: 280 }}
                       style={{ width: '100%' }}
                     />
                   </Form.Item>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Choosing a drop point also sets the origin delivery point.
-                  </Text>
+                  <FieldHint>Choosing a drop point also sets the origin delivery point.</FieldHint>
                 </Col>
               ) : (
                 <Col span={24}>
@@ -1005,11 +1055,11 @@ export default function ConsignmentEntryPage() {
           <Card
             size="small"
             title={<Text strong>4 · Last mile</Text>}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>How the receiver gets the parcel</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>How the receiver gets the parcel</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Form.Item style={{ marginBottom: 12 }}>
+            <Form.Item style={{ marginBottom: 16 }}>
               <Radio.Group
                 buttonStyle="solid"
                 value={form.destination_service || 'DOORSTEP'}
@@ -1058,6 +1108,8 @@ export default function ConsignmentEntryPage() {
                         label: `${d.drop_code} — ${d.drop_name}`,
                       }))}
                       onChange={(id) => set('destination_drop_point_id', id || '')}
+                      popupMatchSelectWidth={false}
+                      dropdownStyle={{ minWidth: 280 }}
                       style={{ width: '100%' }}
                     />
                   </Form.Item>
@@ -1077,12 +1129,12 @@ export default function ConsignmentEntryPage() {
                           label: `${a.area_code} — ${a.area_name}`,
                         }))}
                         onChange={(code) => set('destination_area_code', code || '')}
+                        popupMatchSelectWidth={false}
+                        dropdownStyle={{ minWidth: 280 }}
                         style={{ width: '100%' }}
                       />
                     </Form.Item>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Optional — assigns the area’s dispatcher for delivery.
-                    </Text>
+                    <FieldHint>Optional — assigns the area’s dispatcher for delivery.</FieldHint>
                   </Col>
                   <Col span={24}>
                     <Form.Item label="Delivery address" required style={{ marginBottom: 0 }}>

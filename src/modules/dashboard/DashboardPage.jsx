@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Card, Col, Row, Space, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Typography, message } from 'antd'
 import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
   CarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -14,113 +12,96 @@ import {
   TeamOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
-import { getOpsDashboard, listConsignments } from '../../api/client'
+import { apiError, getOpsDashboard, listConsignments } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
 
 const { Title, Text } = Typography
 
-/**
- * Full-width thin SVG sparkline strip anchored along the bottom edge of the KPI card
- */
-function BottomSparkline({
-  data = [12, 18, 15, 22, 28, 25, 32],
-  color = '#1B8A5A',
-  height = 28,
-  animKey = 0,
-  delay = 0,
-}) {
-  if (!data || data.length < 2) return null
-  const min = Math.min(...data)
-  const max = Math.max(...data)
-  const range = max - min || 1
+const EMPTY_STATS = {
+  total_cn: 0,
+  pending_cn: 0,
+  delivered_today: 0,
+  manifested_today: 0,
+  unpaid_invoices: 0,
+  total_revenue: 0,
+  pending_staff: 0,
+  pending_cod: 0,
+  pending_commissions: 0,
+}
 
-  const width = 100 // viewBox coordinate width
-  const padY = 3
-  const effectiveH = height - padY * 2
-
-  const points = data.map((val, idx) => {
-    const x = (idx / (data.length - 1)) * width
-    const y = height - padY - ((val - min) / range) * effectiveH
-    return { x, y }
-  })
-
-  const pathD = points.reduce(
-    (acc, p, i) => (i === 0 ? `M ${p.x.toFixed(1)},${p.y.toFixed(1)}` : `${acc} L ${p.x.toFixed(1)},${p.y.toFixed(1)}`),
-    ''
-  )
-  const areaD = `${pathD} L 100,${height} L 0,${height} Z`
-  const gradId = `spark-bottom-${color.replace('#', '')}-${animKey}`
-
+function KpiCard({ icon, label, value, hint, color, onClick }) {
   return (
-    <div style={{ margin: '8px -16px -1px -16px', lineHeight: 0 }}>
-      <svg
-        key={animKey}
-        viewBox={`0 0 100 ${height}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: height, display: 'block', overflow: 'hidden' }}
-      >
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-        <path
-          d={areaD}
-          fill={`url(#${gradId})`}
-          className="sparkline-area-animated"
-          style={{ animationDelay: `${delay}ms` }}
-        />
-        <path
-          d={pathD}
-          fill="none"
-          stroke={color}
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          pathLength="100"
-          className="sparkline-path-animated"
-          style={{ animationDelay: `${delay}ms` }}
-        />
-      </svg>
-    </div>
+    <Card
+      size="small"
+      hoverable={Boolean(onClick)}
+      onClick={onClick}
+      styles={{ body: { padding: '14px 16px' } }}
+      style={{ borderRadius: 8, borderColor: '#E5E7EB', height: '100%' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        {icon}
+        <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
+      {hint ? (
+        <div style={{ marginTop: 6, fontSize: 11, color: '#64748B' }}>{hint}</div>
+      ) : null}
+    </Card>
   )
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, can, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const [stats, setStats] = useState({
-    total_cn: 0,
-    pending_cn: 0,
-    delivered_today: 0,
-    manifested_today: 0,
-    unpaid_invoices: 0,
-    total_revenue: 0,
-    pending_staff: 0,
-    pending_cod: 0,
-  })
+  const [stats, setStats] = useState(EMPTY_STATS)
   const [recentCns, setRecentCns] = useState([])
   const [loading, setLoading] = useState(true)
-  const [animKey, setAnimKey] = useState(0)
+  const [loadError, setLoadError] = useState('')
+  const [partialError, setPartialError] = useState('')
 
   async function loadData() {
     setLoading(true)
-    setAnimKey((prev) => prev + 1)
+    setLoadError('')
+    setPartialError('')
+    const errors = []
+
+    let dashRes = null
+    let cnRes = null
+
     try {
-      const [dashRes, cnRes] = await Promise.all([
-        getOpsDashboard().catch(() => ({ stats: {} })),
-        listConsignments({ page: 1, per_page: 8 }).catch(() => ({ data: [] })),
-      ])
-      if (dashRes?.stats) setStats(dashRes.stats)
-      else if (dashRes?.data) setStats(dashRes.data)
+      dashRes = await getOpsDashboard()
+    } catch (err) {
+      errors.push(`Dashboard KPIs: ${apiError(err)}`)
+      setStats(EMPTY_STATS)
+    }
+
+    try {
+      cnRes = await listConsignments({ page: 1, per_page: 8 })
+    } catch (err) {
+      errors.push(`Recent shipments: ${apiError(err)}`)
+      setRecentCns([])
+    }
+
+    if (dashRes) {
+      const next = dashRes.stats || dashRes.data || {}
+      setStats({ ...EMPTY_STATS, ...next })
+    }
+    if (cnRes) {
       const records = cnRes?.data || cnRes?.rows || []
       setRecentCns(records.slice(0, 8))
-    } finally {
-      setLoading(false)
     }
+
+    if (errors.length === 2) {
+      setLoadError(errors.join(' · '))
+      message.error('Dashboard failed to load from the server')
+    } else if (errors.length === 1) {
+      setPartialError(errors[0])
+      message.warning(errors[0])
+    }
+
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -173,7 +154,7 @@ export default function DashboardPage() {
       key: 'tot_cn_amt',
       align: 'right',
       render: (val) =>
-        val ? (
+        val != null && val !== '' ? (
           <span style={{ fontWeight: 500, fontFamily: 'JetBrains Mono, monospace' }}>
             RM {Number(val).toFixed(2)}
           </span>
@@ -183,9 +164,13 @@ export default function DashboardPage() {
     },
   ]
 
+  const revenue = Number(stats.total_revenue || 0).toLocaleString('en-MY', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Top Banner */}
       <div
         style={{
           display: 'flex',
@@ -213,203 +198,115 @@ export default function DashboardPage() {
             type="primary"
             icon={<PlusOutlined />}
             style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
-            onClick={() => navigate('/ops/consignments')}
+            onClick={() => navigate('/ops/consignments/new')}
           >
-            Consignments
+            New consignment
           </Button>
         </Space>
       </div>
 
-      {/* Metric Cards Grid: All 8 KPIs per PRD 6.3 */}
+      {loadError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="Could not load dashboard data"
+          description={loadError}
+          action={
+            <Button size="small" onClick={loadData}>
+              Retry
+            </Button>
+          }
+        />
+      ) : null}
+
+      {partialError && !loadError ? (
+        <Alert type="warning" showIcon closable message={partialError} onClose={() => setPartialError('')} />
+      ) : null}
+
       <Row gutter={[12, 12]}>
-        {/* 1. Total Consignments */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card kpi-card-total"
-            hoverable
+          <KpiCard
+            icon={<InboxOutlined style={{ color: '#0F1B2D', fontSize: 15 }} />}
+            label="Created Today"
+            value={Number(stats.total_cn || 0)}
+            hint="Consignments booked today (DB)"
+            color="#0F1B2D"
             onClick={() => navigate('/ops/consignments')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <InboxOutlined style={{ color: '#0F1B2D', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Total Consignments</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#0F1B2D', lineHeight: 1.1 }}>
-              {stats.total_cn || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              Active in system
-            </div>
-            <BottomSparkline data={[14, 22, 19, 28, 24, 31, stats.total_cn || 35]} color="#0F1B2D" animKey={animKey} delay={0} />
-          </Card>
+          />
         </Col>
-
-        {/* 2. Pending Pickups */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card kpi-card-pending"
-            hoverable
+          <KpiCard
+            icon={<ClockCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />}
+            label="Pending / On Hold"
+            value={Number(stats.pending_cn || 0)}
+            hint="Status BDE / SHL awaiting progress"
+            color="#D97706"
             onClick={() => navigate('/ops/pickups')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <ClockCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Pending Pickup (CN)</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#D97706', lineHeight: 1.1 }}>
-              {stats.pending_cn || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              Awaiting courier pickup
-            </div>
-            <BottomSparkline data={[8, 12, 10, 15, 11, 9, stats.pending_cn || 6]} color="#D97706" animKey={animKey} delay={60} />
-          </Card>
+          />
         </Col>
-
-        {/* 3. Delivered Today */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card kpi-card-delivered"
-            hoverable
+          <KpiCard
+            icon={<CheckCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />}
+            label="Delivered Today"
+            value={Number(stats.delivered_today || 0)}
+            hint="POD confirmed today"
+            color="#1B8A5A"
             onClick={() => navigate('/ops/consignments')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <CheckCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Delivered Today (POD)</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#1B8A5A', lineHeight: 1.1 }}>
-              {stats.delivered_today || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              Confirmed deliveries
-            </div>
-            <BottomSparkline data={[18, 25, 22, 30, 27, 34, stats.delivered_today || 29]} color="#1B8A5A" animKey={animKey} delay={120} />
-          </Card>
+          />
         </Col>
-
-        {/* 4. Manifested Today */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card"
-            hoverable
+          <KpiCard
+            icon={<CarOutlined style={{ color: '#0891B2', fontSize: 15 }} />}
+            label="Manifested Today"
+            value={Number(stats.manifested_today || 0)}
+            hint="Linehaul bags / manifests today"
+            color="#0891B2"
             onClick={() => navigate('/ops/manifests')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <CarOutlined style={{ color: '#0891B2', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Manifested Today</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#0891B2', lineHeight: 1.1 }}>
-              {stats.manifested_today || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              En route via linehaul
-            </div>
-            <BottomSparkline data={[10, 14, 12, 19, 16, 22, stats.manifested_today || 18]} color="#0891B2" animKey={animKey} delay={180} />
-          </Card>
+          />
         </Col>
-
-        {/* 5. Unpaid Invoices */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card kpi-card-invoices"
-            hoverable
+          <KpiCard
+            icon={<DollarCircleOutlined style={{ color: '#1668DC', fontSize: 15 }} />}
+            label="Unpaid Invoices"
+            value={Number(stats.unpaid_invoices || 0)}
+            hint="Invoice status UPD"
+            color="#1668DC"
             onClick={() => navigate('/ops/billing/invoices')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <DollarCircleOutlined style={{ color: '#1668DC', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Unpaid Invoices</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#1668DC', lineHeight: 1.1 }}>
-              {stats.unpaid_invoices || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              Pending billing settlement
-            </div>
-            <BottomSparkline data={[15, 13, 14, 11, 10, 8, stats.unpaid_invoices || 7]} color="#1668DC" animKey={animKey} delay={240} />
-          </Card>
+          />
         </Col>
-
-        {/* 6. Total Revenue */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card"
-            hoverable
+          <KpiCard
+            icon={<DollarCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />}
+            label="YTD Revenue"
+            value={`RM ${revenue}`}
+            hint="Sum of invoices this year"
+            color="#1B8A5A"
             onClick={() => navigate('/ops/billing/invoices')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <DollarCircleOutlined style={{ color: '#1B8A5A', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Total Revenue (RM)</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#1B8A5A', lineHeight: 1.1 }}>
-              RM {Number(stats.total_revenue || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-              Gross operations revenue
-            </div>
-            <BottomSparkline data={[120, 180, 150, 220, 260, stats.total_revenue ? 240 : 100]} color="#1B8A5A" animKey={animKey} delay={300} />
-          </Card>
+          />
         </Col>
-
-        {/* 7. Pending Staff Verifications (Strictly required by PRD 6.3) */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card"
-            hoverable
+          <KpiCard
+            icon={<SafetyCertificateOutlined style={{ color: '#7C3AED', fontSize: 15 }} />}
+            label="Staff Verifications"
+            value={Number(stats.pending_staff || stats.pending_staff_verifications || 0)}
+            hint="Pending driver / dispatcher approvals →"
+            color="#7C3AED"
             onClick={() => navigate('/ops/staff')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <SafetyCertificateOutlined style={{ color: '#7C3AED', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Staff Verifications</span>
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#7C3AED', lineHeight: 1.1 }}>
-              {stats.pending_staff || stats.pending_staff_verifications || 0}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#7C3AED', fontWeight: 500 }}>
-              Review pending drivers →
-            </div>
-            <BottomSparkline data={[3, 5, 2, 6, 4, 3, stats.pending_staff || 2]} color="#7C3AED" animKey={animKey} delay={360} />
-          </Card>
+          />
         </Col>
-
-        {/* 8. Pending COD (Strictly required by PRD 6.3) */}
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            size="small"
-            className="kpi-card"
-            hoverable
+          <KpiCard
+            icon={<DollarCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />}
+            label="Pending COD"
+            value={Number(stats.pending_cod || 0)}
+            hint="COD collections awaiting settle →"
+            color="#D97706"
             onClick={() => navigate('/ops/cod')}
-            styles={{ body: { padding: '14px 16px 0 16px', overflow: 'hidden', position: 'relative' } }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <DollarCircleOutlined style={{ color: '#D97706', fontSize: 15 }} />
-              <span style={{ fontSize: 12, color: '#5B6B7C', fontWeight: 500 }}>Pending COD (RM)</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#D97706', lineHeight: 1.1 }}>
-              RM {Number(stats.pending_cod || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: '#D97706', fontWeight: 500 }}>
-              Reconcile collections →
-            </div>
-            <BottomSparkline data={[50, 80, 60, 95, 75, stats.pending_cod ? 110 : 40]} color="#D97706" animKey={animKey} delay={420} />
-          </Card>
+          />
         </Col>
       </Row>
 
-      {/* Main Split Section: Recent Activity (Table) + Quick Navigation */}
       <Row gutter={[16, 16]}>
-        {/* Left Column: Recent Shipments Shared DataTable (Prominent Focal Element) */}
         <Col xs={24} lg={16}>
           <div
             style={{
@@ -431,7 +328,7 @@ export default function DashboardPage() {
             >
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#0F1B2D' }}>Recent Shipments</div>
-                <div style={{ fontSize: 11, color: '#6B7280' }}>Real-time consignment dispatch & delivery log</div>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>Latest consignments from the database</div>
               </div>
               <Link to="/ops/consignments" style={{ color: '#1B8A5A', fontSize: 12, fontWeight: 600 }}>
                 View All Shipments →
@@ -444,12 +341,15 @@ export default function DashboardPage() {
               rowKey="cn_no"
               loading={loading}
               pagination={false}
-              locale={{ emptyText: 'No recent shipments found' }}
+              locale={{
+                emptyText: loadError
+                  ? 'Could not load shipments'
+                  : 'No recent shipments found',
+              }}
             />
           </div>
         </Col>
 
-        {/* Right Column: Unified Muted Quick Operations & SOP Legend */}
         <Col xs={24} lg={8}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Card
@@ -458,97 +358,152 @@ export default function DashboardPage() {
               style={{ borderRadius: 8, borderColor: '#E5E7EB' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Pickups */}
-                <div
-                  className="quick-action-row"
-                  onClick={() => navigate('/ops/pickups')}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div className="icon-chip-muted">
-                      <CarOutlined />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Pickup Queue & Auto-Assign
+                {[
+                  {
+                    key: 'new-cn',
+                    show: can('consignments') || isAdmin,
+                    path: '/ops/consignments/new',
+                    icon: <PlusOutlined />,
+                    title: 'New Consignment',
+                    desc: 'Create or update a booking',
+                  },
+                  {
+                    key: 'track',
+                    show: can('consignments') || isAdmin,
+                    path: '/ops/consignments/tracking',
+                    icon: <InboxOutlined />,
+                    title: 'Track Consignment',
+                    desc: 'Look up status history',
+                  },
+                  {
+                    key: 'pickups',
+                    show: can('dispatch') || can('consignments') || isAdmin,
+                    path: '/ops/pickups',
+                    icon: <CarOutlined />,
+                    title: 'Pickup Queue & Auto-Assign',
+                    desc: 'Dispatch fleet couriers and load balance',
+                  },
+                  {
+                    key: 'invoice',
+                    show: can('billing') || isAdmin,
+                    path: '/ops/billing/invoices?mode=entry',
+                    icon: <DollarCircleOutlined />,
+                    title: 'Generate Invoice',
+                    desc: 'Bill unbilled consignments',
+                  },
+                  {
+                    key: 'billing',
+                    show: can('billing') || isAdmin,
+                    path: '/ops/billing/invoices',
+                    icon: <DollarCircleOutlined />,
+                    title: 'Finance & Invoicing',
+                    desc: 'Issue invoices, DOs & payment receipts',
+                  },
+                  {
+                    key: 'commissions',
+                    show: can('commissions') || can('billing') || isAdmin,
+                    path: '/ops/commissions/rates',
+                    icon: <TeamOutlined />,
+                    title: 'Commissions & Wallets',
+                    desc: 'Rate settings, ledger & withdrawals',
+                  },
+                  {
+                    key: 'cs',
+                    show: can('customerService') || isAdmin,
+                    path: '/ops/cs/tickets',
+                    icon: <TeamOutlined />,
+                    title: 'CS Tickets',
+                    desc: 'Customer inquiries & escalations',
+                  },
+                  {
+                    key: 'customers',
+                    show: can('consignments') || isAdmin,
+                    path: '/ops/admin/customers',
+                    icon: <TeamOutlined />,
+                    title: 'Customer Registration',
+                    desc: 'Shipper accounts for billing',
+                  },
+                  {
+                    key: 'hubs',
+                    show: can('hubs') || can('admin') || isAdmin,
+                    path: '/ops/admin/hubs',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Hub Management',
+                    desc: 'Main and mini hub gateways',
+                  },
+                  {
+                    key: 'zones',
+                    show: can('routing') || can('admin') || isAdmin,
+                    path: '/ops/admin/zones',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Delivery Points',
+                    desc: 'Service areas under each hub',
+                  },
+                  {
+                    key: 'areas',
+                    show: can('routing') || can('admin') || isAdmin,
+                    path: '/ops/admin/areas',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Areas',
+                    desc: 'Last-mile territories & keywords',
+                  },
+                  {
+                    key: 'drops',
+                    show: can('dropPoints') || can('admin') || isAdmin,
+                    path: '/ops/admin/drop-points',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Drop Points',
+                    desc: 'Counter stations under a DP',
+                  },
+                  {
+                    key: 'drivers',
+                    show: can('staff') || isAdmin,
+                    path: '/ops/admin/drivers',
+                    icon: <CarOutlined />,
+                    title: 'Driver Management',
+                    desc: 'Mobile drivers & route pools',
+                  },
+                  {
+                    key: 'route-codes',
+                    show: can('routing') || can('admin') || isAdmin,
+                    path: '/ops/admin/route-codes',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Route Codes',
+                    desc: 'Preferred driver route pools',
+                  },
+                  {
+                    key: 'staff',
+                    show: can('staff') || isAdmin,
+                    path: '/ops/staff',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Staff Verification Queue',
+                    desc: stats.pending_staff
+                      ? `${stats.pending_staff} pending approvals`
+                      : 'Identity verification',
+                  },
+                ]
+                  .filter((a) => a.show)
+                  .map((a) => (
+                    <div
+                      key={a.key}
+                      className="quick-action-row"
+                      onClick={() => navigate(a.path)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') navigate(a.path)
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div className="icon-chip-muted">{a.icon}</div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>{a.title}</div>
+                          <div style={{ fontSize: 11, color: '#6B7280' }}>{a.desc}</div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        Dispatch fleet couriers and load balance
-                      </div>
+                      <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
                     </div>
-                  </div>
-                  <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
-                </div>
-
-                {/* Billing */}
-                <div
-                  className="quick-action-row"
-                  onClick={() => navigate('/ops/billing/invoices')}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div className="icon-chip-muted">
-                      <DollarCircleOutlined />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Finance & Invoicing
-                      </div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        Issue invoices, DOs & payment receipts
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
-                </div>
-
-                {/* Commissions */}
-                <div
-                  className="quick-action-row"
-                  onClick={() => navigate('/ops/commissions')}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div className="icon-chip-muted">
-                      <TeamOutlined />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Commissions & Wallets
-                      </div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        Partner withdrawal review & ledgers
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
-                </div>
-
-                {/* Staff Verification */}
-                <div
-                  className="quick-action-row"
-                  onClick={() => navigate('/ops/staff')}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div className="icon-chip-muted">
-                      <SafetyCertificateOutlined />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F1B2D' }}>
-                        Staff Verification Queue
-                      </div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>
-                        {stats.pending_staff ? `${stats.pending_staff} pending approvals` : 'Identity verification'}
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 13, color: '#9CA3AF' }}>→</span>
-                </div>
+                  ))}
               </div>
             </Card>
 

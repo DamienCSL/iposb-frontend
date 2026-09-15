@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography, message } from 'antd'
-import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { apiError, getImportBatch, listImportBatches } from '../api/client'
+import { apiError, exportImportBatchErrors, getImportBatch, listImportBatches, retryImportBatch } from '../api/client'
 import DataTable from '../components/DataTable'
 import ListPageLayout from '../components/ListPageLayout'
 import StatusTag from '../components/StatusTag'
@@ -34,6 +34,8 @@ export default function ImportLogPage() {
   const [list, setList] = useState({ rows: [], totalPages: 1, total: 0 })
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   async function loadList() {
     setLoading(true)
@@ -59,6 +61,34 @@ export default function ImportLogPage() {
       setDetail(null)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  async function handleExportErrors() {
+    if (!id) return
+    setExporting(true)
+    try {
+      await exportImportBatchErrors(id)
+      message.success('Error CSV downloaded')
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleRetry() {
+    if (!id) return
+    setRetrying(true)
+    try {
+      const res = await retryImportBatch(id)
+      message.success(res?.message || 'Retry queued')
+      await loadDetail(id)
+      await loadList()
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -157,9 +187,21 @@ export default function ImportLogPage() {
             </Space>
           }
           extra={
-            <Button type="link" size="small" onClick={() => setParams({ q, page: String(page) })}>
-              Close
-            </Button>
+            <Space>
+              {errors.length > 0 && (
+                <Button size="small" icon={<DownloadOutlined />} loading={exporting} onClick={handleExportErrors}>
+                  Export errors
+                </Button>
+              )}
+              {(batch.status === 'partial' || batch.status === 'failed' || errors.length > 0) && (
+                <Button size="small" icon={<SyncOutlined />} loading={retrying} onClick={handleRetry}>
+                  Retry failed rows
+                </Button>
+              )}
+              <Button type="link" size="small" onClick={() => setParams({ q, page: String(page) })}>
+                Close
+              </Button>
+            </Space>
           }
           styles={{ body: { paddingTop: 12 } }}
         >

@@ -31,7 +31,7 @@ import {
   SyncOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { apiError, getReturn, initiateReturn, listReturns, updateReturnStatus } from '../../api/client'
+import { apiError, completeReturn, getReturn, initiateReturn, listReturns, updateReturnStatus } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
 import ListPageLayout from '../../components/ListPageLayout'
@@ -119,6 +119,22 @@ export default function ReturnsPage() {
       await updateReturnStatus(cn, { status: nextStatus, note: statusNote })
       message.success(`Return status updated to ${nextStatus}`)
       setStatusNote('')
+      await handleOpenDetail(cn)
+      loadData(1)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
+  async function handleCompleteReturn() {
+    const cn = selectedReturn?.cn_no || selectedReturn?.cn
+    if (!cn) return
+    setStatusUpdating(true)
+    try {
+      await completeReturn(cn)
+      message.success(`Return completed for ${cn}`)
       await handleOpenDetail(cn)
       loadData(1)
     } catch (err) {
@@ -482,6 +498,16 @@ export default function ReturnsPage() {
                   <Button type="primary" loading={statusUpdating} onClick={handleStatusUpdate}>
                     Update Return Status
                   </Button>
+                  {['OUT_FOR_RETURN', 'ARRIVED_HUB', 'IN_TRANSIT'].includes(selectedReturn.status) && (
+                    <Button
+                      loading={statusUpdating}
+                      icon={<CheckCircleOutlined />}
+                      onClick={handleCompleteReturn}
+                      style={{ background: '#1B8A5A', borderColor: '#1B8A5A', color: '#fff' }}
+                    >
+                      Complete return (mark RETURNED)
+                    </Button>
+                  )}
                 </Space>
               </Card>
             )}

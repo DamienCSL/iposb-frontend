@@ -27,6 +27,7 @@ import {
   FileExcelOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -149,6 +150,22 @@ export default function ConsignmentsListPage() {
 
 
 
+  function trackSelected() {
+    if (selectedKeys.length === 0) {
+      message.warning('Select at least one consignment to track.')
+      return
+    }
+    const codes = selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+    if (codes.length === 0) {
+      message.warning('Select at least one consignment to track.')
+      return
+    }
+    const first = codes[0]
+    navigate(
+      `/ops/consignments/tracking?cn=${encodeURIComponent(codes.join(','))}&tab=${encodeURIComponent(first)}`,
+    )
+  }
+
   // Handle Export
   async function handleExportSelected() {
     setExporting(true)
@@ -225,6 +242,29 @@ export default function ConsignmentsListPage() {
       })
       setImportStatusText('Import finished successfully.')
       loadData(1)
+
+      const batchId = res?.batch_id || res?.batchId || res?.id
+      if (batchId || (res?.error_count || res?.errors?.length)) {
+        const qs = batchId ? `?id=${encodeURIComponent(batchId)}` : ''
+        notification.info({
+          message: 'Review import log',
+          description: (
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0 }}
+              onClick={() => {
+                setImportOpen(false)
+                navigate(`/ops/consignments/import-log${qs}`)
+              }}
+            >
+              Open import error log →
+            </Button>
+          ),
+          placement: 'topRight',
+          duration: 10,
+        })
+      }
     } catch (err) {
       notification.error({
         message: 'Import failed',
@@ -388,6 +428,15 @@ export default function ConsignmentsListPage() {
               View
             </Button>
             {canEdit && r.cn_status !== 'CAN' && (
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/ops/consignments/new?cn=${encodeURIComponent(cn)}`)}
+              >
+                Edit
+              </Button>
+            )}
+            {canEdit && r.cn_status !== 'CAN' && (
               <Popconfirm
                 title={`Cancel consignment ${cn}?`}
                 description="This will halt delivery workflows and mark as cancelled."
@@ -413,6 +462,13 @@ export default function ConsignmentsListPage() {
       icon: <PlusOutlined />,
       type: 'primary',
       onClick: () => navigate('/ops/consignments/new'),
+    },
+    {
+      key: 'track',
+      label: selectedKeys.length > 0 ? `Track selected (${selectedKeys.length})` : 'Track selected',
+      icon: <SearchOutlined />,
+      disabled: selectedKeys.length === 0,
+      onClick: trackSelected,
     },
     {
       key: 'reload',
@@ -571,10 +627,34 @@ export default function ConsignmentsListPage() {
         destroyOnClose
       >
         <div style={{ padding: '8px 0' }}>
-          <Text style={{ fontSize: 13, color: '#5B6B7C', display: 'block', marginBottom: 16 }}>
+          <Text style={{ fontSize: 13, color: '#5B6B7C', display: 'block', marginBottom: 12 }}>
             Upload a spreadsheet (.xlsx, .csv) containing booking consignments. The system will parse
             addresses, parcel dimensions, and generate tracking barcodes automatically.
           </Text>
+
+          <Space wrap style={{ marginBottom: 16 }}>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              href={`data:text/csv,${encodeURIComponent(
+                [
+                  'Consignment Number,Customer Account,Service Type,Package Type,Origin Branch,Destination Branch,Origin Zone,Destination Zone,Pieces,Weight (kg),Pickup Date,Consigner,Consignee,Recipient,Remarks',
+                ].join('\n'),
+              )}`}
+              download="consignment_import_template.csv"
+            >
+              Download import template
+            </Button>
+            <Button
+              size="small"
+              onClick={() => {
+                setImportOpen(false)
+                navigate('/ops/consignments/import-log')
+              }}
+            >
+              Open import error log
+            </Button>
+          </Space>
 
           <Upload.Dragger
             maxCount={1}
@@ -588,7 +668,7 @@ export default function ConsignmentsListPage() {
               <FileExcelOutlined style={{ fontSize: 36, color: '#1B8A5A' }} />
             </p>
             <p className="ant-upload-text">Click or drag file to this area to upload</p>
-            <p className="ant-upload-hint">Supports .xlsx and .csv files</p>
+            <p className="ant-upload-hint">Supports .xlsx and .csv files. First row must be column headers.</p>
           </Upload.Dragger>
 
           {importSummary && (
@@ -596,7 +676,7 @@ export default function ConsignmentsListPage() {
               <Text strong style={{ fontSize: 13, color: '#0F1B2D' }}>
                 Batch Processing Summary:
               </Text>
-              <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
                 <div>Created: <Tag color="green">{importSummary.created}</Tag></div>
                 <div>Updated: <Tag color="blue">{importSummary.updated}</Tag></div>
                 <div>Skipped: <Tag color="orange">{importSummary.skipped}</Tag></div>

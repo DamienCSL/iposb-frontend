@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Radio,
   Row,
   Select,
@@ -43,8 +44,9 @@ import {
 } from '../api/client'
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
+import CodeLookupField from '../components/CodeLookupField'
 import { money } from '../ui/bits'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -56,10 +58,63 @@ const FEE_MODES = [
   { code: 'sea', label: 'Sea' },
 ]
 
+const FORMULA_TYPES = [
+  { value: 'base_pcs_kg', label: 'Base + pcs + kg', hint: 'Fee = Base + (pcs × RM/pc) + (kg × RM/kg)' },
+  { value: 'flat_then_per_kg', label: 'Flat then /kg', hint: 'Flat for first N kg, then RM/kg over (e.g. Labuan)' },
+  { value: 'band_table', label: 'Weight band table', hint: 'Fixed RM per 0.5 kg band (+ optional over steps)' },
+  { value: 'step_linear', label: 'Step / linear', hint: 'Early tiers + step amount every X kg (e.g. Sarawak)' },
+  { value: 'size_pct', label: 'Size × %', hint: 'S/M/L/XL base × pct% (+ over kg) — remote Value Express' },
+]
+
 const MATRIX_MODES = [
   { code: '*', label: 'All modes' },
   ...FEE_MODES,
 ]
+
+function defaultFormulaJson(type) {
+  switch (type) {
+    case 'flat_then_per_kg':
+      return { flatAmount: 18, includedKg: 15, perKgOver: 1.5 }
+    case 'band_table':
+      return {
+        bands: [
+          { maxKg: 0.5, amount: 5.5 },
+          { maxKg: 1.0, amount: 5.5 },
+        ],
+        overKg: 11,
+        overStepKg: 0.5,
+        overStepAmount: 4.5,
+      }
+    case 'step_linear':
+      return {
+        tiers: [
+          { maxKg: 1.0, amount: 10.6 },
+          { maxKg: 1.5, amount: 19.08 },
+        ],
+        stepFromKg: 1.5,
+        stepKg: 0.5,
+        stepAmount: 4.24,
+        anchorAmount: 19.08,
+        capKg: 11,
+        overStepKg: 0.5,
+        overStepAmount: 4.5,
+      }
+    case 'size_pct':
+      return {
+        sizes: { S: 25, M: 40, L: 55, XL: 70 },
+        pct: 40,
+        includedKg: 20,
+        perKgOver: 2,
+        defaultSize: 'M',
+      }
+    default:
+      return {}
+  }
+}
+
+function formulaTypeLabel(type) {
+  return FORMULA_TYPES.find((t) => t.value === type)?.label || type || 'Base + pcs + kg'
+}
 
 function fieldValue(config, field) {
   if (!config) return ''
@@ -85,6 +140,8 @@ function emptyFeeRow() {
     baseAmount: 0,
     perPiece: 0,
     perKg: 0,
+    formulaType: 'base_pcs_kg',
+    formulaJson: {},
     description: '',
     isActive: false,
     sortOrder: 10,
@@ -166,6 +223,9 @@ export default function CommissionPage() {
     pcs: '1',
     weight: '5',
     deliveryFee: '',
+    origin: '',
+    destination: '',
+    packageSize: 'M',
     originService: 'DROP_COUNTER',
     outcome: 'doorstep',
     collectHours: '4',
@@ -175,6 +235,8 @@ export default function CommissionPage() {
   const [calcCnLines, setCalcCnLines] = useState(null)
   const [calcBusy, setCalcBusy] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [formulaEditIdx, setFormulaEditIdx] = useState(null)
+  const [formulaDraft, setFormulaDraft] = useState({ type: 'base_pcs_kg', jsonText: '{}' })
 
   const roles = useMemo(() => config?.roles || [], [config])
   const franchiseeRoles = useMemo(() => config?.franchiseeRoles || [], [config])
@@ -286,6 +348,49 @@ export default function CommissionPage() {
     setFeeRates((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
   }
 
+  function openFormulaEditor(idx) {
+    const row = feeRates[idx] || emptyFeeRow()
+    const type = row.formulaType || 'base_pcs_kg'
+    const json = row.formulaJson && typeof row.formulaJson === 'object' ? row.formulaJson : defaultFormulaJson(type)
+    setFormulaEditIdx(idx)
+    setFormulaDraft({
+      type,
+      jsonText: JSON.stringify(json && Object.keys(json).length ? json : defaultFormulaJson(type), null, 2),
+    })
+  }
+
+  function applyFormulaEditor() {
+    if (formulaEditIdx == null) return
+    let parsed = {}
+    if (formulaDraft.type !== 'base_pcs_kg') {
+      try {
+        parsed = JSON.parse(formulaDraft.jsonText || '{}')
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Formula JSON must be an object')
+        }
+      } catch (e) {
+        message.error(e.message || 'Invalid formula JSON')
+        return
+      }
+    }
+    updateFeeRow(formulaEditIdx, {
+      formulaType: formulaDraft.type,
+      formulaJson: formulaDraft.type === 'base_pcs_kg' ? {} : parsed,
+    })
+    setFormulaEditIdx(null)
+  }
+
+  function changeFormulaTypeOnRow(idx, type) {
+    const prev = feeRates[idx] || {}
+    const keep = prev.formulaType === type && prev.formulaJson && Object.keys(prev.formulaJson || {}).length
+      ? prev.formulaJson
+      : defaultFormulaJson(type)
+    updateFeeRow(idx, {
+      formulaType: type,
+      formulaJson: type === 'base_pcs_kg' ? {} : keep,
+    })
+  }
+
   function updateMatrixRow(idx, patch) {
     setPctMatrix((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
   }
@@ -377,6 +482,9 @@ export default function CommissionPage() {
         transportMode: calcForm.transportMode,
         cn_pcs: Number(calcForm.pcs) || 1,
         cn_wt: Number(calcForm.weight) || 0,
+        origin: calcForm.origin || undefined,
+        destination: calcForm.destination || undefined,
+        packageSize: calcForm.packageSize || undefined,
         originService: calcForm.originService,
         outcome: calcForm.outcome,
         collectHours: calcForm.outcome === 'collect' ? Number(calcForm.collectHours) || 0 : undefined,
@@ -510,6 +618,31 @@ export default function CommissionPage() {
     {
       title: (
         <span>
+          Formula
+          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>customisable</div>
+        </span>
+      ),
+      width: 170,
+      render: (_, row, idx) => (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            value={row.formulaType || 'base_pcs_kg'}
+            onChange={(v) => changeFormulaTypeOnRow(idx, v)}
+            options={FORMULA_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+          />
+          {(row.formulaType || 'base_pcs_kg') !== 'base_pcs_kg' ? (
+            <Button size="small" type="link" style={{ padding: 0, height: 'auto' }} onClick={() => openFormulaEditor(idx)}>
+              Edit params…
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: (
+        <span>
           Base
           <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>flat RM</div>
         </span>
@@ -519,6 +652,7 @@ export default function CommissionPage() {
         <InputNumber
           size="small"
           step={0.01}
+          disabled={(row.formulaType || 'base_pcs_kg') !== 'base_pcs_kg'}
           style={{ width: '100%' }}
           value={row.baseAmount ?? 0}
           onChange={(v) => updateFeeRow(idx, { baseAmount: v })}
@@ -537,6 +671,7 @@ export default function CommissionPage() {
         <InputNumber
           size="small"
           step={0.0001}
+          disabled={(row.formulaType || 'base_pcs_kg') !== 'base_pcs_kg'}
           style={{ width: '100%' }}
           value={row.perPiece ?? 0}
           onChange={(v) => updateFeeRow(idx, { perPiece: v })}
@@ -555,6 +690,7 @@ export default function CommissionPage() {
         <InputNumber
           size="small"
           step={0.0001}
+          disabled={(row.formulaType || 'base_pcs_kg') !== 'base_pcs_kg'}
           style={{ width: '100%' }}
           value={row.perKg ?? 0}
           onChange={(v) => updateFeeRow(idx, { perKg: v })}
@@ -572,19 +708,36 @@ export default function CommissionPage() {
             onChange={(e) => updateFeeRow(idx, { description: e.target.value })}
           />
           <Space size={4} style={{ width: '100%' }}>
-            <Input
-              size="small"
-              placeholder="Origin"
-              value={row.origin || ''}
-              onChange={(e) => updateFeeRow(idx, { origin: e.target.value.toUpperCase() })}
-            />
-            <Input
-              size="small"
-              placeholder="Dest"
-              value={row.destination || ''}
-              onChange={(e) => updateFeeRow(idx, { destination: e.target.value.toUpperCase() })}
-            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CodeLookupField
+                kind="hubs"
+                size="small"
+                allowCustom
+                allowClear
+                showGenerate={false}
+                showManageLink={false}
+                placeholder="Origin hub"
+                value={row.origin || ''}
+                onChange={(v) => updateFeeRow(idx, { origin: v })}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CodeLookupField
+                kind="hubs"
+                size="small"
+                allowCustom
+                allowClear
+                showGenerate={false}
+                showManageLink={false}
+                placeholder="Dest hub"
+                value={row.destination || ''}
+                onChange={(v) => updateFeeRow(idx, { destination: v })}
+              />
+            </div>
           </Space>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            Blank = nationwide. <Link to="/ops/admin/hubs">Manage hubs</Link>
+          </Text>
         </Space>
       ),
     },
@@ -1036,18 +1189,19 @@ export default function CommissionPage() {
                   type="info"
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message="Pricing rule"
+                  message="Customisable pricing formulas"
                   description={
                     <div>
-                      <code>Fee = Base + (Pieces × RM/pc) + (Weight kg × RM/kg)</code>
-                      <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-                        <li><strong>Pcs range</strong> — which piece counts this band covers</li>
-                        <li><strong>Kg range</strong> — which weights this band covers</li>
-                        <li><strong>Base</strong> — flat starting charge (RM)</li>
-                        <li><strong>RM/pc</strong> / <strong>RM/kg</strong> — per piece / per kg</li>
+                      <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+                        {FORMULA_TYPES.map((t) => (
+                          <li key={t.value}>
+                            <strong>{t.label}</strong> — {t.hint}
+                          </li>
+                        ))}
                       </ul>
                       <Text type="secondary" style={{ fontSize: 12 }}>
-                        Example: Base 10, RM/pc 2, RM/kg 1, CN = 3 pcs / 5 kg → 10 + (3×2) + (5×1) = <strong>RM 21</strong>
+                        Pick a formula per corridor band. Use origin/dest for lanes (blank = nationwide).
+                        For band / step / size formulas, click <strong>Edit params…</strong> to customise amounts.
                       </Text>
                     </div>
                   }
@@ -1058,14 +1212,53 @@ export default function CommissionPage() {
                   rowKey={(r, i) => r.id || `new-${i}`}
                   columns={feeColumns}
                   dataSource={feeRates}
-                  scroll={{ x: 1100 }}
+                  scroll={{ x: 1280 }}
                   locale={{ emptyText: 'No fee bands yet. Add a band for Air, Land, or Sea.' }}
                 />
                 <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
-                  Tip: Air often uses <strong>RM/pc</strong> only; Land uses <strong>RM/pc + RM/kg</strong>; Sea uses
-                  <strong> RM/kg + RM/pc</strong>. Leave origin/dest blank for a nationwide band.
+                  Tip: marketing handbook corridors map to <strong>band_table</strong> / <strong>step_linear</strong> /
+                  <strong> flat_then_per_kg</strong> / <strong>size_pct</strong>. Leave origin/dest blank for nationwide.
                 </Paragraph>
                 <SaveFooter saving={saving} onReset={() => syncDraft(config)} />
+                <Modal
+                  title="Edit formula parameters"
+                  open={formulaEditIdx != null}
+                  onCancel={() => setFormulaEditIdx(null)}
+                  onOk={applyFormulaEditor}
+                  okText="Apply"
+                  width={640}
+                  destroyOnClose
+                >
+                  <Form layout="vertical">
+                    <Form.Item label="Formula type">
+                      <Select
+                        value={formulaDraft.type}
+                        onChange={(v) =>
+                          setFormulaDraft({
+                            type: v,
+                            jsonText: JSON.stringify(defaultFormulaJson(v), null, 2),
+                          })
+                        }
+                        options={FORMULA_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+                      />
+                    </Form.Item>
+                    {formulaDraft.type === 'base_pcs_kg' ? (
+                      <Alert type="info" showIcon message="Use Base / RM/pc / RM/kg columns on the rate row." />
+                    ) : (
+                      <Form.Item
+                        label="Parameters (JSON)"
+                        extra={FORMULA_TYPES.find((t) => t.value === formulaDraft.type)?.hint}
+                      >
+                        <Input.TextArea
+                          rows={14}
+                          value={formulaDraft.jsonText}
+                          onChange={(e) => setFormulaDraft((d) => ({ ...d, jsonText: e.target.value }))}
+                          style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}
+                        />
+                      </Form.Item>
+                    )}
+                  </Form>
+                </Modal>
               </Card>
             )}
 
@@ -1267,6 +1460,43 @@ export default function CommissionPage() {
                     />
                   </Form.Item>
                 </Col>
+                <Col xs={12} md={8}>
+                  <Form.Item label="Origin (lane)" extra="Blank matches nationwide bands only">
+                    <CodeLookupField
+                      kind="hubs"
+                      allowCustom
+                      allowClear
+                      showGenerate={false}
+                      showManageLink
+                      placeholder="e.g. BKI"
+                      value={calcForm.origin}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, origin: v }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={12} md={8}>
+                  <Form.Item label="Destination (lane)">
+                    <CodeLookupField
+                      kind="hubs"
+                      allowCustom
+                      allowClear
+                      showGenerate={false}
+                      showManageLink={false}
+                      placeholder="e.g. KCH"
+                      value={calcForm.destination}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, destination: v }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={12} md={8}>
+                  <Form.Item label="Package size" extra="Used by Size × % formula">
+                    <Select
+                      value={calcForm.packageSize}
+                      onChange={(v) => setCalcForm((f) => ({ ...f, packageSize: v }))}
+                      options={['S', 'M', 'L', 'XL'].map((s) => ({ value: s, label: s }))}
+                    />
+                  </Form.Item>
+                </Col>
                 <Col span={24}>
                   <Form.Item
                     label="Delivery fee override (optional)"
@@ -1400,6 +1630,9 @@ export default function CommissionPage() {
                   <Card size="small" title="Customer delivery fee calculation" style={{ background: '#fafafa' }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
                       {calcResult.feeBreakdown.rule}
+                      {calcResult.feeBreakdown.formulaType
+                        ? ` · ${formulaTypeLabel(calcResult.feeBreakdown.formulaType)}`
+                        : ''}
                     </Text>
                     {calcResult.feeSource === 'override' ? (
                       <Text>Manual override = <strong>{money(calcResult.feeBreakdown.total)}</strong></Text>
@@ -1408,28 +1641,46 @@ export default function CommissionPage() {
                         <Table
                           size="small"
                           pagination={false}
-                          rowKey="part"
-                          dataSource={[
-                            { part: 'Base', how: 'Flat starting charge', rm: calcResult.feeBreakdown.basePart },
-                            {
-                              part: 'Pieces',
-                              how: `${calcResult.feeBreakdown.pieces} pcs × ${Number(calcResult.feeBreakdown.perPiece)} RM/pc`,
-                              rm: calcResult.feeBreakdown.piecePart,
-                            },
-                            {
-                              part: 'Weight',
-                              how: `${calcResult.feeBreakdown.weight} kg × ${Number(calcResult.feeBreakdown.perKg)} RM/kg`,
-                              rm: calcResult.feeBreakdown.kgPart,
-                            },
-                            {
-                              part: 'Total delivery fee',
-                              how: calcResult.feeBreakdown.rateCode
-                                ? `Band ${calcResult.feeBreakdown.rateCode}`
-                                : (calcResult.feeLabel || 'Matched band'),
-                              rm: calcResult.feeBreakdown.total,
-                              strong: true,
-                            },
-                          ]}
+                          rowKey={(r, i) => r.code || r.part || `p-${i}`}
+                          dataSource={
+                            Array.isArray(calcResult.feeBreakdown.parts) && calcResult.feeBreakdown.parts.length
+                              ? [
+                                  ...calcResult.feeBreakdown.parts.map((p) => ({
+                                    part: p.label || p.code,
+                                    how: p.how,
+                                    rm: p.amount,
+                                  })),
+                                  {
+                                    part: 'Total delivery fee',
+                                    how: calcResult.feeBreakdown.rateCode
+                                      ? `Band ${calcResult.feeBreakdown.rateCode}`
+                                      : (calcResult.feeLabel || 'Matched band'),
+                                    rm: calcResult.feeBreakdown.total,
+                                    strong: true,
+                                  },
+                                ]
+                              : [
+                                  { part: 'Base', how: 'Flat starting charge', rm: calcResult.feeBreakdown.basePart },
+                                  {
+                                    part: 'Pieces',
+                                    how: `${calcResult.feeBreakdown.pieces} pcs × ${Number(calcResult.feeBreakdown.perPiece)} RM/pc`,
+                                    rm: calcResult.feeBreakdown.piecePart,
+                                  },
+                                  {
+                                    part: 'Weight',
+                                    how: `${calcResult.feeBreakdown.weight} kg × ${Number(calcResult.feeBreakdown.perKg)} RM/kg`,
+                                    rm: calcResult.feeBreakdown.kgPart,
+                                  },
+                                  {
+                                    part: 'Total delivery fee',
+                                    how: calcResult.feeBreakdown.rateCode
+                                      ? `Band ${calcResult.feeBreakdown.rateCode}`
+                                      : (calcResult.feeLabel || 'Matched band'),
+                                    rm: calcResult.feeBreakdown.total,
+                                    strong: true,
+                                  },
+                                ]
+                          }
                           columns={[
                             { title: 'Part', dataIndex: 'part', key: 'part', render: (v, r) => (r.strong ? <strong>{v}</strong> : v) },
                             { title: 'How calculated', dataIndex: 'how', key: 'how', render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text> },

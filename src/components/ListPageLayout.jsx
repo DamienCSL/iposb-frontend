@@ -111,6 +111,7 @@ export default function ListPageLayout({
                 icon={act.icon}
                 onClick={act.onClick}
                 loading={act.loading}
+                disabled={act.disabled}
               >
                 {act.label}
               </Button>
