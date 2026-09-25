@@ -879,7 +879,7 @@ export default function ConsignmentEntryPage() {
   const formItemProps = { style: { marginBottom: 0 } }
 
   return (
-    <div className="cn-entry" style={{ maxWidth: 1280, margin: '0 auto', paddingBottom: 48 }}>
+    <div className="cn-entry" style={{ width: '100%', maxWidth: '100%', margin: 0, paddingBottom: 48 }}>
       <style>{`
         .cn-entry .ant-form-item-label > label {
           color: ${LABEL} !important;
