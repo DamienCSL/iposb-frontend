@@ -19,6 +19,7 @@ import {
   Tabs,
   Tag,
   Typography,
+  Steps,
   message,
 } from 'antd'
 import {
@@ -35,9 +36,11 @@ import {
   generateSystemCode,
   getBilling,
   getBillingPdfUrl,
+  invoiceCatalog,
   listBilling,
   previewInvoice,
   saveBilling,
+  setInvoicePaymentStatus,
   voidBilling,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
@@ -51,13 +54,12 @@ const BRAND = '#1B8A5A'
 const DOC_TYPES = [
   { key: 'invoices', label: 'Invoices' },
   { key: 'do', label: 'Delivery Orders' },
-  { key: 'receipts', label: 'Receipts' },
   { key: 'credit-notes', label: 'Credit Notes' },
   { key: 'debit-notes', label: 'Debit Notes' },
-  { key: 'agent-in', label: 'Agent Money In' },
-  { key: 'agent-out', label: 'Agent Money Out' },
-  { key: 'agent-credit', label: 'Agent Credit' },
-  { key: 'agent-debit', label: 'Agent Debit' },
+  { key: 'agent-in', label: 'Drop Point Money In' },
+  { key: 'agent-out', label: 'Drop Point Money Out' },
+  { key: 'agent-credit', label: 'Drop Point Credit' },
+  { key: 'agent-debit', label: 'Drop Point Debit' },
 ]
 
 const DROP_POINT_COLS = [
@@ -116,22 +118,6 @@ const LIST_CONFIG = {
     ],
     idKey: 'dn_no',
   },
-  receipts: {
-    title: 'Receipt List',
-    filters: [
-      { name: 'inv_no', label: 'Invoice No' },
-      { name: 'cust_ac_no', label: 'Customer' },
-    ],
-    columns: [
-      ['inv_no', 'Invoice'],
-      ['cust_ac_no', 'Customer'],
-      ['pay_dt', 'Date'],
-      ['pay_amt', 'Amount', 'money'],
-      ['pay_typ', 'Type'],
-      ['pay_status', 'Status'],
-    ],
-    idKey: 'inv_no',
-  },
   'credit-notes': {
     title: 'Credit Note List',
     filters: [
@@ -176,7 +162,7 @@ const ym = () => new Date().toISOString().slice(0, 7).replace('-', '')
 const ENTRY_CONFIG = {
   invoices: {
     title: 'Invoice Entry',
-    extra: 'Generate an invoice from unbilled consignments for a customer.',
+    extra: 'Generate an invoice from unbilled consignments. After generation, mark it Paid or Unpaid on the invoice list.',
     submit: 'Generate Invoice',
   },
   do: {
@@ -195,21 +181,6 @@ const ENTRY_CONFIG = {
       { name: 'cn_wt', label: 'Weight (kg)', type: 'number' },
       { name: 'spec_handle', label: 'Special Handle', type: 'select', options: [{ value: 'N', label: 'No' }, { value: 'Y', label: 'Yes' }] },
       { name: 'spec_amt', label: 'Special Amount', type: 'number' },
-    ],
-  },
-  receipts: {
-    title: 'Receipt Entry',
-    submit: 'Post Receipt',
-    defaults: () => ({ pay_dt: today(), pay_typ: 'CASH', loc_id: 'BKI' }),
-    fields: [
-      { name: 'cust_ac_no', label: 'Customer Account', required: true },
-      { name: 'inv_no', label: 'Invoice No', required: true },
-      { name: 'pay_amt', label: 'Amount', type: 'number', required: true },
-      { name: 'pay_dt', label: 'Date', type: 'date' },
-      { name: 'pay_typ', label: 'Type', type: 'select', options: [{ value: 'CASH', label: 'Cash' }, { value: 'CHQ', label: 'Cheque' }, { value: 'TT', label: 'Bank Transfer' }] },
-      { name: 'loc_id', label: 'Location' },
-      { name: 'bank_cd', label: 'Bank' },
-      { name: 'chq_no', label: 'Cheque No' },
     ],
   },
   'credit-notes': {
@@ -322,15 +293,26 @@ export default function FinanceBillingPage() {
   const [entryForm] = Form.useForm()
   const [saving, setSaving] = useState(false)
 
-  // Invoice preview state
+  // Invoice generate wizard: Customer → Pricing → Components → Generate
   const [invForm, setInvForm] = useState({ cust_ac_no: '', yr_month: ym(), date_from: '', date_to: '' })
   const [preview, setPreview] = useState(null)
   const [selected, setSelected] = useState({})
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [wizardStep, setWizardStep] = useState(0)
+  const [catalog, setCatalog] = useState({ schemes: [], components: [], customer: null })
+  const [pricingScheme, setPricingScheme] = useState('walk_in')
+  const [invComponents, setInvComponents] = useState([])
 
   const [voidModal, setVoidModal] = useState({ open: false, item: null })
   const [voiding, setVoiding] = useState(false)
   const [voidForm] = Form.useForm()
+  const [payBusyId, setPayBusyId] = useState('')
+
+  useEffect(() => {
+    if (pathDoc === 'receipts') {
+      navigate('/ops/billing/invoices', { replace: true })
+    }
+  }, [pathDoc, navigate])
 
   useEffect(() => {
     const next = {}
@@ -340,6 +322,10 @@ export default function FinanceBillingPage() {
     setFilters(next)
     setPreview(null)
     setSelected({})
+    setWizardStep(0)
+    setCatalog({ schemes: [], components: [], customer: null })
+    setPricingScheme('walk_in')
+    setInvComponents([])
     if (entryCfg?.defaults) {
       entryForm.setFieldsValue(entryCfg.defaults())
     } else {
@@ -347,6 +333,19 @@ export default function FinanceBillingPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc])
+
+  useEffect(() => {
+    if (activeDoc !== 'invoices' || mode !== 'entry') return
+    invoiceCatalog({})
+      .then((data) => {
+        setCatalog((c) => ({
+          ...c,
+          schemes: data.schemes || [],
+          components: data.components || [],
+        }))
+      })
+      .catch(() => {})
+  }, [activeDoc, mode])
 
   async function fetchList(page = 1, pageSize = pagination.pageSize) {
     setLoading(true)
@@ -429,22 +428,57 @@ export default function FinanceBillingPage() {
     }
     setPreviewBusy(true)
     try {
-      const data = await previewInvoice({
-        cust_ac_no: invForm.cust_ac_no.trim(),
-        date_from: invForm.date_from || undefined,
-        date_to: invForm.date_to || undefined,
-      })
+      const [data, cat] = await Promise.all([
+        previewInvoice({
+          cust_ac_no: invForm.cust_ac_no.trim(),
+          date_from: invForm.date_from || undefined,
+          date_to: invForm.date_to || undefined,
+          pricing_scheme: pricingScheme || undefined,
+        }),
+        invoiceCatalog({ cust_ac_no: invForm.cust_ac_no.trim() }),
+      ])
       setPreview(data)
       const sel = {}
       ;(data.rows || []).forEach((r) => {
         sel[r.cn_no] = true
       })
       setSelected(sel)
+
+      const schemes = cat.schemes || catalog.schemes || []
+      const components = cat.components || catalog.components || []
+      setCatalog({
+        schemes,
+        components,
+        customer: cat.customer || data.customer || null,
+      })
+      const scheme =
+        data.pricingScheme ||
+        cat.customer?.invoice_pricing_scheme ||
+        pricingScheme ||
+        'walk_in'
+      setPricingScheme(scheme)
+      const preferred =
+        (Array.isArray(data.components) && data.components.length ? data.components : null) ||
+        (Array.isArray(cat.customer?.invoice_components) && cat.customer.invoice_components.length
+          ? cat.customer.invoice_components
+          : null) ||
+        schemes.find((s) => s.scheme_code === scheme)?.defaultComponents ||
+        []
+      setInvComponents(preferred)
+      setWizardStep(1)
     } catch (err) {
       message.error(apiError(err))
       setPreview(null)
     } finally {
       setPreviewBusy(false)
+    }
+  }
+
+  function applySchemeDefaults(schemeCode) {
+    setPricingScheme(schemeCode)
+    const scheme = (catalog.schemes || []).find((s) => s.scheme_code === schemeCode)
+    if (scheme?.defaultComponents?.length) {
+      setInvComponents(scheme.defaultComponents)
     }
   }
 
@@ -467,15 +501,25 @@ export default function FinanceBillingPage() {
       message.warning('Select at least one consignment.')
       return
     }
+    if (!pricingScheme) {
+      message.warning('Select a pricing scheme.')
+      return
+    }
     setPreviewBusy(true)
     try {
       const r = await generateInvoice({
         cust_ac_no: invForm.cust_ac_no.trim(),
         yr_month: invForm.yr_month,
         cn_nos: cnNos,
+        pricing_scheme: pricingScheme,
+        components: invComponents,
+        invoice_attn: catalog.customer?.invoice_attn || undefined,
+        invoice_terms: catalog.customer?.invoice_terms || undefined,
       })
       message.success(r.message || `Invoice ${r.invoiceNo || r.id} created.`)
-      await loadInvoicePreview()
+      setWizardStep(0)
+      setPreview(null)
+      setSelected({})
       fetchList(1)
     } catch (err) {
       message.error(apiError(err))
@@ -497,6 +541,24 @@ export default function FinanceBillingPage() {
       message.error(apiError(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function onToggleInvoicePaid(row, paid) {
+    const id = rowId(row, 'inv_no') || String(row?.invoice_no || '')
+    if (!id) return
+    setPayBusyId(id)
+    try {
+      const r = await setInvoicePaymentStatus(id, paid)
+      message.success(r.message || (paid ? 'Marked as Paid.' : 'Marked as Unpaid.'))
+      await fetchList(pagination.current)
+      if (detailOpen && (rowId(activeItem, 'inv_no') === id || activeItem?.invoice_no === id)) {
+        await openDetail(id)
+      }
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setPayBusyId('')
     }
   }
 
@@ -548,8 +610,12 @@ export default function FinanceBillingPage() {
       width: 160,
       render: (_, r) => {
         const id = rowId(r, listCfg.idKey)
+        const status = String(r.inv_status || '').toUpperCase()
+        const isInvoice = activeDoc === 'invoices'
+        const canMarkPaid = isInvoice && status === 'UPD'
+        const canMarkUnpaid = isInvoice && status === 'PAY'
         return (
-          <Space>
+          <Space wrap size={4}>
             <Button size="small" icon={<EyeOutlined />} onClick={() => { navigate(`/ops/billing/${activeDoc}/${encodeURIComponent(id)}`); openDetail(id) }} />
             <Button
               size="small"
@@ -558,6 +624,26 @@ export default function FinanceBillingPage() {
               target="_blank"
               rel="noreferrer"
             />
+            {canMarkPaid ? (
+              <Button
+                size="small"
+                type="primary"
+                loading={payBusyId === id}
+                style={{ background: BRAND, borderColor: BRAND }}
+                onClick={() => onToggleInvoicePaid(r, true)}
+              >
+                Mark Paid
+              </Button>
+            ) : null}
+            {canMarkUnpaid ? (
+              <Button
+                size="small"
+                loading={payBusyId === id}
+                onClick={() => onToggleInvoicePaid(r, false)}
+              >
+                Mark Unpaid
+              </Button>
+            ) : null}
             {canVoid ? (
               <Button
                 size="small"
@@ -577,10 +663,38 @@ export default function FinanceBillingPage() {
   ]
 
   function renderInvoiceEntry() {
+    const schemeOptions = (catalog.schemes || []).map((s) => ({
+      value: s.scheme_code,
+      label: s.scheme_label,
+      description: s.description,
+    }))
+    const componentOptions = (catalog.components || []).map((c) => ({
+      value: c.component_code,
+      label: c.component_label,
+      group: c.component_group,
+    }))
+
     return (
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <Alert type="info" showIcon message={entryCfg.extra} />
-        <Card size="small">
+        <Alert
+          type="info"
+          showIcon
+          message="Generate invoice"
+          description="Select Customer → Select Pricing Scheme → Select Invoice Components → Generate Invoice"
+        />
+        <Steps
+          size="small"
+          current={wizardStep}
+          items={[
+            { title: 'Customer' },
+            { title: 'Pricing scheme' },
+            { title: 'Components' },
+            { title: 'Generate' },
+          ]}
+          style={{ marginBottom: 8 }}
+        />
+
+        <Card size="small" title="1. Select customer">
           <Row gutter={12} align="bottom">
             <Col xs={24} md={6}>
               <Form.Item label="Customer Account" required style={{ marginBottom: 0 }}>
@@ -612,70 +726,144 @@ export default function FinanceBillingPage() {
               </Button>
             </Col>
           </Row>
+          {catalog.customer ? (
+            <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+              {catalog.customer.cust_name} · default scheme: {catalog.customer.invoice_pricing_scheme || 'walk_in'}
+              {catalog.customer.invoice_terms ? ` · terms: ${catalog.customer.invoice_terms}` : ''}
+            </Text>
+          ) : null}
         </Card>
 
         {preview ? (
-          <Card
-            size="small"
-            title={`${preview.count ?? (preview.rows || []).length} unbilled — ${picked.length} selected`}
-            extra={
-              <Space>
-                <Button size="small" onClick={() => {
-                  const sel = {}
-                  ;(preview.rows || []).forEach((r) => { sel[r.cn_no] = true })
-                  setSelected(sel)
-                }}
-                >
-                  Select all
+          <>
+            <Card size="small" title="2. Select pricing scheme">
+              <Select
+                style={{ width: '100%', maxWidth: 480 }}
+                value={pricingScheme}
+                options={schemeOptions.map((s) => ({
+                  value: s.value,
+                  label: s.description ? `${s.label} — ${s.description}` : s.label,
+                }))}
+                onChange={applySchemeDefaults}
+              />
+              <div style={{ marginTop: 12 }}>
+                <Button type="primary" onClick={() => setWizardStep(2)} style={{ background: BRAND, borderColor: BRAND }}>
+                  Continue to components
                 </Button>
-                <Button size="small" onClick={() => setSelected({})}>Clear</Button>
-              </Space>
-            }
-          >
-            <Table
+              </div>
+            </Card>
+
+            <Card size="small" title="3. Select invoice components">
+              <Checkbox.Group
+                style={{ width: '100%' }}
+                value={invComponents}
+                onChange={(vals) => setInvComponents(vals)}
+              >
+                <Row gutter={[8, 8]}>
+                  {componentOptions.map((c) => (
+                    <Col key={c.value} xs={24} sm={12} md={8}>
+                      <Checkbox value={c.value}>
+                        {c.label}
+                        <Tag style={{ marginLeft: 6 }}>{c.group}</Tag>
+                      </Checkbox>
+                    </Col>
+                  ))}
+                </Row>
+              </Checkbox.Group>
+              {!componentOptions.length ? (
+                <Alert type="warning" showIcon message="Component catalog empty — run migration 055, or defaults will still apply on generate." />
+              ) : null}
+              <div style={{ marginTop: 12 }}>
+                <Space>
+                  <Button onClick={() => setWizardStep(1)}>Back</Button>
+                  <Button type="primary" onClick={() => setWizardStep(3)} style={{ background: BRAND, borderColor: BRAND }}>
+                    Continue to generate
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+
+            <Card
               size="small"
-              rowKey="cn_no"
-              pagination={false}
-              dataSource={preview.rows || []}
-              columns={[
-                {
-                  title: '',
-                  width: 40,
-                  render: (_, r) => (
-                    <Checkbox
-                      checked={Boolean(selected[r.cn_no])}
-                      onChange={() => setSelected((s) => ({ ...s, [r.cn_no]: !s[r.cn_no] }))}
-                    />
-                  ),
-                },
-                { title: 'CN', dataIndex: 'cn_no' },
-                { title: 'Date', render: (_, r) => String(r.cn_dt_tm || '').slice(0, 10) },
-                { title: 'Route', render: (_, r) => `${r.cn_origin || '—'} → ${r.cn_dstn || '—'}` },
-                { title: 'Pcs', dataIndex: 'cn_pcs' },
-                { title: 'Wt', dataIndex: 'cn_wt' },
-                { title: 'Amount', render: (_, r) => money(r.tot_cn_amt) },
-                {
-                  title: 'Tax',
-                  render: (_, r) => (String(r.tax_exempt || 'N').toUpperCase() === 'Y' ? 'Exempt' : 'Std'),
-                },
-              ]}
-              locale={{ emptyText: 'No unbilled consignments for this customer.' }}
-            />
-            <Row gutter={12} style={{ marginTop: 12 }}>
-              <Col span={8}><Text strong>Subtotal:</Text> {money(pickedSubtotal)}</Col>
-              <Col span={8}><Text strong>SST ({taxRate}%):</Text> {taxRate > 0 ? money(pickedTax) : '—'}</Col>
-              <Col span={8}><Text strong>Grand total:</Text> {money(pickedTotal)}</Col>
-            </Row>
-            <Button
-              type="primary"
-              style={{ marginTop: 12, background: BRAND, borderColor: BRAND }}
-              disabled={!picked.length}
-              loading={previewBusy}
-              onClick={onGenerateInvoice}
+              title={`4. Generate — ${preview.count ?? (preview.rows || []).length} unbilled, ${picked.length} selected`}
+              extra={
+                <Space>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const sel = {}
+                      ;(preview.rows || []).forEach((r) => {
+                        sel[r.cn_no] = true
+                      })
+                      setSelected(sel)
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button size="small" onClick={() => setSelected({})}>
+                    Clear
+                  </Button>
+                </Space>
+              }
             >
-              Generate Invoice
-            </Button>
-          </Card>
+              <Table
+                size="small"
+                rowKey="cn_no"
+                pagination={false}
+                dataSource={preview.rows || []}
+                columns={[
+                  {
+                    title: '',
+                    width: 40,
+                    render: (_, r) => (
+                      <Checkbox
+                        checked={Boolean(selected[r.cn_no])}
+                        onChange={() => setSelected((s) => ({ ...s, [r.cn_no]: !s[r.cn_no] }))}
+                      />
+                    ),
+                  },
+                  { title: 'CN', dataIndex: 'cn_no' },
+                  { title: 'Date', render: (_, r) => String(r.cn_dt_tm || '').slice(0, 10) },
+                  { title: 'Route', render: (_, r) => `${r.cn_origin || '—'} → ${r.cn_dstn || '—'}` },
+                  { title: 'Pcs', dataIndex: 'cn_pcs' },
+                  { title: 'Wt', dataIndex: 'cn_wt' },
+                  { title: 'Amount', render: (_, r) => money(r.tot_cn_amt) },
+                  {
+                    title: 'Tax',
+                    render: (_, r) => (String(r.tax_exempt || 'N').toUpperCase() === 'Y' ? 'Exempt' : 'Std'),
+                  },
+                ]}
+                locale={{ emptyText: 'No unbilled consignments for this customer.' }}
+              />
+              <Row gutter={12} style={{ marginTop: 12 }}>
+                <Col span={8}>
+                  <Text strong>Subtotal:</Text> {money(pickedSubtotal)}
+                </Col>
+                <Col span={8}>
+                  <Text strong>SST ({taxRate}%):</Text> {taxRate > 0 ? money(pickedTax) : '—'}
+                </Col>
+                <Col span={8}>
+                  <Text strong>Grand total:</Text> {money(pickedTotal)}
+                </Col>
+              </Row>
+              <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
+                Scheme: <Tag color="green">{pricingScheme}</Tag>
+                Components: {invComponents.length ? invComponents.join(', ') : 'scheme defaults'}
+              </Paragraph>
+              <Space style={{ marginTop: 12 }}>
+                <Button onClick={() => setWizardStep(2)}>Back</Button>
+                <Button
+                  type="primary"
+                  style={{ background: BRAND, borderColor: BRAND }}
+                  disabled={!picked.length}
+                  loading={previewBusy}
+                  onClick={onGenerateInvoice}
+                >
+                  Generate Invoice
+                </Button>
+              </Space>
+            </Card>
+          </>
         ) : null}
       </Space>
     )
@@ -734,7 +922,7 @@ export default function FinanceBillingPage() {
         <div>
           <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>Billing Documents</Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Damien invoice preview / generate, DO, receipts, credit/debit notes, and drop-point bilyets.
+            Damien invoice generate, paid/unpaid status, DO, credit/debit notes, and drop-point bilyets.
             {' '}
             <Link to="/ops/billing/customer-wallet">Customer wallet</Link>
             {' · '}
@@ -840,9 +1028,32 @@ export default function FinanceBillingPage() {
                 .filter(([, v]) => v != null && v !== '')
                 .slice(0, 20)
                 .map(([k, v]) => (
-                  <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>
+                  <Descriptions.Item key={k} label={k}>
+                    {k === 'inv_status' ? <StatusTag status={v} /> : String(v)}
+                  </Descriptions.Item>
                 ))}
             </Descriptions>
+            {activeDoc === 'invoices' && String(activeItem.inv_status || '').toUpperCase() !== 'VOID' ? (
+              <Space>
+                {String(activeItem.inv_status || '').toUpperCase() !== 'PAY' ? (
+                  <Button
+                    type="primary"
+                    loading={payBusyId === rowId(activeItem, 'inv_no')}
+                    style={{ background: BRAND, borderColor: BRAND }}
+                    onClick={() => onToggleInvoicePaid(activeItem, true)}
+                  >
+                    Mark as Paid
+                  </Button>
+                ) : (
+                  <Button
+                    loading={payBusyId === rowId(activeItem, 'inv_no')}
+                    onClick={() => onToggleInvoicePaid(activeItem, false)}
+                  >
+                    Mark as Unpaid
+                  </Button>
+                )}
+              </Space>
+            ) : null}
             {detailLines.length ? (
               <Table
                 size="small"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { apiError, getCnLookups, getCodRecord, getConsignment, quoteConsignment, saveConsignment, saveMaster, searchCustomers, generateSystemCode } from '../api/client'
+import { apiError, getCnLookups, getCodConfig, getCodRecord, getConsignment, quoteConsignment, saveConsignment, saveMaster, searchCustomers, generateSystemCode } from '../api/client'
 import SearchableSelect from '../components/SearchableSelect'
 import { Alert, money, SystemCodeField } from '../ui/bits'
 
@@ -293,11 +293,11 @@ export default function ConsignmentEntryPage() {
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [quote, setQuote] = useState(null)
+  const [codFeeRm, setCodFeeRm] = useState(2)
   const [codInfo, setCodInfo] = useState(null)
   const [savedFreight, setSavedFreight] = useState(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const quoteTimer = useRef(null)
   const bootstrapped = useRef(false)
 
@@ -305,6 +305,11 @@ export default function ConsignmentEntryPage() {
     getCnLookups()
       .then(setLookups)
       .catch((err) => setError(apiError(err) || 'Could not load dropdown options.'))
+    getCodConfig()
+      .then((d) => {
+        if (d?.codFeeRm != null) setCodFeeRm(Number(d.codFeeRm))
+      })
+      .catch(() => {})
   }, [])
 
   // Overnight (OND) is operational, not bookable at entry — coerce away if present.
@@ -391,7 +396,6 @@ export default function ConsignmentEntryPage() {
       port_destination: existing?.port_destination || '',
     })
     setIsExisting(Boolean(existing))
-    setShowAdvanced(Boolean(existing?.transport_mode && existing.transport_mode !== 'road'))
     setSavedFreight(
       existing
         ? {
@@ -439,7 +443,6 @@ export default function ConsignmentEntryPage() {
     setQuote(null)
     setCodInfo(null)
     setSavedFreight(null)
-    setShowAdvanced(false)
     setIsExisting(false)
     setForm(emptyForm())
     setParams({})
@@ -696,35 +699,166 @@ export default function ConsignmentEntryPage() {
               </div>
               <div className="col-md-3">
                 <label className="form-label">Payment</label>
+                <div className="form-check mt-2">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="codCheck"
+                    checked={form.pay_mode === 'COD'}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setForm((f) => ({
+                        ...f,
+                        pay_mode: on ? 'COD' : 'PPD',
+                        cash_amt: '',
+                      }))
+                      if (!on) setCodInfo(null)
+                    }}
+                  />
+                  <label className="form-check-label" htmlFor="codCheck">
+                    Cash on Delivery (COD)
+                  </label>
+                </div>
+                <div className="form-text">
+                  {form.pay_mode === 'COD'
+                    ? `Receiver pays delivery fee + RM ${Number(codFeeRm).toFixed(2)} COD fee.`
+                    : 'Unchecked = prepaid / account (shipper pays).'}
+                </div>
+              </div>
+              {form.pay_mode === 'COD' && quote?.total != null ? (
+                <div className="col-md-3">
+                  <label className="form-label">Receiver pays (auto)</label>
+                  <div className="fw-bold text-warning-emphasis">
+                    {money(Number(quote.total) + Number(codFeeRm))}
+                  </div>
+                  <div className="form-text">
+                    Delivery {money(quote.total)} + COD fee {money(codFeeRm)}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="col-md-3">
+                <label className="form-label">Transport mode</label>
                 <select
                   className="form-select"
-                  value={form.pay_mode || 'PPD'}
+                  value={form.transport_mode || 'road'}
                   onChange={(e) => {
                     const mode = e.target.value
                     setForm((f) => ({
                       ...f,
-                      pay_mode: mode,
-                      cash_amt: mode === 'COD' ? f.cash_amt : '',
+                      transport_mode: mode,
+                      linehaul_mode: mode === 'multi' ? f.linehaul_mode || 'sea' : '',
+                      ...(mode !== 'sea' && !(mode === 'multi' && (f.linehaul_mode || 'sea') === 'sea')
+                        ? {
+                            vessel_name: '',
+                            voyage_ref: '',
+                            sailing_date: '',
+                            port_origin: '',
+                            port_destination: '',
+                          }
+                        : {}),
                     }))
-                    if (mode !== 'COD') setCodInfo(null)
                   }}
                 >
-                  <option value="PPD">Prepaid / Account</option>
-                  <option value="COD">Cash on Delivery</option>
+                  {transportModes.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label || m.cd_desc || m.code}
+                    </option>
+                  ))}
                 </select>
               </div>
-              {form.pay_mode === 'COD' ? (
+              {form.transport_mode === 'multi' ? (
                 <div className="col-md-3">
-                  <label className="form-label">COD collect (RM)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-control"
-                    value={form.cash_amt}
-                    onChange={(e) => set('cash_amt', e.target.value)}
-                    placeholder={quote?.total != null ? String(quote.total) : 'Uses freight total if blank'}
-                  />
+                  <label className="form-label">Linehaul mode</label>
+                  <select
+                    className="form-select"
+                    value={form.linehaul_mode || 'sea'}
+                    onChange={(e) => set('linehaul_mode', e.target.value)}
+                  >
+                    <option value="road">Road / Land</option>
+                    <option value="sea">Sea / Ferry</option>
+                    <option value="air">Air</option>
+                  </select>
                 </div>
+              ) : null}
+              {showSeaFields ? (
+                <>
+                  <div className="col-md-3">
+                    <label className="form-label">Vessel</label>
+                    <input
+                      className="form-control"
+                      value={form.vessel_name || ''}
+                      onChange={(e) => set('vessel_name', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Voyage ref</label>
+                    <input
+                      className="form-control"
+                      value={form.voyage_ref || ''}
+                      onChange={(e) => set('voyage_ref', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Sailing date</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={form.sailing_date || ''}
+                      onChange={(e) => set('sailing_date', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Port origin</label>
+                    <input
+                      className="form-control"
+                      value={form.port_origin || ''}
+                      onChange={(e) => set('port_origin', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Port destination</label>
+                    <input
+                      className="form-control"
+                      value={form.port_destination || ''}
+                      onChange={(e) => set('port_destination', e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : null}
+              <div className="col-md-3">
+                <label className="form-label">Special handling</label>
+                <select
+                  className="form-select"
+                  value={form.spec_handle}
+                  onChange={(e) => set('spec_handle', e.target.value)}
+                >
+                  <option value="N">No</option>
+                  <option value="Y">Yes</option>
+                </select>
+              </div>
+              {form.spec_handle === 'Y' ? (
+                <>
+                  <div className="col-md-3">
+                    <label className="form-label">Handling code</label>
+                    <input
+                      className="form-control"
+                      maxLength={10}
+                      value={form.spec_cd}
+                      onChange={(e) => set('spec_cd', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">Handling amount (RM)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      value={form.spec_amt}
+                      onChange={(e) => set('spec_amt', e.target.value)}
+                    />
+                  </div>
+                </>
               ) : null}
             </div>
           </Section>
@@ -910,146 +1044,6 @@ export default function ConsignmentEntryPage() {
             </div>
           </Section>
 
-          <div className="card cn-section mb-3">
-            <button
-              type="button"
-              className="card-header bg-white border-0 w-100 text-start d-flex justify-content-between align-items-center"
-              onClick={() => setShowAdvanced((v) => !v)}
-            >
-              <strong>Advanced (optional)</strong>
-              <span className="text-muted small">{showAdvanced ? 'Hide' : 'Transport · special handling'}</span>
-            </button>
-            {showAdvanced ? (
-              <div className="card-body border-top">
-                <div className="row g-3">
-                  <div className="col-md-3">
-                    <label className="form-label">Transport mode</label>
-                    <select
-                      className="form-select"
-                      value={form.transport_mode || 'road'}
-                      onChange={(e) => {
-                        const mode = e.target.value
-                        setForm((f) => ({
-                          ...f,
-                          transport_mode: mode,
-                          linehaul_mode: mode === 'multi' ? f.linehaul_mode || 'sea' : '',
-                          ...(mode !== 'sea' && !(mode === 'multi' && (f.linehaul_mode || 'sea') === 'sea')
-                            ? {
-                                vessel_name: '',
-                                voyage_ref: '',
-                                sailing_date: '',
-                                port_origin: '',
-                                port_destination: '',
-                              }
-                            : {}),
-                        }))
-                      }}
-                    >
-                      {transportModes.map((m) => (
-                        <option key={m.code} value={m.code}>
-                          {m.label || m.cd_desc || m.code}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {form.transport_mode === 'multi' ? (
-                    <div className="col-md-3">
-                      <label className="form-label">Linehaul mode</label>
-                      <select
-                        className="form-select"
-                        value={form.linehaul_mode || 'sea'}
-                        onChange={(e) => set('linehaul_mode', e.target.value)}
-                      >
-                        <option value="road">Road / Land</option>
-                        <option value="sea">Sea / Ferry</option>
-                        <option value="air">Air</option>
-                      </select>
-                    </div>
-                  ) : null}
-                  {showSeaFields ? (
-                    <>
-                      <div className="col-md-3">
-                        <label className="form-label">Vessel</label>
-                        <input
-                          className="form-control"
-                          value={form.vessel_name || ''}
-                          onChange={(e) => set('vessel_name', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Voyage ref</label>
-                        <input
-                          className="form-control"
-                          value={form.voyage_ref || ''}
-                          onChange={(e) => set('voyage_ref', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Sailing date</label>
-                        <input
-                          type="date"
-                          className="form-control"
-                          value={form.sailing_date || ''}
-                          onChange={(e) => set('sailing_date', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Port origin</label>
-                        <input
-                          className="form-control"
-                          value={form.port_origin || ''}
-                          onChange={(e) => set('port_origin', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Port destination</label>
-                        <input
-                          className="form-control"
-                          value={form.port_destination || ''}
-                          onChange={(e) => set('port_destination', e.target.value)}
-                        />
-                      </div>
-                    </>
-                  ) : null}
-                  <div className="col-md-3">
-                    <label className="form-label">Special handling</label>
-                    <select
-                      className="form-select"
-                      value={form.spec_handle}
-                      onChange={(e) => set('spec_handle', e.target.value)}
-                    >
-                      <option value="N">No</option>
-                      <option value="Y">Yes</option>
-                    </select>
-                  </div>
-                  {form.spec_handle === 'Y' ? (
-                    <>
-                      <div className="col-md-3">
-                        <label className="form-label">Handling code</label>
-                        <input
-                          className="form-control"
-                          maxLength={10}
-                          value={form.spec_cd}
-                          onChange={(e) => set('spec_cd', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Handling amount (RM)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="form-control"
-                          value={form.spec_amt}
-                          onChange={(e) => set('spec_amt', e.target.value)}
-                        />
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
           {savedFreight?.total != null && Number(savedFreight.total) > 0 ? (
             <div className="card mb-3 border-secondary">
               <div className="card-body py-2 small">
@@ -1084,7 +1078,8 @@ export default function ConsignmentEntryPage() {
                     ) : null}
                     {form.pay_mode === 'COD' ? (
                       <span className="small text-muted">
-                        COD {money(form.cash_amt || quote.total)}
+                        Receiver pays {money(Number(quote.total || 0) + Number(codFeeRm))}
+                        {' '}(+ RM {Number(codFeeRm).toFixed(2)} COD fee)
                       </span>
                     ) : null}
                   </>

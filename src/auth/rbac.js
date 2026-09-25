@@ -10,6 +10,7 @@ export const DROPPOINT_MANAGER = 'Droppoint Manager'
  * Seller / Receiver are consignment parties — not login roles.
  * Shipper billing accounts use Customer Registration (t_customer).
  * Mobile app logins use t_mobile_user (customer / driver / dispatcher).
+ * Legacy "Agent" accounts map to Droppoint Manager.
  */
 export const STAFF_ASSIGNABLE_ROLES = [
   SUPER_ADMIN,
@@ -17,7 +18,6 @@ export const STAFF_ASSIGNABLE_ROLES = [
   HUB_MANAGER,
   DROPPOINT_MANAGER,
   'Operation',
-  'Agent',
   'Invoice',
   'CSL',
 ]
@@ -29,7 +29,6 @@ export const DEMO_USERS = [
   { username: 'ops', password: 'ops123', name: 'Demo Operations', role: 'Operation', branchCode: 'BKI' },
   { username: 'billing', password: 'billing123', name: 'Demo Billing', role: 'Invoice', branchCode: 'BKI' },
   { username: 'dp', password: 'dp123', name: 'Demo DP Manager', role: DROPPOINT_MANAGER, branchCode: 'BKI' },
-  { username: 'agent', password: 'agent123', name: 'Demo Agent', role: 'Agent', branchCode: 'BKI' },
 ]
 
 const EMPTY = {
@@ -44,7 +43,6 @@ const EMPTY = {
   admin: false,
   dispatch: false,
   summaries: false,
-  agent: false,
   customerReports: false,
   reports: false,
   users: false,
@@ -63,7 +61,7 @@ export function normalizeRole(role) {
   const key = raw.toLowerCase().replace(/[_-]+/g, ' ')
   if (key === 'super admin' || key === 'superadmin') return SUPER_ADMIN
   if (key === 'admin' || key === 'system' || key === 'supervisor') return key === 'admin' ? ADMIN : ADMIN
-  if (key === 'agent 2') return 'Agent'
+  if (key === 'agent' || key === 'agent 2') return DROPPOINT_MANAGER
   if (key === 'finance') return 'Invoice'
   return raw || 'Others'
 }
@@ -87,7 +85,6 @@ export function capabilitiesFor(role) {
       admin: true,
       dispatch: true,
       summaries: true,
-      agent: true,
       customerReports: true,
       reports: true,
       users: true,
@@ -116,10 +113,12 @@ export function capabilitiesFor(role) {
       ...EMPTY,
       consignments: true,
       pickups: true,
+      billing: true,
       cod: true,
       dropPoints: true,
       customerService: true,
       reports: true,
+      customerReports: true,
     },
     Operation: {
       ...EMPTY,
@@ -145,16 +144,6 @@ export function capabilitiesFor(role) {
       consignments: true,
       customerService: true,
       summaries: true,
-      customerReports: true,
-      reports: true,
-    },
-    Agent: {
-      ...EMPTY,
-      consignments: true,
-      agent: true,
-      dispatch: true,
-      dropPoints: true,
-      customerService: true,
       customerReports: true,
       reports: true,
     },

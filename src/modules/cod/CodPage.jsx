@@ -142,7 +142,7 @@ export default function CodPage() {
         message.success(`COD collected for ${cn}`)
       } else if (type === 'REMIT') {
         if (!values.bilyet_no) {
-          message.warning('Bilyet number is required. Create Money In under Agent billing first if needed.')
+          message.warning('Bilyet number is required. Create Money In under Drop Point billing first if needed.')
           return
         }
         await remitCod(cn, { bilyet_no: values.bilyet_no })
@@ -245,7 +245,7 @@ export default function CodPage() {
           <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>COD Reconciliation</Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
             Collect at drop point → remit with bilyet → settle. Create{' '}
-            <Link to="/ops/billing/agent-in?mode=entry">Agent Money In</Link> before remitting.
+            <Link to="/ops/billing/agent-in?mode=entry">Drop Point Money In</Link> before remitting.
           </Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>Refresh</Button>
@@ -341,7 +341,7 @@ export default function CodPage() {
               name="bilyet_no"
               label="Bilyet No (Money In)"
               rules={[{ required: true, message: 'Bilyet number is required' }]}
-              extra={<Link to="/ops/billing/agent-in?mode=entry">Create Agent Money In</Link>}
+              extra={<Link to="/ops/billing/agent-in?mode=entry">Create Drop Point Money In</Link>}
             >
               <Input placeholder="Bilyet number" />
             </Form.Item>

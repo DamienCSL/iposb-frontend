@@ -100,8 +100,8 @@ export async function getTracking(cn) {
     const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/tracking`)
     return data
   } catch {
-    const { data } = await api.get(`/tracking/${encodeURIComponent(cn)}`)
-    return data
+  const { data } = await api.get(`/tracking/${encodeURIComponent(cn)}`)
+  return data
   }
 }
 
@@ -190,8 +190,21 @@ export async function previewInvoice(params) {
   return data
 }
 
+export async function invoiceCatalog(params = {}) {
+  const { data } = await api.get('/ops/billing/invoices/catalog', { params })
+  return data
+}
+
 export async function generateInvoice(body) {
   const { data } = await api.post('/ops/billing/invoices/generate', body)
+  return data
+}
+
+export async function setInvoicePaymentStatus(invoiceNo, paid) {
+  const { data } = await api.post(
+    `/ops/billing/invoices/${encodeURIComponent(invoiceNo)}/payment-status`,
+    { paid: !!paid },
+  )
   return data
 }
 
@@ -216,6 +229,16 @@ export async function getCancellationConfig() {
   return data
 }
 
+export async function getCodConfig() {
+  const { data } = await api.get('/ops/billing/cod-config')
+  return data
+}
+
+export async function updateCodConfig(body) {
+  const { data } = await api.put('/ops/billing/cod-config', body)
+  return data
+}
+
 export async function updateCancellationConfig(body) {
   const { data } = await api.put('/ops/billing/cancellation-config', body)
   return data
@@ -228,6 +251,14 @@ export async function getCancellationDetail(cn) {
 
 export async function listCancellationLog(params = {}) {
   const { data } = await api.get('/ops/cancellations/log', { params })
+  return data
+}
+
+export async function exportCancellationLog(params = {}) {
+  const { data } = await api.get('/ops/cancellations/log/export', {
+    params,
+    responseType: 'blob',
+  })
   return data
 }
 
@@ -394,13 +425,13 @@ export async function listCsReminders(id) {
   return data
 }
 
-export async function getAgentStatement(code, params = {}) {
-  const { data } = await api.get(`/ops/agents/${encodeURIComponent(code)}/statement`, { params })
+export async function getDropPointStatement(code, params = {}) {
+  const { data } = await api.get(`/ops/drop-points/${encodeURIComponent(code)}/statement`, { params })
   return data
 }
 
-export async function getAgentStock(code, params = {}) {
-  const { data } = await api.get(`/ops/agents/${encodeURIComponent(code)}/stock`, { params })
+export async function getDropPointStock(code, params = {}) {
+  const { data } = await api.get(`/ops/drop-points/${encodeURIComponent(code)}/stock`, { params })
   return data
 }
 
@@ -455,6 +486,63 @@ export async function assignPickup(cn, body) {
 
 export async function autoAssignPickups(body) {
   const { data } = await api.post('/ops/pickups/auto-assign', body)
+  return data
+}
+
+// --- Overnight scan requests (dispatcher → ops/admin) ---
+export async function listOvernightRequests(params) {
+  const { data } = await api.get('/ops/overnight-requests', { params })
+  return data
+}
+
+export async function getOvernightRequest(id) {
+  const { data } = await api.get(`/ops/overnight-requests/${id}`)
+  return data
+}
+
+export async function createOvernightRequest(body) {
+  const { data } = await api.post('/ops/overnight-requests', body)
+  return data
+}
+
+export async function approveOvernightRequest(id, body = {}) {
+  const { data } = await api.post(`/ops/overnight-requests/${id}/approve`, body)
+  return data
+}
+
+export async function rejectOvernightRequest(id, body = {}) {
+  const { data } = await api.post(`/ops/overnight-requests/${id}/reject`, body)
+  return data
+}
+
+// --- ATS / Problematic claims (N13 LOST, N12 DAMAGE, D4 REJECT) ---
+export async function listAtsClaims(params) {
+  const { data } = await api.get('/ops/ats-claims', { params })
+  return data
+}
+
+export async function getAtsClaim(id) {
+  const { data } = await api.get(`/ops/ats-claims/${id}`)
+  return data
+}
+
+export async function createAtsClaim(body) {
+  const { data } = await api.post('/ops/ats-claims', body)
+  return data
+}
+
+export async function submitAtsClaim(id, body = {}) {
+  const { data } = await api.post(`/ops/ats-claims/${id}/submit`, body)
+  return data
+}
+
+export async function settleAtsClaim(id, body = {}) {
+  const { data } = await api.post(`/ops/ats-claims/${id}/settle`, body)
+  return data
+}
+
+export async function detectAtsClaims(body = {}) {
+  const { data } = await api.post('/ops/ats-claims/detect', body)
   return data
 }
 
@@ -819,6 +907,16 @@ export async function openSeal(sealNo, body = {}) {
 
 export async function scanSeal(sealNo, body) {
   const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/scan`, body)
+  return data
+}
+
+export async function getSealSop(params = {}) {
+  const { data } = await api.get('/ops/seals/sop', { params })
+  return data
+}
+
+export async function sealArriveCn(sealNo, body) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/arrive-cn`, body)
   return data
 }
 

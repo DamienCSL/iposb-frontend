@@ -26,6 +26,7 @@ import {
   EyeOutlined,
   FileExcelOutlined,
   PlusOutlined,
+  PrinterOutlined,
   ReloadOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -137,10 +138,10 @@ export default function ConsignmentsListPage() {
     loadData(1, pagination.pageSize)
   }, [debouncedSearch, status, bagStatus, dateRange])
 
-  // Cancel consignment handler with 403 safety
+  // Cancel consignment — must send confirmNotAddressChange (API returns 422 without it)
   async function handleCancel(cn) {
     try {
-      await cancelConsignment(cn)
+      await cancelConsignment(cn, { confirmNotAddressChange: true })
       message.success(`Consignment ${cn} has been cancelled`)
       loadData()
     } catch (err) {
@@ -152,18 +153,36 @@ export default function ConsignmentsListPage() {
 
   function trackSelected() {
     if (selectedKeys.length === 0) {
-      message.warning('Select at least one consignment to track.')
+      message.warning('Select at least one consignment.')
       return
     }
     const codes = selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
     if (codes.length === 0) {
-      message.warning('Select at least one consignment to track.')
+      message.warning('Select at least one consignment.')
+      return
+    }
+    if (codes.length === 1) {
+      navigate(`/ops/consignments/${encodeURIComponent(codes[0])}`)
       return
     }
     const first = codes[0]
     navigate(
       `/ops/consignments/tracking?cn=${encodeURIComponent(codes.join(','))}&tab=${encodeURIComponent(first)}`,
     )
+  }
+
+  function printSelected() {
+    if (selectedKeys.length === 0) {
+      message.warning('Select at least one consignment to print.')
+      return
+    }
+    const codes = selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+    if (codes.length === 0) {
+      message.warning('Select at least one consignment to print.')
+      return
+    }
+    const format = codes.length === 1 ? 'a5' : 'a4-4'
+    navigate(`/ops/reports/cn?id=${encodeURIComponent(codes.join(','))}&format=${format}`)
   }
 
   // Handle Export
@@ -425,7 +444,7 @@ export default function ConsignmentsListPage() {
               icon={<EyeOutlined />}
               onClick={() => navigate(`/ops/consignments/${encodeURIComponent(cn)}`)}
             >
-              View
+              View detail
             </Button>
             {canEdit && r.cn_status !== 'CAN' && (
               <Button
@@ -439,7 +458,7 @@ export default function ConsignmentsListPage() {
             {canEdit && r.cn_status !== 'CAN' && (
               <Popconfirm
                 title={`Cancel consignment ${cn}?`}
-                description="This will halt delivery workflows and mark as cancelled."
+                description="This cancels the order (not an address change). Delivery workflows will halt and status becomes CAN."
                 onConfirm={() => handleCancel(cn)}
                 okText="Yes, Cancel"
                 cancelText="No"
@@ -465,10 +484,17 @@ export default function ConsignmentsListPage() {
     },
     {
       key: 'track',
-      label: selectedKeys.length > 0 ? `Track selected (${selectedKeys.length})` : 'Track selected',
+      label: selectedKeys.length > 0 ? `Open selected (${selectedKeys.length})` : 'Open selected',
       icon: <SearchOutlined />,
       disabled: selectedKeys.length === 0,
       onClick: trackSelected,
+    },
+    {
+      key: 'print',
+      label: selectedKeys.length > 0 ? `Print notes (${selectedKeys.length})` : 'Print notes',
+      icon: <PrinterOutlined />,
+      disabled: selectedKeys.length === 0,
+      onClick: printSelected,
     },
     {
       key: 'reload',

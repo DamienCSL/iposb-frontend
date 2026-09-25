@@ -3,9 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   apiError,
   collectCodAtDropPoint,
+  getCodConfig,
   listCodCollections,
   remitCod,
   settleCod,
+  updateCodConfig,
 } from '../api/client'
 import { Alert, money } from '../ui/bits'
 
@@ -41,6 +43,38 @@ export default function CodPage() {
   const [actionCn, setActionCn] = useState(null)
   const [collectForm, setCollectForm] = useState({ amount: '', dropPointCode: '', recipientName: '', note: '' })
   const [bilyetNo, setBilyetNo] = useState('')
+  const [codFeeRm, setCodFeeRm] = useState(2)
+  const [feeDraft, setFeeDraft] = useState('2.00')
+  const [savingFee, setSavingFee] = useState(false)
+
+  async function loadFee() {
+    try {
+      const data = await getCodConfig()
+      const fee = Number(data?.codFeeRm ?? 2)
+      setCodFeeRm(fee)
+      setFeeDraft(fee.toFixed(2))
+    } catch {
+      // keep defaults
+    }
+  }
+
+  async function saveFee(e) {
+    e.preventDefault()
+    setSavingFee(true)
+    setError('')
+    setOk('')
+    try {
+      const data = await updateCodConfig({ codFeeRm: Number(feeDraft) })
+      const fee = Number(data?.codFeeRm ?? feeDraft)
+      setCodFeeRm(fee)
+      setFeeDraft(fee.toFixed(2))
+      setOk(data?.message || `COD fee set to RM ${fee.toFixed(2)}`)
+    } catch (err) {
+      setError(apiError(err))
+    } finally {
+      setSavingFee(false)
+    }
+  }
 
   async function load() {
     setError('')
@@ -55,6 +89,10 @@ export default function CodPage() {
       setError(apiError(err))
     }
   }
+
+  useEffect(() => {
+    loadFee()
+  }, [])
 
   useEffect(() => {
     const fromQuery = (params.get('cn') || '').toUpperCase()
@@ -125,10 +163,36 @@ export default function CodPage() {
     <div>
       <h3 className="mb-3">COD Outstanding</h3>
       <p className="text-muted">
-        Track cash-on-delivery from collection (driver POD or drop point counter) through bilyet remittance to settlement.
-        Create Money In (Bilyet) under Drop Points before remitting.
+        COD checkbox = receiver pays <strong>delivery fee + RM {Number(codFeeRm).toFixed(2)} COD fee</strong>.
+        Track collection (driver POD or drop point) → bilyet remittance → settlement.
       </p>
       <Alert error={error} ok={ok} />
+
+      <div className="card mb-3">
+        <div className="card-body">
+          <form className="row g-2 align-items-end" onSubmit={saveFee}>
+            <div className="col-md-3">
+              <label className="form-label small mb-0">COD fee (RM)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-control form-control-sm"
+                value={feeDraft}
+                onChange={(e) => setFeeDraft(e.target.value)}
+              />
+            </div>
+            <div className="col-md-3">
+              <button className="btn btn-outline-primary btn-sm" type="submit" disabled={savingFee}>
+                {savingFee ? 'Saving…' : 'Save COD fee'}
+              </button>
+            </div>
+            <div className="col-md-6 small text-muted">
+              Applied on new COD bookings. Receiver collect = delivery fee + this amount.
+            </div>
+          </form>
+        </div>
+      </div>
 
       <div className="d-flex flex-wrap gap-2 mb-3">
         {STATUS_TABS.map((t) => (

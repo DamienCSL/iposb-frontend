@@ -42,11 +42,6 @@ const CONFIG = {
     filters: [{ name: 'dn_no', label: 'DN No' }, { name: 'cust_ac_no', label: 'Customer' }],
     columns: [['dn_no', 'DN Number'], ['cust_ac_no', 'Customer'], ['dn_dt', 'Date'], ['cn_origin', 'Origin'], ['cn_dstn', 'Dest'], ['cn_status', 'Status']],
   },
-  receipts: {
-    title: 'Receipt List',
-    filters: [{ name: 'inv_no', label: 'Invoice No' }, { name: 'cust_ac_no', label: 'Customer' }],
-    columns: [['inv_no', 'Invoice'], ['cust_ac_no', 'Customer'], ['pay_dt', 'Date'], ['pay_amt', 'Amount', 'money'], ['pay_typ', 'Type'], ['pay_status', 'Status']],
-  },
   'credit-notes': {
     title: 'Credit Note List',
     filters: [{ name: 'credit_note_no', label: 'Note No' }, { name: 'cust_ac_no', label: 'Customer' }],
@@ -93,21 +88,6 @@ const ENTRIES = {
       { name: 'cn_wt', label: 'Weight (kg)', type: 'number' },
       { name: 'spec_handle', label: 'Special Handle', type: 'select', options: [['N', 'No'], ['Y', 'Yes']] },
       { name: 'spec_amt', label: 'Special Amount', type: 'number' },
-    ],
-  },
-  receipts: {
-    title: 'Receipt Entry',
-    submit: 'Post Receipt',
-    defaults: () => ({ pay_dt: today(), pay_typ: 'CASH', loc_id: 'BKI' }),
-    fields: [
-      { name: 'cust_ac_no', label: 'Customer Account', required: true },
-      { name: 'inv_no', label: 'Invoice No', required: true },
-      { name: 'pay_amt', label: 'Amount', type: 'number', required: true },
-      { name: 'pay_dt', label: 'Date', type: 'date' },
-      { name: 'pay_typ', label: 'Type', type: 'select', options: [['CASH', 'Cash'], ['CHQ', 'Cheque'], ['TT', 'Bank Transfer']] },
-      { name: 'loc_id', label: 'Location' },
-      { name: 'bank_cd', label: 'Bank' },
-      { name: 'chq_no', label: 'Cheque No' },
     ],
   },
   'credit-notes': {

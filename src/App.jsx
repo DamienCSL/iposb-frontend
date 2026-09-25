@@ -11,12 +11,13 @@ import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
 import ConsignmentDetailPage from './modules/consignments/ConsignmentDetailPage'
 import ConsignmentEntryPage from './modules/consignments/ConsignmentEntryPage'
 import PickupsPage from './modules/pickups/PickupsPage'
+import OvernightRequestsPage from './modules/overnight/OvernightRequestsPage'
+import AtsClaimsPage from './modules/ats/AtsClaimsPage'
 import DispatchPage from './modules/dispatch/DispatchPage'
 import ManifestsPage from './modules/manifests/ManifestsPage'
 import ReturnsPage from './modules/returns/ReturnsPage'
 import FinanceBillingPage from './modules/billing/FinanceBillingPage'
 import CodPage from './modules/cod/CodPage'
-import AgentsPage from './modules/agents/AgentsPage'
 import SupportPage from './modules/support/SupportPage'
 import StaffPage from './modules/staff/StaffPage'
 import MasterAdminPage from './modules/admin/MasterAdminPage'
@@ -43,11 +44,11 @@ const queryClient = new QueryClient({
 const BILLING_TRACKING = {
   invoices: { title: 'Invoice Tracking', idKey: 'Invoice number' },
   do: { title: 'Delivery Order Tracking', idKey: 'DN number' },
-  receipts: { title: 'Receipt Tracking', idKey: 'Invoice number' },
 }
 
 function BillingTrackingRoute() {
   const { doc } = useParams()
+  if (doc === 'receipts') return <Navigate to="/ops/billing/invoices/tracking" replace />
   const meta = BILLING_TRACKING[doc]
   if (!meta) return <Navigate to={`/ops/billing/${doc || 'invoices'}`} replace />
   return <TrackingLookupPage doc={doc} title={meta.title} idKey={meta.idKey} />
@@ -55,7 +56,7 @@ function BillingTrackingRoute() {
 
 function DocBillingRedirect({ mode }) {
   const { doc } = useParams()
-  const key = doc || 'invoices'
+  const key = doc === 'receipts' ? 'invoices' : (doc || 'invoices')
   if (mode === 'tracking') return <Navigate to={`/ops/billing/${key}/tracking`} replace />
   if (mode === 'entry') return <Navigate to={`/ops/billing/${key}?mode=entry`} replace />
   return <Navigate to={`/ops/billing/${key}`} replace />
@@ -75,7 +76,7 @@ function LegacyReportRedirect() {
     cn: '/ops/reports/cn',
     invoice: '/ops/reports/invoice',
     do: '/ops/reports/do',
-    receipt: '/ops/reports/receipt',
+    receipt: '/ops/reports/invoice',
   }
   return <Navigate to={map[kind] || '/ops/reports/cn'} replace />
 }
@@ -104,6 +105,8 @@ export default function App() {
                 <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDetailPage />} />
 
                 <Route path="/ops/pickups" element={<PickupsPage />} />
+                <Route path="/ops/overnight-requests" element={<OvernightRequestsPage />} />
+                <Route path="/ops/ats-claims" element={<AtsClaimsPage />} />
                 <Route path="/ops/dispatch" element={<DispatchPage />} />
                 <Route path="/ops/seals" element={<SealStationPage />} />
                 <Route path="/ops/station/manifests" element={<ManifestStationPage />} />
@@ -126,7 +129,7 @@ export default function App() {
                 <Route path="/ops/reports/cn" element={<PrintPage kind="cn" title="Print Consignment" idLabel="Consignment number" />} />
                 <Route path="/ops/reports/invoice" element={<PrintPage kind="invoice" title="Print Invoice" idLabel="Invoice number" />} />
                 <Route path="/ops/reports/do" element={<PrintPage kind="do" title="Print Delivery Order" idLabel="DN number" />} />
-                <Route path="/ops/reports/receipt" element={<PrintPage kind="receipt" title="Print Receipt" idLabel="Invoice number" />} />
+                <Route path="/ops/reports/receipt" element={<Navigate to="/ops/reports/invoice" replace />} />
                 <Route path="/ops/reports/drop-point-stock" element={<ReportPage kind="drop-point" title="Drop Point Stock Record" />} />
                 <Route path="/ops/reports/customer-stock" element={<ReportPage kind="customer" title="Customer Stock Record" />} />
                 <Route path="/ops/reports/customer-summary" element={<ReportPage kind="customer" title="Customer Summary Report" />} />
@@ -136,6 +139,8 @@ export default function App() {
                 <Route path="/ops/billing/cancellation-settings" element={<CancellationPolicyPage />} />
                 <Route path="/ops/billing/customer-wallet" element={<WalletPage />} />
                 <Route path="/ops/billing/:doc/tracking" element={<BillingTrackingRoute />} />
+                <Route path="/ops/billing/receipts" element={<Navigate to="/ops/billing/invoices" replace />} />
+                <Route path="/ops/billing/receipts/tracking" element={<Navigate to="/ops/billing/invoices/tracking" replace />} />
                 <Route path="/ops/billing/:doc" element={<FinanceBillingPage />} />
                 <Route path="/ops/billing/:doc/:id" element={<FinanceBillingPage />} />
 
@@ -148,7 +153,7 @@ export default function App() {
                 <Route path="/ops/commissions/wallets" element={<CommissionPage />} />
                 <Route path="/ops/commissions/withdrawals" element={<CommissionPage />} />
                 <Route path="/ops/partner-wallets" element={<Navigate to="/ops/commissions/wallets" replace />} />
-                <Route path="/ops/agents" element={<AgentsPage />} />
+                <Route path="/ops/agents" element={<Navigate to="/ops/billing/agent-in" replace />} />
 
                 <Route path="/ops/cs/tickets" element={<SupportPage />} />
                 <Route path="/ops/cs/tickets/:id" element={<SupportPage />} />
@@ -156,6 +161,7 @@ export default function App() {
 
                 <Route path="/ops/admin" element={<Navigate to="/ops/admin/branches" replace />} />
                 <Route path="/ops/admin/role-access" element={<RoleAccessPage />} />
+                <Route path="/ops/admin/agents" element={<Navigate to="/ops/admin/customers" replace />} />
                 <Route path="/ops/admin/:resource" element={<MasterAdminPage />} />
                 <Route path="/ops/logs" element={<SystemLogsPage />} />
                 <Route path="/network" element={<NetworkAnalyticsPage />} />
@@ -165,7 +171,7 @@ export default function App() {
                 <Route path="/shipments" element={<Navigate to="/ops/consignments" replace />} />
                 <Route path="/dispatch" element={<Navigate to="/ops/dispatch" replace />} />
                 <Route path="/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
-                <Route path="/agents" element={<Navigate to="/ops/agents" replace />} />
+                <Route path="/agents" element={<Navigate to="/ops/billing/agent-in" replace />} />
                 <Route path="/support" element={<Navigate to="/ops/cs/tickets" replace />} />
                 <Route path="/settings" element={<Navigate to="/ops/admin/branches" replace />} />
 
@@ -192,7 +198,7 @@ export default function App() {
 
                 <Route path="/billing/invoices" element={<Navigate to="/ops/billing/invoices" replace />} />
                 <Route path="/billing/do" element={<Navigate to="/ops/billing/do" replace />} />
-                <Route path="/billing/receipts" element={<Navigate to="/ops/billing/receipts" replace />} />
+                <Route path="/billing/receipts" element={<Navigate to="/ops/billing/invoices" replace />} />
                 <Route path="/billing/credit-notes" element={<Navigate to="/ops/billing/credit-notes" replace />} />
                 <Route path="/billing/debit-notes" element={<Navigate to="/ops/billing/debit-notes" replace />} />
                 <Route path="/billing/:doc/new" element={<DocBillingRedirect mode="entry" />} />
@@ -237,7 +243,7 @@ export default function App() {
                 <Route path="/agent/credit-notes" element={<Navigate to="/ops/billing/agent-credit" replace />} />
                 <Route path="/agent/debit-notes" element={<Navigate to="/ops/billing/agent-debit" replace />} />
                 <Route path="/agent/stock" element={<Navigate to="/ops/reports/drop-point-stock" replace />} />
-                <Route path="/agent/*" element={<Navigate to="/ops/agents" replace />} />
+                <Route path="/agent/*" element={<Navigate to="/ops/billing/agent-in" replace />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/ops/dashboard" replace />} />

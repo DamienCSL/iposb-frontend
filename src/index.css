@@ -496,3 +496,147 @@ code, pre, .font-mono {
   background: #F0FDF4 !important;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Consignment note print (A5 single / A4 4-up)
+   ───────────────────────────────────────────────────────────── */
+.cn-label-print-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cn-label-sheet.cn-label-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #fff;
+  box-sizing: border-box;
+  padding: 6mm;
+}
+
+.cn-label-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4mm;
+  width: 100%;
+  height: calc(297mm - 12mm);
+  box-sizing: border-box;
+}
+
+.cn-label-cell {
+  min-height: 0;
+  height: 100%;
+  position: relative;
+}
+
+.cn-label-cell::after {
+  content: '';
+  position: absolute;
+  inset: -2mm;
+  border: 1px dashed #CBD5E1;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+.cn-label-empty {
+  height: 100%;
+  border: 1px dashed #E2E8F0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  font-size: 12px;
+  background: #F8FAFC;
+}
+
+.cn-label-sheet.cn-label-a5 {
+  width: 148mm;
+  min-height: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  box-sizing: border-box;
+  padding: 8mm;
+}
+
+.cn-label-a5-frame {
+  width: 100%;
+  height: calc(210mm - 16mm);
+}
+
+.cn-print-area {
+  overflow: auto;
+  padding: 8px 0 24px;
+  background: #E5E7EB;
+  border-radius: 8px;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .no-print,
+  .app-sider,
+  .ant-layout-sider,
+  .ant-layout-header,
+  aside,
+  nav {
+    display: none !important;
+  }
+
+  .ant-layout,
+  .ant-layout-content,
+  .ant-layout-has-sider > .ant-layout {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .cn-print-area {
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border-radius: 0 !important;
+  }
+
+  .cn-label-print-root {
+    gap: 0 !important;
+  }
+
+  .cn-label-sheet {
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .cn-label-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .cn-label-sheet.cn-label-a4 {
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    padding: 6mm;
+  }
+
+  .cn-label-sheet.cn-label-a5 {
+    width: 148mm;
+    height: 210mm;
+    min-height: 210mm;
+    padding: 8mm;
+  }
+
+  .cn-label-cell::after {
+    display: none;
+  }
+}
+

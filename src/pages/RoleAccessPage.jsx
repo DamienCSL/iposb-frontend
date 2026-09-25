@@ -55,8 +55,7 @@ const ROLE_HINTS = {
   'Hub Manager': 'Runs hub scanning, consignments, and dispatch at a hub.',
   'Droppoint Manager': 'Manages drop-point collections, bilyet, and local stock.',
   Operation: 'Operations desk — consignments, dispatch, and status reports.',
-  Agent: 'Drop-point agent — consignments, summaries, and drop-point money.',
-  Invoice: 'Billing team — invoices, receipts, credit notes, and COD.',
+  Invoice: 'Billing team — invoices (paid/unpaid), credit notes, and COD.',
   CSL: 'Customer service — tickets and consignment lookup.',
   Others: 'Limited or custom access — configure modules below.',
 }
@@ -65,7 +64,7 @@ const ROLE_HINTS = {
 const MODULE_META = {
   consignments: {
     icon: InboxOutlined,
-    hint: 'Create, search, track, and cancel shipments',
+    hint: 'Create, search, track shipments; ATS lost/damage/reject claims',
   },
   pickups: {
     icon: CarOutlined,
@@ -77,7 +76,7 @@ const MODULE_META = {
   },
   dispatch: {
     icon: CarOutlined,
-    hint: 'Driver assignment, plan path, and remote / 3PL coverage',
+    hint: 'Driver assignment, 3PL, overnight hold requests, and remote coverage',
   },
   summaries: {
     icon: BarChartOutlined,
@@ -89,7 +88,7 @@ const MODULE_META = {
   },
   billing: {
     icon: FileTextOutlined,
-    hint: 'Invoices, receipts, credit notes, and customer wallet',
+    hint: 'Invoices with paid/unpaid status, credit notes, drop-point money, and customer wallet',
   },
   cod: {
     icon: DollarOutlined,
@@ -101,11 +100,7 @@ const MODULE_META = {
   },
   dropPoints: {
     icon: EnvironmentOutlined,
-    hint: 'Drop points, stock, and drop-point money',
-  },
-  agent: {
-    icon: TeamOutlined,
-    hint: 'Agent money overview and drop-point agent tools',
+    hint: 'Drop points, stock, and drop-point money ledgers',
   },
   customerReports: {
     icon: RiseOutlined,
@@ -156,7 +151,6 @@ const DEMO_LOGINS = [
   { role: 'Hub Manager', user: 'hubmgr01', note: 'Hub scanning, consignments, dispatch' },
   { role: 'Drop Point Manager', user: 'droppoint01', note: 'Drop points, bilyet, local stock' },
   { role: 'Operations', user: 'ops01', note: 'Consignments, dispatch, summaries' },
-  { role: 'Agent', user: 'agent01', note: 'Penang drop-point agent view' },
   { role: 'Billing', user: 'inv01', note: 'Invoices, COD, wallet, commissions' },
   { role: 'Customer Service', user: 'csl01', note: 'CS tickets and tracking' },
   { role: 'Others', user: 'staff01', note: 'Limited access — try your custom settings' },

@@ -16,7 +16,7 @@ import {
   Typography,
   message,
 } from 'antd'
-import { PlusOutlined, ClearOutlined, StopOutlined } from '@ant-design/icons'
+import { PlusOutlined, ClearOutlined, StopOutlined, FileSearchOutlined } from '@ant-design/icons'
 import { apiError, getTracking } from '../api/client'
 import CancelConsignmentModal from '../components/CancelConsignmentModal'
 import DataTable from '../components/DataTable'
@@ -397,7 +397,7 @@ export default function TrackingPage() {
           Consignment Tracking
         </Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          Look up status history across multiple CNs. Open tabs are remembered for this session.
+          Multi-CN lookup workspace — open several tabs to compare status history. For full dossier + progress on one CN, use Open full dossier.
         </Text>
       </div>
 
@@ -517,6 +517,18 @@ export default function TrackingPage() {
                       </Text>
                       <StatusTag status={data.statusCode} text={data.scanningType || data.shortLabel} />
                     </Space>
+                  }
+                  extra={
+                    <Link to={`/ops/consignments/${encodeURIComponent(data.cnNo || active)}`}>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<FileSearchOutlined />}
+                        style={{ background: BRAND_GREEN, borderColor: BRAND_GREEN }}
+                      >
+                        Open full dossier
+                      </Button>
+                    </Link>
                   }
                 >
                   <Row gutter={[16, 16]}>

@@ -94,7 +94,6 @@ const SPECS = {
           ['Admin', 'Admin'],
           ['Operation', 'Operation'],
           ['Invoice', 'Invoice'],
-          ['Agent', 'Agent'],
           ['Hub Manager', 'Hub Manager'],
           ['Droppoint Manager', 'Droppoint Manager'],
           ['CSL', 'CSL'],

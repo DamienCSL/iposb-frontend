@@ -20,6 +20,7 @@ import {
   HistoryOutlined,
   InboxOutlined,
   LogoutOutlined,
+  MoonOutlined,
   PlusCircleOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
@@ -31,6 +32,7 @@ import {
   AuditOutlined,
   GlobalOutlined,
   KeyOutlined,
+  WarningOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -43,11 +45,14 @@ const APP_PAGES = [
   { title: 'Dashboard', path: '/ops/dashboard', keywords: ['home', 'overview', 'stats'] },
   { title: 'Consignments', path: '/ops/consignments', keywords: ['shipments', 'cn', 'tracking', 'list'] },
   { title: 'New Consignment Booking', path: '/ops/consignments/new', keywords: ['new', 'create', 'booking', 'shipment', 'consignment', 'entry'] },
+  { title: 'Drop Point Counter Booking', path: '/ops/consignments/new?mode=drop', keywords: ['drop', 'counter', 'partner', 'jnt', '3pl', 'awb'] },
   { title: 'Batch Import Consignments', path: '/ops/consignments/import', keywords: ['csv', 'excel', 'bulk', 'import'] },
   { title: 'Import Error Log', path: '/ops/consignments/import-log', keywords: ['import', 'errors', 'batch', 'failures'] },
   { title: 'Consignment Tracking', path: '/ops/consignments/tracking', keywords: ['tracking', 'timeline', 'cn', 'status'] },
   { title: 'Cancellation Log', path: '/ops/consignments/cancellations', keywords: ['cancel', 'void', 'cancellations'] },
   { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign', 'waiting', 'courier'] },
+  { title: 'Overnight Scan Requests', path: '/ops/overnight-requests', keywords: ['overnight', 'ovn', 'hold', 'redelivery', 'dispatcher'] },
+  { title: 'ATS / Problematic Scans', path: '/ops/ats-claims', keywords: ['ats', 'n13', 'n12', 'damage', 'lost', 'd4', 'reject', 'problematic'] },
   { title: 'Dispatch Driver Assignment', path: '/ops/dispatch?tab=assign', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers', 'plan', 'auto-assign'] },
   { title: 'Remote / 3PL Pickup', path: '/ops/dispatch?tab=remote', keywords: ['3pl', 'remote', 'uncovered', 'partner'] },
   { title: 'Seal Station', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan'] },
@@ -60,27 +65,24 @@ const APP_PAGES = [
   { title: 'Print Consignment', path: '/ops/reports/cn', keywords: ['print', 'cn', 'awb'] },
   { title: 'Print Invoice', path: '/ops/reports/invoice', keywords: ['print', 'invoice'] },
   { title: 'Print DO', path: '/ops/reports/do', keywords: ['print', 'do', 'delivery'] },
-  { title: 'Print Receipt', path: '/ops/reports/receipt', keywords: ['print', 'receipt', 'or'] },
   { title: 'Drop Point Stock', path: '/ops/reports/drop-point-stock', keywords: ['stock', 'drop', 'inventory'] },
   { title: 'Customer Stock', path: '/ops/reports/customer-stock', keywords: ['stock', 'customer', 'inventory'] },
-  { title: 'Invoices', path: '/ops/billing/invoices', keywords: ['billing', 'finance', 'tax', 'invoice'] },
+  { title: 'Invoices', path: '/ops/billing/invoices', keywords: ['billing', 'finance', 'tax', 'invoice', 'paid', 'unpaid'] },
   { title: 'Delivery Orders (DO)', path: '/ops/billing/do', keywords: ['do', 'delivery', 'billing'] },
-  { title: 'Official Receipts', path: '/ops/billing/receipts', keywords: ['or', 'payment', 'receipt'] },
   { title: 'Credit Notes', path: '/ops/billing/credit-notes', keywords: ['cn', 'credit', 'refund', 'adjustment'] },
   { title: 'Debit Notes', path: '/ops/billing/debit-notes', keywords: ['dn', 'debit', 'charge'] },
-  { title: 'Agent Money In', path: '/ops/billing/agent-in', keywords: ['agent', 'topup', 'deposit', 'billing'] },
-  { title: 'Agent Money Out', path: '/ops/billing/agent-out', keywords: ['agent', 'payout', 'settle', 'billing'] },
-  { title: 'Agent Credit Notes', path: '/ops/billing/agent-credit', keywords: ['agent', 'credit', 'bilyet'] },
-  { title: 'Agent Debit Notes', path: '/ops/billing/agent-debit', keywords: ['agent', 'debit', 'bilyet'] },
+  { title: 'Drop Point Money In', path: '/ops/billing/agent-in', keywords: ['drop point', 'topup', 'deposit', 'billing', 'bilyet'] },
+  { title: 'Drop Point Money Out', path: '/ops/billing/agent-out', keywords: ['drop point', 'payout', 'settle', 'billing', 'bilyet'] },
+  { title: 'Drop Point Credit Notes', path: '/ops/billing/agent-credit', keywords: ['drop point', 'credit', 'bilyet'] },
+  { title: 'Drop Point Debit Notes', path: '/ops/billing/agent-debit', keywords: ['drop point', 'debit', 'bilyet'] },
   { title: 'Customer Wallet', path: '/ops/billing/customer-wallet', keywords: ['wallet', 'customer', 'ledger', 'balance'] },
   { title: 'Cancellation Policy', path: '/ops/billing/cancellation-settings', keywords: ['cancel', 'policy', 'fees', 'tiers'] },
   { title: 'COD Reconciliation', path: '/ops/cod', keywords: ['cash', 'collect', 'remit', 'settle', 'cod'] },
-  { title: 'Commissions Ledger', path: '/ops/commissions/ledger', keywords: ['commissions', 'agent', 'ledger', 'wallet'] },
+  { title: 'Commissions Ledger', path: '/ops/commissions/ledger', keywords: ['commissions', 'ledger', 'wallet'] },
   { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/wallets', keywords: ['wallets', 'payouts', 'balance'] },
   { title: 'Commission Rate Rules', path: '/ops/commissions/rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix', 'split', 'engine'] },
   { title: 'Commission Rates Calculator', path: '/ops/commissions/calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if', 'walkthrough', 'split'] },
   { title: 'Commission Withdrawals', path: '/ops/commissions/withdrawals', keywords: ['withdrawals', 'payout'] },
-  { title: 'Agent Money Overview', path: '/ops/agents', keywords: ['agents', 'bilyet', 'ledger'] },
   { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
   { title: 'Staff Verification', path: '/ops/staff', keywords: ['staff', 'approval', 'drivers', 'kyc'] },
   { title: 'Role Access / RBAC', path: '/ops/admin/role-access', keywords: ['rbac', 'roles', 'permissions', 'access'] },
@@ -96,7 +98,6 @@ const APP_PAGES = [
   { title: 'Master Data: Network Areas', path: '/ops/admin/areas', keywords: ['areas', 'network', 'last-mile'] },
   { title: 'Master Data: Route Codes', path: '/ops/admin/route-codes', keywords: ['route-codes', 'sector', 'area'] },
   { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
-  { title: 'Master Data: Agents', path: '/ops/admin/agents', keywords: ['agents', 'resellers', 'partners'] },
   { title: 'Master Data: Staff Users', path: '/ops/admin/users', keywords: ['users', 'accounts', 'passwords', 'roles'] },
   { title: 'System Activity & Audit Logs', path: '/ops/logs', keywords: ['logs', 'audit', 'activity', 'history', 'events', 'trail'] },
 ]
@@ -153,6 +154,10 @@ function getBreadcrumbs(pathname, search) {
     const tab = new URLSearchParams(search || '').get('tab')
     if (tab === 'queue') items.push({ label: 'Assigned Queue', path: '/ops/pickups?tab=queue' })
     else items.push({ label: 'Waiting', path: '/ops/pickups' })
+  } else if (pathname.startsWith('/ops/overnight-requests')) {
+    items.push({ label: 'Overnight Scan Requests', path: '/ops/overnight-requests' })
+  } else if (pathname.startsWith('/ops/ats-claims')) {
+    items.push({ label: 'ATS / Problematic Scans', path: '/ops/ats-claims' })
   } else if (pathname.startsWith('/ops/dispatch')) {
     items.push({ label: 'Dispatch & 3PL', path: '/ops/dispatch?tab=assign' })
     const tab = new URLSearchParams(search || '').get('tab')
@@ -207,6 +212,8 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/ops/consignments/cancellations')) return '/ops/consignments/cancellations'
   if (pathname.startsWith('/ops/consignments')) return '/ops/consignments'
   if (pathname.startsWith('/ops/pickups')) return '/ops/pickups'
+  if (pathname.startsWith('/ops/overnight-requests')) return '/ops/overnight-requests'
+  if (pathname.startsWith('/ops/ats-claims')) return '/ops/ats-claims'
   if (pathname.startsWith('/ops/dispatch')) return '/ops/dispatch'
   if (pathname.startsWith('/ops/seals')) return '/ops/seals'
   if (pathname.startsWith('/ops/station/manifests')) return '/ops/station/manifests'
@@ -232,7 +239,7 @@ function getSelectedKey(pathname, search = '') {
     if (tab === 'calculator') return '/ops/commissions/calculator'
     return '/ops/commissions/rates'
   }
-  if (pathname.startsWith('/ops/agents')) return '/ops/agents'
+  if (pathname.startsWith('/ops/agents')) return '/ops/billing/agent-in'
   if (pathname.startsWith('/ops/cs')) return '/ops/cs/tickets'
   if (pathname.startsWith('/ops/staff')) return '/ops/staff'
   if (pathname.startsWith('/ops/admin/role-access')) return '/ops/admin/role-access'
@@ -467,6 +474,16 @@ export default function AppLayout() {
           visible: can('consignments'),
         },
         {
+          key: '/ops/consignments/new?mode=drop',
+          icon: <InboxOutlined />,
+          label: (
+            <Link to="/ops/consignments/new?mode=drop" style={{ display: 'block', width: '100%' }}>
+              DP Counter Booking
+            </Link>
+          ),
+          visible: can('consignments'),
+        },
+        {
           key: '/ops/consignments/tracking',
           icon: <SearchOutlined />,
           label: <Link to="/ops/consignments/tracking" style={{ display: 'block', width: '100%' }}>CN Tracking</Link>,
@@ -495,6 +512,18 @@ export default function AppLayout() {
           icon: <CarOutlined />,
           label: <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>Pickups Queue</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/overnight-requests',
+          icon: <MoonOutlined />,
+          label: <Link to="/ops/overnight-requests" style={{ display: 'block', width: '100%' }}>Overnight Requests</Link>,
+          visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/ats-claims',
+          icon: <WarningOutlined />,
+          label: <Link to="/ops/ats-claims" style={{ display: 'block', width: '100%' }}>ATS / Problematic</Link>,
+          visible: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
         },
         {
           key: '/ops/dispatch',
@@ -612,11 +641,6 @@ export default function AppLayout() {
               visible: true,
             },
             {
-              key: '/ops/reports/receipt',
-              label: <Link to="/ops/reports/receipt" style={{ display: 'block', width: '100%' }}>Print Receipt</Link>,
-              visible: true,
-            },
-            {
               key: '/ops/reports/drop-point-stock',
               label: <Link to="/ops/reports/drop-point-stock" style={{ display: 'block', width: '100%' }}>Drop Point Stock</Link>,
               visible: true,
@@ -672,16 +696,6 @@ export default function AppLayout() {
               visible: can('billing') || isAdmin,
             },
             {
-              key: '/ops/billing/receipts',
-              label: <Link to="/ops/billing/receipts" style={{ display: 'block', width: '100%' }}>Official Receipts</Link>,
-              visible: can('billing') || isAdmin,
-            },
-            {
-              key: '/ops/billing/receipts/tracking',
-              label: <Link to="/ops/billing/receipts/tracking" style={{ display: 'block', width: '100%' }}>Receipt Tracking</Link>,
-              visible: can('billing') || isAdmin,
-            },
-            {
               key: '/ops/billing/credit-notes',
               label: <Link to="/ops/billing/credit-notes" style={{ display: 'block', width: '100%' }}>Credit Notes</Link>,
               visible: can('billing') || isAdmin,
@@ -693,23 +707,23 @@ export default function AppLayout() {
             },
             {
               key: '/ops/billing/agent-in',
-              label: <Link to="/ops/billing/agent-in" style={{ display: 'block', width: '100%' }}>Agent Money In</Link>,
-              visible: can('billing') || isAdmin,
+              label: <Link to="/ops/billing/agent-in" style={{ display: 'block', width: '100%' }}>Drop Point Money In</Link>,
+              visible: can('billing') || can('dropPoints') || isAdmin,
             },
             {
               key: '/ops/billing/agent-out',
-              label: <Link to="/ops/billing/agent-out" style={{ display: 'block', width: '100%' }}>Agent Money Out</Link>,
-              visible: can('billing') || isAdmin,
+              label: <Link to="/ops/billing/agent-out" style={{ display: 'block', width: '100%' }}>Drop Point Money Out</Link>,
+              visible: can('billing') || can('dropPoints') || isAdmin,
             },
             {
               key: '/ops/billing/agent-credit',
-              label: <Link to="/ops/billing/agent-credit" style={{ display: 'block', width: '100%' }}>Agent Credit Notes</Link>,
-              visible: can('billing') || isAdmin,
+              label: <Link to="/ops/billing/agent-credit" style={{ display: 'block', width: '100%' }}>Drop Point Credit Notes</Link>,
+              visible: can('billing') || can('dropPoints') || isAdmin,
             },
             {
               key: '/ops/billing/agent-debit',
-              label: <Link to="/ops/billing/agent-debit" style={{ display: 'block', width: '100%' }}>Agent Debit Notes</Link>,
-              visible: can('billing') || isAdmin,
+              label: <Link to="/ops/billing/agent-debit" style={{ display: 'block', width: '100%' }}>Drop Point Debit Notes</Link>,
+              visible: can('billing') || can('dropPoints') || isAdmin,
             },
           ],
         },
@@ -735,7 +749,7 @@ export default function AppLayout() {
           key: 'sub-commissions',
           icon: <TeamOutlined />,
           label: 'Commissions & Wallets',
-          visible: can('commissions') || can('agent') || can('billing') || isAdmin,
+          visible: can('commissions') || can('billing') || isAdmin,
           children: [
             {
               key: '/ops/commissions/rates',
@@ -750,22 +764,17 @@ export default function AppLayout() {
             {
               key: '/ops/commissions/ledger',
               label: <Link to="/ops/commissions/ledger" style={{ display: 'block', width: '100%' }}>Commission Ledger</Link>,
-              visible: can('commissions') || can('agent') || isAdmin,
+              visible: can('commissions') || isAdmin,
             },
             {
               key: '/ops/commissions/wallets',
               label: <Link to="/ops/commissions/wallets" style={{ display: 'block', width: '100%' }}>Partner Wallets</Link>,
-              visible: can('commissions') || can('agent') || isAdmin,
+              visible: can('commissions') || isAdmin,
             },
             {
               key: '/ops/commissions/withdrawals',
               label: <Link to="/ops/commissions/withdrawals" style={{ display: 'block', width: '100%' }}>Withdrawals</Link>,
-              visible: can('commissions') || can('agent') || isAdmin,
-            },
-            {
-              key: '/ops/agents',
-              label: <Link to="/ops/agents" style={{ display: 'block', width: '100%' }}>Agent Money Overview</Link>,
-              visible: can('agent') || can('billing') || isAdmin,
+              visible: can('commissions') || isAdmin,
             },
           ],
         },
@@ -866,11 +875,6 @@ export default function AppLayout() {
               key: '/ops/admin/customers',
               label: <Link to="/ops/admin/customers" style={{ display: 'block', width: '100%' }}>Corporate Customers</Link>,
               visible: can('admin') || can('customers') || isAdmin,
-            },
-            {
-              key: '/ops/admin/agents',
-              label: <Link to="/ops/admin/agents" style={{ display: 'block', width: '100%' }}>Operating Agents</Link>,
-              visible: can('admin') || can('agent') || isAdmin,
             },
             {
               key: '/ops/admin/users',
@@ -989,7 +993,7 @@ export default function AppLayout() {
               >
                 CONTROL TOWER
               </span>
-            </div>
+          </div>
           )}
         </div>
 
@@ -1051,7 +1055,7 @@ export default function AppLayout() {
                   {user.role} {user.branchCode ? `(${user.branchCode})` : ''}
                 </div>
               </div>
-            </div>
+          </div>
           </div>
         )}
       </Sider>
@@ -1128,7 +1132,7 @@ export default function AppLayout() {
                 />
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>
                   {user.username}
-                </span>
+            </span>
               </div>
             </Dropdown>
           </div>

@@ -4,23 +4,55 @@ import {
   closeSeal,
   createSeal,
   getSealPack,
+  getSealSop,
   listMaster,
   listSeals,
   openSeal,
   packSealScan,
   removeSealMember,
   scanSeal,
+  sealArriveCn,
 } from '../api/client'
 
-const SCAN_STATUSES = [
-  { code: 'GWD', label: 'Goods Outward (depart)' },
-  { code: 'INB', label: 'In transit' },
-  { code: 'ARR', label: 'Arrive origin hub' },
-  { code: 'HUB', label: 'Arrive dest hub' },
-  { code: 'SHB', label: 'At delivery station' },
-  { code: 'SRT', label: 'Sorting' },
-  { code: 'MNF', label: 'Manifested / linehaul' },
+const PHASES = [
+  {
+    id: 'origin_dp',
+    step: 1,
+    title: 'Origin DP',
+    summary: 'Pack CNs into Baby → close',
+  },
+  {
+    id: 'origin_hub',
+    step: 2,
+    title: 'Origin Hub',
+    summary: 'Seal arrival → depart (Father = sea / East↔West only)',
+  },
+  {
+    id: 'dest_hub',
+    step: 3,
+    title: 'Dest Hub',
+    summary: 'Seal arrival → open Father/Mother → depart to DP',
+  },
+  {
+    id: 'dest_dp',
+    step: 4,
+    title: 'Dest DP',
+    summary: 'Unseal Baby → scan each CN (SHB)',
+  },
 ]
+
+const PHASE_SCAN = {
+  origin_hub: [
+    { code: 'ARR', label: 'Arrive origin hub' },
+    { code: 'GWD', label: 'Depart to dest hub' },
+    { code: 'MNF', label: 'Manifested / linehaul depart' },
+  ],
+  dest_hub: [
+    { code: 'HUB', label: 'Arrive dest hub' },
+    { code: 'GWD', label: 'Depart to dest DP' },
+    { code: 'MNF', label: 'Manifested depart to DP' },
+  ],
+}
 
 function tierLabel(tier) {
   if (tier === 'baby') return 'Baby'
@@ -52,6 +84,8 @@ function MemberTree({ members, depth = 0 }) {
 }
 
 export default function SealStationPage() {
+  const [phase, setPhase] = useState('origin_dp')
+  const [sop, setSop] = useState(null)
   const [tier, setTier] = useState('baby')
   const [destArea, setDestArea] = useState('')
   const [destDp, setDestDp] = useState('')
@@ -59,11 +93,12 @@ export default function SealStationPage() {
   const [originDp, setOriginDp] = useState('')
   const [originHub, setOriginHub] = useState('')
   const [locId, setLocId] = useState('')
+  const [seaLane, setSeaLane] = useState(true)
   const [activeSealNo, setActiveSealNo] = useState('')
   const [seal, setSeal] = useState(null)
   const [pack, setPack] = useState(null)
   const [packBarcode, setPackBarcode] = useState('')
-  const [scanStatus, setScanStatus] = useState('GWD')
+  const [scanStatus, setScanStatus] = useState('ARR')
   const packInputRef = useRef(null)
   const [list, setList] = useState([])
   const [areas, setAreas] = useState([])
@@ -88,6 +123,19 @@ export default function SealStationPage() {
     setList(data?.items || [])
   }, [filterTier])
 
+  const refreshSop = useCallback(async (sealNo) => {
+    try {
+      const data = await getSealSop({
+        phase,
+        locId: locId || undefined,
+        sealNo: sealNo || activeSealNo || undefined,
+      })
+      setSop(data)
+    } catch {
+      setSop(null)
+    }
+  }, [phase, locId, activeSealNo])
+
   useEffect(() => {
     listMaster('areas').then((d) => setAreas(d?.rows || [])).catch(() => setAreas([]))
     listMaster('delivery-points').then((d) => setDps(d?.rows || [])).catch(() => setDps([]))
@@ -98,6 +146,19 @@ export default function SealStationPage() {
     refreshList().catch(() => setList([]))
   }, [refreshList])
 
+  useEffect(() => {
+    // Default create tier + scan status per phase
+    if (phase === 'origin_dp') {
+      setTier('baby')
+    } else if (phase === 'origin_hub') {
+      setTier('father')
+      setScanStatus('ARR')
+    } else if (phase === 'dest_hub') {
+      setScanStatus('HUB')
+    }
+    refreshSop().catch(() => {})
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function loadSeal(sealNo) {
     const code = String(sealNo || '').trim().toUpperCase()
     if (!code) return
@@ -107,6 +168,7 @@ export default function SealStationPage() {
       const data = await getSealPack(code)
       applyPack(data)
       setOk(data?.session?.message || `Loaded ${code}`)
+      await refreshSop(code)
       queueMicrotask(() => packInputRef.current?.focus())
     } catch (err) {
       setSeal(null)
@@ -132,10 +194,15 @@ export default function SealStationPage() {
         originHubCode: originHub || locId || undefined,
         locId: locId || originHub || undefined,
       }
+      if (tier === 'father') {
+        body.seaLane = seaLane
+        body.transportMode = seaLane ? 'sea' : undefined
+      }
       const data = await createSeal(body)
       applyPack(await getSealPack(data?.seal?.sealNo || ''))
-      setOk(`Created ${data?.seal?.sealNo} — ${data?.seal?.sealNo ? 'ready to pack-scan' : ''}`)
+      setOk(`Created ${data?.seal?.sealNo}`)
       await refreshList()
+      await refreshSop(data?.seal?.sealNo)
       queueMicrotask(() => packInputRef.current?.focus())
     } catch (err) {
       setMessage(apiError(err))
@@ -149,7 +216,6 @@ export default function SealStationPage() {
     const code = packBarcode.trim().toUpperCase()
     if (!code) return
 
-    // No active seal yet: treat first scan as seal barcode to start session
     let target = activeSealNo
     if (!target && (code.startsWith('BS-') || code.startsWith('MS-') || code.startsWith('FS-'))) {
       target = code
@@ -201,8 +267,9 @@ export default function SealStationPage() {
     try {
       await closeSeal(activeSealNo)
       applyPack(await getSealPack(activeSealNo))
-      setOk(`Sealed ${activeSealNo} — ready to scan / print label`)
+      setOk(`Sealed ${activeSealNo} — hand off to origin hub or Manifest Station`)
       await refreshList()
+      await refreshSop(activeSealNo)
     } catch (err) {
       setMessage(apiError(err))
     } finally {
@@ -218,6 +285,7 @@ export default function SealStationPage() {
     try {
       const data = await scanSeal(activeSealNo, {
         status: scanStatus,
+        phase,
         locId: locId || destHub || originHub || undefined,
       })
       applyPack(await getSealPack(activeSealNo))
@@ -226,6 +294,7 @@ export default function SealStationPage() {
           (data?.cnFailed ? `, ${data.cnFailed} failed` : '')
       )
       await refreshList()
+      await refreshSop(activeSealNo)
     } catch (err) {
       setMessage(apiError(err))
     } finally {
@@ -238,14 +307,47 @@ export default function SealStationPage() {
     setBusy(true)
     setMessage('')
     try {
-      await openSeal(activeSealNo, {
-        locId: locId || seal?.destHubCode || undefined,
-      })
+      const openLoc =
+        phase === 'dest_dp'
+          ? locId || seal?.destDeliveryPoint
+          : locId || seal?.destHubCode || destHub
+      await openSeal(activeSealNo, { locId: openLoc || undefined })
       applyPack(await getSealPack(activeSealNo))
-      setOk(`Opened ${activeSealNo}`)
+      setOk(
+        phase === 'dest_dp'
+          ? `Unsealed ${activeSealNo} — scan each CN for arrival (SHB)`
+          : `Opened ${activeSealNo}`
+      )
       await refreshList()
+      await refreshSop(activeSealNo)
     } catch (err) {
       setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onCnArrive(e) {
+    e.preventDefault()
+    if (!activeSealNo) return
+    const code = packBarcode.trim().toUpperCase()
+    if (!code) return
+    setBusy(true)
+    setMessage('')
+    try {
+      const data = await sealArriveCn(activeSealNo, {
+        cnNo: code,
+        locId: locId || seal?.destDeliveryPoint || undefined,
+      })
+      applyPack(await getSealPack(activeSealNo))
+      setPackBarcode('')
+      setOk(data?.message || `CN ${code} SHB`)
+      await refreshSop(activeSealNo)
+      queueMicrotask(() => packInputRef.current?.focus())
+    } catch (err) {
+      setMessage(apiError(err))
+      setPackBarcode('')
+      queueMicrotask(() => packInputRef.current?.focus())
     } finally {
       setBusy(false)
     }
@@ -303,10 +405,21 @@ export default function SealStationPage() {
   )
 
   const lifecycle = seal?.lifecycle || ''
-  const canAdd = lifecycle === 'open'
-  const canClose = lifecycle === 'open'
-  const canScan = ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
-  const canOpen = ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
+  const canAdd = phase === 'origin_dp' && lifecycle === 'open'
+  const canClose = phase === 'origin_dp' && lifecycle === 'open'
+  const canTransitScan =
+    (phase === 'origin_hub' || phase === 'dest_hub') &&
+    ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
+  const canOpen =
+    ((phase === 'dest_hub' && ['father', 'mother'].includes(seal?.tier)) ||
+      (phase === 'dest_dp' && seal?.tier === 'baby')) &&
+    ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
+  const canCnArrive = phase === 'dest_dp' && seal?.tier === 'baby' && lifecycle === 'opened'
+  const showCreate =
+    phase === 'origin_dp' || (phase === 'origin_hub' && (tier === 'father' || tier === 'mother'))
+  const scanOptions = PHASE_SCAN[phase] || []
+  const phaseMeta = PHASES.find((p) => p.id === phase) || PHASES[0]
+  const suggested = sop?.suggestedNext
 
   return (
     <div>
@@ -314,8 +427,53 @@ export default function SealStationPage() {
         <div>
           <h1 className="h3 mb-1">Seal Station</h1>
           <p className="text-muted mb-0">
-            Scan seal → pack expected CNs/child seals → close → transit-scan the bag.
+            Guided SOP — Origin DP → Origin Hub → Dest Hub → Dest DP.
           </p>
+        </div>
+        <div className="d-flex align-items-center gap-2">
+          <label className="form-label mb-0 small text-muted">Your location</label>
+          <input
+            className="form-control form-control-sm"
+            style={{ width: '8rem' }}
+            value={locId}
+            onChange={(e) => setLocId(e.target.value.toUpperCase())}
+            placeholder="DP / hub"
+          />
+        </div>
+      </div>
+
+      <div className="card mb-3">
+        <div className="card-body py-3">
+          <div className="d-flex flex-wrap gap-2">
+            {PHASES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`btn btn-sm ${phase === p.id ? 'btn-primary' : 'btn-outline-secondary'}`}
+                onClick={() => {
+                  setPhase(p.id)
+                  setMessage('')
+                  setOk('')
+                }}
+              >
+                <span className="badge text-bg-light text-dark me-1">{p.step}</span>
+                {p.title}
+              </button>
+            ))}
+          </div>
+          <div className="small text-muted mt-2">{phaseMeta.summary}</div>
+          {suggested?.message ? (
+            <div className="alert alert-info py-2 mb-0 mt-2">
+              <strong>Next:</strong> {suggested.message}
+            </div>
+          ) : null}
+          {Array.isArray(sop?.actions) && sop.actions.length ? (
+            <ul className="small mb-0 mt-2 ps-3 text-muted">
+              {sop.actions.map((a) => (
+                <li key={a.code}>{a.label}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
 
@@ -324,75 +482,99 @@ export default function SealStationPage() {
 
       <div className="row g-3">
         <div className="col-lg-5">
-          <div className="card mb-3">
-            <div className="card-header"><strong>Create seal</strong></div>
-            <div className="card-body">
-              <form onSubmit={onCreate} className="vstack gap-2">
-                <div>
-                  <label className="form-label">Tier</label>
-                  <select className="form-select" value={tier} onChange={(e) => setTier(e.target.value)}>
-                    <option value="baby">Baby — dest area (CNs)</option>
-                    <option value="mother">Mother — dest DP (baby seals)</option>
-                    <option value="father">Father — dest hub (mother seals, origin hub only)</option>
-                  </select>
-                </div>
-                {tier === 'baby' ? (
+          {showCreate ? (
+            <div className="card mb-3">
+              <div className="card-header"><strong>Create seal</strong></div>
+              <div className="card-body">
+                <form onSubmit={onCreate} className="vstack gap-2">
                   <div>
-                    <label className="form-label">Dest area</label>
-                    <select className="form-select" value={destArea} onChange={(e) => setDestArea(e.target.value)} required>
-                      <option value="">Select area…</option>
-                      {areaOptions.map((a) => (
-                        <option key={a.code} value={a.code}>{a.code}{a.name ? ` — ${a.name}` : ''}</option>
-                      ))}
+                    <label className="form-label">Tier</label>
+                    <select className="form-select" value={tier} onChange={(e) => setTier(e.target.value)}>
+                      {phase === 'origin_dp' ? (
+                        <>
+                          <option value="baby">Baby — dest area (CNs)</option>
+                          <option value="mother">Mother — dest DP (baby seals)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="father">Father — dest hub (sea / East↔West only)</option>
+                          <option value="mother">Mother — dest DP (optional hub bag)</option>
+                        </>
+                      )}
                     </select>
                   </div>
-                ) : null}
-                {tier === 'mother' ? (
-                  <div>
-                    <label className="form-label">Dest delivery point</label>
-                    <select className="form-select" value={destDp} onChange={(e) => setDestDp(e.target.value)} required>
-                      <option value="">Select DP…</option>
-                      {dpOptions.map((d) => (
-                        <option key={d.code} value={d.code}>{d.code}{d.name ? ` — ${d.name}` : ''}</option>
-                      ))}
-                    </select>
+                  {tier === 'baby' ? (
+                    <div>
+                      <label className="form-label">Dest area</label>
+                      <select className="form-select" value={destArea} onChange={(e) => setDestArea(e.target.value)} required>
+                        <option value="">Select area…</option>
+                        {areaOptions.map((a) => (
+                          <option key={a.code} value={a.code}>{a.code}{a.name ? ` — ${a.name}` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  {tier === 'mother' ? (
+                    <div>
+                      <label className="form-label">Dest delivery point</label>
+                      <select className="form-select" value={destDp} onChange={(e) => setDestDp(e.target.value)} required>
+                        <option value="">Select DP…</option>
+                        {dpOptions.map((d) => (
+                          <option key={d.code} value={d.code}>{d.code}{d.name ? ` — ${d.name}` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  {tier === 'father' ? (
+                    <>
+                      <div>
+                        <label className="form-label">Dest hub</label>
+                        <select className="form-select" value={destHub} onChange={(e) => setDestHub(e.target.value)} required>
+                          <option value="">Select hub…</option>
+                          {hubOptions.map((h) => (
+                            <option key={h.code} value={h.code}>{h.code}{h.name ? ` — ${h.name}` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-check">
+                        <input
+                          id="seaLane"
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={seaLane}
+                          onChange={(e) => setSeaLane(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="seaLane">
+                          Sea / East↔West Malaysia lane (required for Father)
+                        </label>
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="row g-2">
+                    <div className="col-md-6">
+                      <label className="form-label">Origin DP (optional)</label>
+                      <input className="form-control" value={originDp} onChange={(e) => setOriginDp(e.target.value.toUpperCase())} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Origin hub</label>
+                      <input
+                        className="form-control"
+                        value={originHub || locId}
+                        onChange={(e) => {
+                          const v = e.target.value.toUpperCase()
+                          setOriginHub(v)
+                          if (!locId) setLocId(v)
+                        }}
+                        placeholder={tier === 'father' ? 'Required for father' : 'e.g. BKI'}
+                        required={tier === 'father'}
+                      />
+                    </div>
                   </div>
-                ) : null}
-                {tier === 'father' ? (
-                  <div>
-                    <label className="form-label">Dest hub</label>
-                    <select className="form-select" value={destHub} onChange={(e) => setDestHub(e.target.value)} required>
-                      <option value="">Select hub…</option>
-                      {hubOptions.map((h) => (
-                        <option key={h.code} value={h.code}>{h.code}{h.name ? ` — ${h.name}` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : null}
-                <div className="row g-2">
-                  <div className="col-md-6">
-                    <label className="form-label">Origin DP (optional)</label>
-                    <input className="form-control" value={originDp} onChange={(e) => setOriginDp(e.target.value.toUpperCase())} />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Origin / scan hub</label>
-                    <input
-                      className="form-control"
-                      value={originHub || locId}
-                      onChange={(e) => {
-                        const v = e.target.value.toUpperCase()
-                        setOriginHub(v)
-                        setLocId(v)
-                      }}
-                      placeholder={tier === 'father' ? 'Required for father' : 'e.g. BKI'}
-                      required={tier === 'father'}
-                    />
-                  </div>
-                </div>
-                <button className="btn btn-primary" type="submit" disabled={busy}>Create</button>
-              </form>
+                  <button className="btn btn-primary" type="submit" disabled={busy}>Create</button>
+                </form>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="card">
             <div className="card-header d-flex justify-content-between align-items-center">
@@ -446,7 +628,7 @@ export default function SealStationPage() {
         <div className="col-lg-7">
           <div className="card mb-3">
             <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <strong>Active seal</strong>
+              <strong>Active seal · {phaseMeta.title}</strong>
               <form
                 className="d-flex gap-2"
                 onSubmit={(e) => {
@@ -481,19 +663,23 @@ export default function SealStationPage() {
               {!seal ? (
                 <div>
                   <div className="text-muted mb-2">
-                    Scan a seal barcode below to start packing, or create/load a seal.
+                    {phase === 'origin_dp'
+                      ? 'Scan a seal barcode below to start packing, or create/load a seal.'
+                      : 'Load or scan a seal for this phase.'}
                   </div>
-                  <form onSubmit={onPackScan} className="d-flex gap-2">
-                    <input
-                      ref={packInputRef}
-                      className="form-control form-control-lg"
-                      placeholder="Scan seal BS-… / MS-… / FS-…"
-                      value={packBarcode}
-                      onChange={(e) => setPackBarcode(e.target.value.toUpperCase())}
-                      autoFocus
-                    />
-                    <button className="btn btn-primary" type="submit" disabled={busy}>Start</button>
-                  </form>
+                  {phase === 'origin_dp' ? (
+                    <form onSubmit={onPackScan} className="d-flex gap-2">
+                      <input
+                        ref={packInputRef}
+                        className="form-control form-control-lg"
+                        placeholder="Scan seal BS-… / MS-… / FS-…"
+                        value={packBarcode}
+                        onChange={(e) => setPackBarcode(e.target.value.toUpperCase())}
+                        autoFocus
+                      />
+                      <button className="btn btn-primary" type="submit" disabled={busy}>Start</button>
+                    </form>
+                  ) : null}
                 </div>
               ) : (
                 <>
@@ -518,7 +704,7 @@ export default function SealStationPage() {
                       ) : null}
                       {canOpen ? (
                         <button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={onOpen}>
-                          Open seal
+                          {phase === 'dest_dp' ? 'Unseal Baby' : `Open ${tierLabel(seal.tier)}`}
                         </button>
                       ) : null}
                     </div>
@@ -545,9 +731,6 @@ export default function SealStationPage() {
                         <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
                           Add
                         </button>
-                      </div>
-                      <div className="form-text">
-                        Scanner wedge works here — Enter submits. Wrong dest area/DP/hub is rejected.
                       </div>
                     </form>
                   ) : null}
@@ -589,12 +772,6 @@ export default function SealStationPage() {
                           </table>
                         </div>
                       )}
-                      {pack.extras?.length ? (
-                        <div className="small text-warning mt-2">
-                          Extra (not on expected list):{' '}
-                          {pack.extras.map((x) => x.memberKey).join(', ')}
-                        </div>
-                      ) : null}
                     </div>
                   ) : null}
 
@@ -618,14 +795,20 @@ export default function SealStationPage() {
                     ) : null}
                   </div>
 
-                  {canScan ? (
+                  {canTransitScan ? (
                     <form onSubmit={onScan} className="border-top pt-3">
-                      <div className="fw-semibold mb-2">Transit scan (cascades to all CNs)</div>
+                      <div className="fw-semibold mb-2">
+                        {phase === 'origin_hub' ? 'Origin hub transit' : 'Dest hub transit'}
+                        {' '}(cascades to all CNs)
+                      </div>
+                      <div className="form-text mb-2">
+                        Depart may also be done via Manifest Station (MNF).
+                      </div>
                       <div className="row g-2 align-items-end">
                         <div className="col-md-5">
                           <label className="form-label">Status</label>
                           <select className="form-select" value={scanStatus} onChange={(e) => setScanStatus(e.target.value)}>
-                            {SCAN_STATUSES.map((s) => (
+                            {scanOptions.map((s) => (
                               <option key={s.code} value={s.code}>{s.code} — {s.label}</option>
                             ))}
                           </select>
@@ -644,6 +827,31 @@ export default function SealStationPage() {
                         </div>
                       </div>
                     </form>
+                  ) : null}
+
+                  {canCnArrive ? (
+                    <form onSubmit={onCnArrive} className="border-top pt-3">
+                      <div className="fw-semibold mb-2">CN arrival at dest DP (SHB)</div>
+                      <div className="d-flex gap-2">
+                        <input
+                          ref={packInputRef}
+                          className="form-control form-control-lg"
+                          placeholder="Scan CN barcode"
+                          value={packBarcode}
+                          onChange={(e) => setPackBarcode(e.target.value.toUpperCase())}
+                          autoFocus
+                        />
+                        <button className="btn btn-success btn-lg" type="submit" disabled={busy}>
+                          Arrive
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+
+                  {phase === 'dest_dp' && seal?.tier === 'baby' && lifecycle !== 'opened' ? (
+                    <div className="alert alert-warning py-2 mb-0">
+                      Unseal this Baby at dest DP before scanning CNs.
+                    </div>
                   ) : null}
                 </>
               )}

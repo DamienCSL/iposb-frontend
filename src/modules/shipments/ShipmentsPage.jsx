@@ -421,23 +421,37 @@ export default function ShipmentsPage() {
       title: 'CN Number',
       dataIndex: 'cn_no',
       key: 'cn_no',
-      render: (val) => (
-        <span
-          style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontWeight: 600,
-            color: '#1B8A5A',
-            cursor: 'pointer',
-          }}
-          onClick={() => {
-            setTrackingCn(val)
-            doTrack(val)
-            setParams({ tab: 'tracking', cn: val })
-          }}
-        >
-          {val}
-        </span>
-      ),
+      render: (val, r) => {
+        const iposb = r.iposb_cn_no || r.iposbCnNo || val
+        const partner = r.partner_cn_no || r.partnerCnNo || ''
+        const display = partner || val
+        const trackKey = iposb || val
+        return (
+          <div>
+            <span
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontWeight: 600,
+                color: '#1B8A5A',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setTrackingCn(trackKey)
+                doTrack(trackKey)
+                setParams({ tab: 'tracking', cn: trackKey })
+              }}
+            >
+              {display}
+            </span>
+            {partner && iposb && partner !== iposb ? (
+              <div style={{ fontSize: 11, color: '#6B7280', fontFamily: 'JetBrains Mono, monospace' }}>
+                IPOSB {iposb}
+                {r.partner_code || r.partnerCode ? ` · ${r.partner_code || r.partnerCode}` : ''}
+              </div>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       title: 'Customer',
@@ -506,9 +520,10 @@ export default function ShipmentsPage() {
           {r.cn_status !== 'CAN' && r.cn_status !== 'POD' && (
             <Popconfirm
               title={`Cancel consignment ${r.cn_no}?`}
+              description="This cancels the order — it does not change the delivery address. Create a new CN to change address."
               onConfirm={async () => {
                 try {
-                  await cancelConsignment(r.cn_no)
+                  await cancelConsignment(r.cn_no, { confirmNotAddressChange: true })
                   message.success(`Consignment ${r.cn_no} cancelled`)
                   fetchShipments(currentPage)
                 } catch (e) {

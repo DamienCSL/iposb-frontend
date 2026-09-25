@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
   Drawer,
@@ -147,7 +148,11 @@ export default function ReturnsPage() {
   async function handleInitiateSubmit(values) {
     setSubmitting(true)
     try {
-      await initiateReturn(values.cn, { reason: values.reason, note: values.note })
+      await initiateReturn(values.cn, {
+        reason: values.reason,
+        note: values.note,
+        force: Boolean(values.force),
+      })
       message.success(`Return initiated for ${values.cn}`)
       setModalOpen(false)
       form.resetFields()
@@ -386,6 +391,16 @@ export default function ReturnsPage() {
           <Form.Item label="Detailed Notes / Audit Remark" name="note">
             <Input.TextArea rows={3} placeholder="Provide specific operational context or customer statement..." />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="After 3 failed deliveries (UND), registration is allowed 1:00–3:00 PM"
+            description="Outside that window the API blocks unless force override is checked."
+          />
+          <Form.Item name="force" valuePropName="checked">
+            <Checkbox>Force override (outside 1–3 PM window)</Checkbox>
+          </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <Button onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button
@@ -473,7 +488,7 @@ export default function ReturnsPage() {
               </Descriptions.Item>
             </Descriptions>
 
-            {canManageReturns && !['RETURNED', 'CANCELLED'].includes(selectedReturn.status) && (
+            {canManageReturns && !['RETURNED', 'CANCELLED', 'REJECTED'].includes(selectedReturn.status) && (
               <Card size="small" title="Advance Return Status">
                 <Space direction="vertical" style={{ width: '100%' }}>
                   <Select
@@ -486,6 +501,7 @@ export default function ReturnsPage() {
                       { value: 'ARRIVED_HUB', label: 'ARRIVED_HUB — Arrived at return hub' },
                       { value: 'OUT_FOR_RETURN', label: 'OUT_FOR_RETURN — Out for return delivery' },
                       { value: 'RETURNED', label: 'RETURNED — Returned to sender' },
+                      { value: 'REJECTED', label: 'REJECTED — D4 reject (opens ATS REJECT)' },
                       { value: 'CANCELLED', label: 'CANCELLED — Return aborted' },
                     ]}
                   />

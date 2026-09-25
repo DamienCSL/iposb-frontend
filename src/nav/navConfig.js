@@ -255,7 +255,7 @@ export const NAV_SECTIONS = [
         title: 'Print CN',
         cap: 'reports',
         items: [
-          { to: '/reports/cn', label: 'Print Consignment', icon: 'bi-printer', live: true },
+          { to: '/ops/reports/cn', label: 'Print Consignment', icon: 'bi-printer', live: true },
         ],
       },
     ],

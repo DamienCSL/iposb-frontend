@@ -72,14 +72,6 @@ export const CODE_LOOKUP_KINDS = {
     generateKind: 'cust_ac_no',
     label: 'customer',
   },
-  agents: {
-    resource: 'agents',
-    codeKeys: ['agent_cd', 'code'],
-    nameKeys: ['agent_name', 'name'],
-    manageTo: '/ops/admin/agents',
-    generateKind: 'agent_cd',
-    label: 'agent',
-  },
   dispatchers: {
     resource: 'dispatchers',
     codeKeys: ['dispatcher_code', 'code'],
@@ -109,7 +101,7 @@ const GENERATE_KIND_META = {
   dispatcher_code: CODE_LOOKUP_KINDS.dispatchers,
   partner_code: CODE_LOOKUP_KINDS['3pl'],
   cust_ac_no: CODE_LOOKUP_KINDS.customers,
-  agent_cd: CODE_LOOKUP_KINDS.agents,
+  agent_cd: CODE_LOOKUP_KINDS['drop-points'],
   rule_code: { resource: 'routes', codeKeys: ['rule_code'], nameKeys: ['rule_code'], manageTo: '/ops/admin/routes', generateKind: 'rule_code', label: 'routing rule' },
 }
 

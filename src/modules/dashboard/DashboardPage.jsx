@@ -6,13 +6,21 @@ import {
   ClockCircleOutlined,
   DollarCircleOutlined,
   InboxOutlined,
+  MoonOutlined,
   PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
+  WarningOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiError, getOpsDashboard, listConsignments } from '../../api/client'
+import {
+  apiError,
+  getOpsDashboard,
+  listAtsClaims,
+  listConsignments,
+  listOvernightRequests,
+} from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
@@ -56,6 +64,7 @@ export default function DashboardPage() {
   const { user, can, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState(EMPTY_STATS)
+  const [queueCounts, setQueueCounts] = useState({ overnightPending: 0, atsOpen: 0, atsOverdue: 0 })
   const [recentCns, setRecentCns] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -91,6 +100,26 @@ export default function DashboardPage() {
     if (cnRes) {
       const records = cnRes?.data || cnRes?.rows || []
       setRecentCns(records.slice(0, 8))
+    }
+
+    // Problematic / overnight inbox counts (best-effort; ignore if migration not applied)
+    try {
+      const canOpsQueues = can('dispatch') || can('pickups') || can('consignments') || isAdmin
+      if (canOpsQueues) {
+        const [ovnRes, atsRes] = await Promise.all([
+          listOvernightRequests({ status: 'PENDING', page: 1, per_page: 1 }).catch(() => null),
+          listAtsClaims({ status: 'ACTIVE', page: 1, per_page: 1 }).catch(() => null),
+        ])
+        setQueueCounts({
+          overnightPending: ovnRes?.pendingCount ?? ovnRes?.total ?? 0,
+          atsOpen: atsRes?.summary?.open ?? 0,
+          atsOverdue: atsRes?.summary?.overdue ?? 0,
+        })
+      } else {
+        setQueueCounts({ overnightPending: 0, atsOpen: 0, atsOverdue: 0 })
+      }
+    } catch {
+      setQueueCounts({ overnightPending: 0, atsOpen: 0, atsOverdue: 0 })
     }
 
     if (errors.length === 2) {
@@ -384,6 +413,28 @@ export default function DashboardPage() {
                     desc: 'Dispatch fleet couriers and load balance',
                   },
                   {
+                    key: 'overnight',
+                    show: can('dispatch') || can('pickups') || isAdmin,
+                    path: '/ops/overnight-requests',
+                    icon: <MoonOutlined />,
+                    title: 'Overnight Requests',
+                    desc: queueCounts.overnightPending
+                      ? `${queueCounts.overnightPending} pending from dispatcher`
+                      : 'Approve OVN overnight holds',
+                  },
+                  {
+                    key: 'ats',
+                    show: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
+                    path: '/ops/ats-claims',
+                    icon: <WarningOutlined />,
+                    title: 'ATS / Problematic Scans',
+                    desc: queueCounts.atsOverdue
+                      ? `${queueCounts.atsOverdue} overdue · ${queueCounts.atsOpen} open`
+                      : queueCounts.atsOpen
+                        ? `${queueCounts.atsOpen} open claims (N13/N12/D4)`
+                        : 'Lost, damage & reject claims',
+                  },
+                  {
                     key: 'invoice',
                     show: can('billing') || isAdmin,
                     path: '/ops/billing/invoices?mode=entry',
@@ -522,6 +573,11 @@ export default function DashboardPage() {
                 <StatusTag status="OFD" />
                 <StatusTag status="POD" />
                 <StatusTag status="UND" />
+                <StatusTag status="OVN" />
+                <StatusTag status="N12" />
+                <StatusTag status="N13" />
+                <StatusTag status="D4" />
+                <StatusTag status="RTN" />
               </div>
             </Card>
           </div>

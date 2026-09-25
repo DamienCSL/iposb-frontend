@@ -39,7 +39,7 @@ const { Title, Text } = Typography
 
 const GROUP_OPTIONS = [
   { label: 'Status (SOP Lifecycle)', value: 'status' },
-  { label: 'Agent', value: 'agent' },
+  { label: 'Drop Point', value: 'drop-point' },
   { label: 'Consignee (Recipient)', value: 'consignee' },
   { label: 'Consigner (Sender)', value: 'consigner' },
   { label: 'Shipper', value: 'shipper' },
@@ -227,7 +227,7 @@ export default function NetworkAnalyticsPage() {
             Analytics & Network Intelligence
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Unified throughput analytics by status, agent, destination, shipper, and route infrastructure.
+            Unified throughput analytics by status, drop point, destination, shipper, and route infrastructure.
           </Text>
         </div>
 
