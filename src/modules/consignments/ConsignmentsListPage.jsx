@@ -43,6 +43,7 @@ import {
   saveConsignment,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
+import { consignmentsNewPath, isDroppointManager } from '../../auth/rbac'
 import ListPageLayout from '../../components/ListPageLayout'
 import StatusTag from '../../components/StatusTag'
 
@@ -60,6 +61,8 @@ export default function ConsignmentsListPage() {
   const location = useLocation()
   const { can, isAdmin, user } = useAuth()
   const canEdit = isAdmin || ['Operation', 'Super Admin', 'Admin'].includes(user?.role)
+  const isDpManager = isDroppointManager(user?.role)
+  const newCnPath = consignmentsNewPath(user?.role)
 
   // Data & Pagination
   const [rows, setRows] = useState([])
@@ -450,7 +453,11 @@ export default function ConsignmentsListPage() {
               <Button
                 size="small"
                 icon={<EditOutlined />}
-                onClick={() => navigate(`/ops/consignments/new?cn=${encodeURIComponent(cn)}`)}
+                onClick={() =>
+                  navigate(
+                    consignmentsNewPath(user?.role, { cn }),
+                  )
+                }
               >
                 Edit
               </Button>
@@ -477,10 +484,10 @@ export default function ConsignmentsListPage() {
   const actions = [
     {
       key: 'create',
-      label: 'New Shipment',
+      label: isDpManager ? 'DP Counter Booking' : 'New Shipment',
       icon: <PlusOutlined />,
       type: 'primary',
-      onClick: () => navigate('/ops/consignments/new'),
+      onClick: () => navigate(newCnPath),
     },
     {
       key: 'track',

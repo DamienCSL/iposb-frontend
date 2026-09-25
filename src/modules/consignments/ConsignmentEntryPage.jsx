@@ -47,6 +47,8 @@ import {
   saveMaster,
   searchCustomers,
 } from '../../api/client'
+import { useAuth } from '../../auth/AuthContext'
+import { isDroppointManager } from '../../auth/rbac'
 
 const { Title, Text } = Typography
 
@@ -384,9 +386,19 @@ function CustomerPicker({ value, onSelect }) {
 
 export default function ConsignmentEntryPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const preset = (params.get('cn') || '').toUpperCase()
   const dropMode = params.get('mode') === 'drop'
+  const isDpManager = isDroppointManager(user?.role)
+
+  // Droppoint Manager may only use counter booking (?mode=drop).
+  useEffect(() => {
+    if (!isDpManager || dropMode) return
+    const next = new URLSearchParams(params)
+    next.set('mode', 'drop')
+    navigate(`/ops/consignments/new?${next.toString()}`, { replace: true })
+  }, [isDpManager, dropMode, navigate, params])
 
   const [lookups, setLookups] = useState({
     locations: [],

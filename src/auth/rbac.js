@@ -66,6 +66,22 @@ export function normalizeRole(role) {
   return raw || 'Others'
 }
 
+/** Drop point counter staff (legacy Agent / Agent 2 normalize here). */
+export function isDroppointManager(role) {
+  return normalizeRole(role) === DROPPOINT_MANAGER
+}
+
+/** Consignment entry URL for the current role (DP managers are locked to drop mode). */
+export function consignmentsNewPath(role, extraParams = {}) {
+  const q = new URLSearchParams()
+  if (isDroppointManager(role)) q.set('mode', 'drop')
+  for (const [k, v] of Object.entries(extraParams || {})) {
+    if (v != null && v !== '') q.set(k, String(v))
+  }
+  const qs = q.toString()
+  return qs ? `/ops/consignments/new?${qs}` : '/ops/consignments/new'
+}
+
 export function capabilitiesFor(role) {
   const r = normalizeRole(role)
   if (r === SUPER_ADMIN) {

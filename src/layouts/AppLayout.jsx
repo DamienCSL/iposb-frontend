@@ -37,6 +37,7 @@ import {
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { consignmentsNewPath, isDroppointManager } from '../auth/rbac'
 import { listConsignments } from '../api/client'
 
 const { Header, Sider, Content } = Layout
@@ -143,7 +144,11 @@ function getBreadcrumbs(pathname, search) {
     items.push({ label: 'Consignments', path: '/ops/consignments' })
     const parts = pathname.split('/')
     if (parts[3] === 'new') {
-      items.push({ label: 'New Shipment', path: pathname })
+      const dropMode = new URLSearchParams(search || '').get('mode') === 'drop'
+      items.push({
+        label: dropMode ? 'DP Counter Booking' : 'New Shipment',
+        path: dropMode ? `${pathname}?mode=drop` : pathname,
+      })
     } else if (parts[3] === 'import') {
       items.push({ label: 'Batch Import', path: pathname })
     } else if (parts[3]) {
@@ -205,7 +210,11 @@ function getBreadcrumbs(pathname, search) {
 
 function getSelectedKey(pathname, search = '') {
   if (!pathname || pathname === '/' || pathname === '/ops/dashboard') return '/ops/dashboard'
-  if (pathname === '/ops/consignments/new') return '/ops/consignments/new'
+  if (pathname === '/ops/consignments/new') {
+    return new URLSearchParams(search || '').get('mode') === 'drop'
+      ? '/ops/consignments/new?mode=drop'
+      : '/ops/consignments/new'
+  }
   if (pathname.startsWith('/ops/consignments/import-log')) return '/ops/consignments/import-log'
   if (pathname.startsWith('/ops/consignments/import')) return '/ops/consignments/import'
   if (pathname.startsWith('/ops/consignments/tracking')) return '/ops/consignments/tracking'
@@ -254,9 +263,16 @@ function getSelectedKey(pathname, search = '') {
 
 export default function AppLayout() {
   const { user, logout, booting, can, isAdmin } = useAuth()
+  const isDpManager = isDroppointManager(user?.role)
+  const entryPath = consignmentsNewPath(user?.role)
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+
+  // DP managers only get drop-counter booking in search; others keep full New Shipment.
+  const searchablePages = isDpManager
+    ? APP_PAGES.filter((p) => p.path !== '/ops/consignments/new')
+    : APP_PAGES
 
   // AutoComplete Type-Ahead State
   const [searchText, setSearchText] = useState('')
@@ -289,7 +305,7 @@ export default function AppLayout() {
 
     searchTimerRef.current = setTimeout(async () => {
       // 1. Match system pages
-      const matchedPages = APP_PAGES.filter(
+      const matchedPages = searchablePages.filter(
         (p) =>
           p.title.toLowerCase().includes(trimmed.toLowerCase()) ||
           p.keywords?.some((k) => k.toLowerCase().includes(trimmed.toLowerCase()))
@@ -361,7 +377,7 @@ export default function AppLayout() {
     const targetCustomer = option?.customer || option?.data?.customer
 
     // 1. Direct page match from APP_PAGES or explicit path
-    const pageMatch = APP_PAGES.find(
+    const pageMatch = searchablePages.find(
       (p) =>
         p.title === value ||
         p.path === value ||
@@ -404,7 +420,7 @@ export default function AppLayout() {
     saveRecentSearch(trimmed)
 
     const query = trimmed.toLowerCase()
-    const pageMatch = APP_PAGES.find(
+    const pageMatch = searchablePages.find(
       (p) =>
         p.title.toLowerCase() === query ||
         p.title.toLowerCase().includes(query) ||
@@ -471,13 +487,13 @@ export default function AppLayout() {
           key: '/ops/consignments/new',
           icon: <PlusCircleOutlined />,
           label: <Link to="/ops/consignments/new" style={{ display: 'block', width: '100%' }}>New Shipment</Link>,
-          visible: can('consignments'),
+          visible: can('consignments') && !isDpManager,
         },
         {
           key: '/ops/consignments/new?mode=drop',
           icon: <InboxOutlined />,
           label: (
-            <Link to="/ops/consignments/new?mode=drop" style={{ display: 'block', width: '100%' }}>
+            <Link to={entryPath} style={{ display: 'block', width: '100%' }}>
               DP Counter Booking
             </Link>
           ),

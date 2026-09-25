@@ -22,6 +22,7 @@ import {
   listOvernightRequests,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
+import { consignmentsNewPath, isDroppointManager } from '../../auth/rbac'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
 
@@ -62,6 +63,8 @@ function KpiCard({ icon, label, value, hint, color, onClick }) {
 
 export default function DashboardPage() {
   const { user, can, isAdmin } = useAuth()
+  const newCnPath = consignmentsNewPath(user?.role)
+  const isDpManager = isDroppointManager(user?.role)
   const navigate = useNavigate()
   const [stats, setStats] = useState(EMPTY_STATS)
   const [queueCounts, setQueueCounts] = useState({ overnightPending: 0, atsOpen: 0, atsOverdue: 0 })
@@ -227,9 +230,9 @@ export default function DashboardPage() {
             type="primary"
             icon={<PlusOutlined />}
             style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
-            onClick={() => navigate('/ops/consignments/new')}
+            onClick={() => navigate(newCnPath)}
           >
-            New consignment
+            {isDpManager ? 'DP Counter Booking' : 'New consignment'}
           </Button>
         </Space>
       </div>
@@ -391,10 +394,10 @@ export default function DashboardPage() {
                   {
                     key: 'new-cn',
                     show: can('consignments') || isAdmin,
-                    path: '/ops/consignments/new',
+                    path: newCnPath,
                     icon: <PlusOutlined />,
-                    title: 'New Consignment',
-                    desc: 'Create or update a booking',
+                    title: isDpManager ? 'DP Counter Booking' : 'New Consignment',
+                    desc: isDpManager ? 'Book at drop point counter' : 'Create or update a booking',
                   },
                   {
                     key: 'track',
