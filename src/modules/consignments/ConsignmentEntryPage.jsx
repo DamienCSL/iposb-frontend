@@ -48,7 +48,7 @@ import {
   searchCustomers,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import { isDroppointManager } from '../../auth/rbac'
+import { HUB_MANAGER, isDroppointManager, normalizeRole } from '../../auth/rbac'
 
 const { Title, Text } = Typography
 
@@ -391,6 +391,8 @@ export default function ConsignmentEntryPage() {
   const preset = (params.get('cn') || '').toUpperCase()
   const dropMode = params.get('mode') === 'drop'
   const isDpManager = isDroppointManager(user?.role)
+  const isHubManager = normalizeRole(user?.role) === HUB_MANAGER
+  const homeApplied = useRef(false)
 
   // Droppoint Manager may only use counter booking (?mode=drop).
   useEffect(() => {
@@ -450,6 +452,58 @@ export default function ConsignmentEntryPage() {
       f.origin_service === 'DROP_COUNTER' ? f : { ...f, origin_service: 'DROP_COUNTER', sender_address: '' },
     )
   }, [dropMode])
+
+  // Autofill home drop point / hub from staff account (new bookings only).
+  useEffect(() => {
+    if (homeApplied.current || preset || isExisting) return
+    const drops = lookups.dropPoints || []
+    const zones = lookups.zones || []
+    if (!drops.length && !zones.length) return
+
+    if ((isDpManager || dropMode) && user?.homeDropPointId) {
+      const id = String(user.homeDropPointId)
+      const d = drops.find((x) => String(x.id) === id)
+      if (!d) return
+      const dpCode = d.delivery_point_code || ''
+      const z = dpCode ? zones.find((x) => zoneCode(x) === dpCode) : null
+      setForm((f) => {
+        if (f.origin_drop_point_id) return f
+        return {
+          ...f,
+          origin_service: 'DROP_COUNTER',
+          origin_drop_point_id: id,
+          origin_zone: dpCode || f.origin_zone,
+          cn_origin: zoneHub(z) || d.hub_code || d.branch_code || f.cn_origin,
+        }
+      })
+      homeApplied.current = true
+      return
+    }
+
+    if (isHubManager && user?.homeHubCode) {
+      const hub = String(user.homeHubCode).toUpperCase()
+      const z = zones.find((x) => String(zoneHub(x) || '').toUpperCase() === hub)
+      setForm((f) => {
+        if (f.cn_origin || f.origin_zone) return f
+        return {
+          ...f,
+          cn_origin: hub,
+          origin_zone: z ? zoneCode(z) : f.origin_zone,
+        }
+      })
+      homeApplied.current = true
+    }
+  }, [
+    lookups.dropPoints,
+    lookups.zones,
+    isDpManager,
+    isHubManager,
+    dropMode,
+    user?.homeDropPointId,
+    user?.homeHubCode,
+    preset,
+    isExisting,
+  ])
 
   // Overnight is operational, not bookable at entry
   useEffect(() => {
@@ -752,14 +806,26 @@ export default function ConsignmentEntryPage() {
   }
 
   const pickupDrops = useMemo(() => {
-    const all = (lookups.dropPoints || []).filter((d) => {
+    let all = (lookups.dropPoints || []).filter((d) => {
       const typ = String(d.drop_type || 'both').toLowerCase()
       return ['pickup', 'both', ''].includes(typ)
     })
+    if (isDpManager) {
+      const homeId = user?.homeDropPointId != null ? String(user.homeDropPointId) : ''
+      const branch = String(user?.branchCode || '').toUpperCase()
+      const scoped = all.filter((d) => {
+        if (homeId && String(d.id) === homeId) return true
+        if (!branch) return true
+        const b = String(d.branch_code || '').toUpperCase()
+        const h = String(d.hub_code || '').toUpperCase()
+        return b === branch || h === branch
+      })
+      if (scoped.length > 0) all = scoped
+    }
     if (!form?.origin_zone) return all
     const matched = all.filter((d) => !d.delivery_point_code || d.delivery_point_code === form.origin_zone)
     return matched.length > 0 ? matched : all
-  }, [lookups.dropPoints, form?.origin_zone])
+  }, [lookups.dropPoints, form?.origin_zone, isDpManager, user?.homeDropPointId, user?.branchCode])
 
   const deliveryDrops = useMemo(() => {
     const all = (lookups.dropPoints || []).filter((d) => {
@@ -1521,7 +1587,11 @@ export default function ConsignmentEntryPage() {
                       style={{ width: '100%' }}
                     />
                   </Form.Item>
-                  <FieldHint>Choosing a drop point also sets the origin delivery point.</FieldHint>
+                  <FieldHint>
+                    {user?.homeDropPointId
+                      ? 'Prefilled from your home drop point. Changing it also updates the origin delivery point.'
+                      : 'Choosing a drop point also sets the origin delivery point.'}
+                  </FieldHint>
                 </Col>
               ) : (
                 <Col span={24}>

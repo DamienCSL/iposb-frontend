@@ -25,6 +25,10 @@ function sessionFromApi(token, user, capabilities = null, issuedAt = null) {
     name: user.name || user.fullName || user.username,
     role: normalizeRole(role),
     branchCode: user.branchCode || null,
+    homeDropPointId: user.homeDropPointId != null && Number(user.homeDropPointId) > 0
+      ? Number(user.homeDropPointId)
+      : null,
+    homeHubCode: user.homeHubCode || null,
     capabilities: caps,
     issuedAt: issuedAt || Date.now(),
     token,
@@ -39,6 +43,8 @@ function demoSession(found) {
     name: found.name,
     role: found.role,
     branchCode: found.branchCode,
+    homeDropPointId: found.homeDropPointId || null,
+    homeHubCode: found.homeHubCode || null,
     capabilities: capabilitiesFor(found.role),
     issuedAt: Date.now(),
     token: `demoStaff:${found.username}`,

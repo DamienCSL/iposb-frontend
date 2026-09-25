@@ -538,6 +538,13 @@ export const MASTER_SCHEMAS = {
       { title: 'Full Name', dataIndex: 'name', key: 'name' },
       { title: 'Role', dataIndex: 'app_role', key: 'app_role', render: (v) => <Tag color="blue">{v}</Tag> },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
+      { title: 'Home Hub', dataIndex: 'home_hub_code', key: 'home_hub_code', render: (v) => v || '—' },
+      {
+        title: 'Home Drop Point',
+        dataIndex: 'home_drop_point_id',
+        key: 'home_drop_point_id',
+        render: (v) => (v ? <Tag>{v}</Tag> : '—'),
+      },
       { title: 'Active', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
@@ -559,6 +566,19 @@ export const MASTER_SCHEMAS = {
           { label: 'CSL (Customer Service)', value: 'CSL' },
           { label: 'Others (limited)', value: 'Others' },
         ],
+      },
+      {
+        name: 'home_hub_code',
+        label: 'Home Hub (Hub Manager)',
+        lookup: 'hubs',
+        placeholder: 'Assign hub for Hub Manager autofill',
+      },
+      {
+        name: 'home_drop_point_id',
+        label: 'Home Drop Point (Droppoint Manager)',
+        lookup: 'drop-points',
+        valueAsId: true,
+        placeholder: 'Assign counter for DP Manager autofill',
       },
       { name: 'user_password', label: 'Password', type: 'password', placeholder: 'Leave blank to keep current' },
     ],
@@ -1184,6 +1204,8 @@ export default function MasterAdminPage() {
                   showGenerate={Boolean(f.generate)}
                   showManageLink={Boolean(f.lookup || f.generate)}
                   branchCode={f.useBranch ? watchedBranchCode : undefined}
+                  valueAsId={Boolean(f.valueAsId)}
+                  uppercase={!f.valueAsId}
                   placeholder={f.placeholder || `Search ${f.label.toLowerCase()}…`}
                 />
               ) : f.type === 'password' ? (

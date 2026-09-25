@@ -113,21 +113,27 @@ function pickField(row, keys) {
   return ''
 }
 
-function normalizeOptions(rows, meta) {
+function normalizeOptions(rows, meta, valueAsId = false) {
   const seen = new Set()
   const out = []
   for (const row of rows || []) {
     const code = pickField(row, meta.codeKeys)
-    if (!code || seen.has(code.toUpperCase())) continue
-    seen.add(code.toUpperCase())
+    if (!code) continue
+    const value = valueAsId && row?.id != null && String(row.id).trim() !== ''
+      ? String(row.id).trim()
+      : code
+    const dedupeKey = valueAsId ? value : code.toUpperCase()
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
     const name = pickField(row, meta.nameKeys)
     out.push({
-      value: code,
+      value,
       label: name && name !== code ? `${code} — ${name}` : code,
       name,
+      code,
     })
   }
-  return out.sort((a, b) => a.value.localeCompare(b.value))
+  return out.sort((a, b) => String(a.label).localeCompare(String(b.label)))
 }
 
 /**
@@ -164,6 +170,7 @@ export default function CodeLookupField({
   showManageLink = true,
   branchCode,
   uppercase = true,
+  valueAsId = false,
   style,
 }) {
   const meta = (kind && CODE_LOOKUP_KINDS[kind])
@@ -171,6 +178,7 @@ export default function CodeLookupField({
     || null
   const resolvedGenerateKind = generateKind || meta?.generateKind || null
   const canSearch = Boolean(kind && CODE_LOOKUP_KINDS[kind])
+  const forceUpper = uppercase && !valueAsId
 
   const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
@@ -184,13 +192,13 @@ export default function CodeLookupField({
     setLoading(true)
     try {
       const res = await listMaster(meta.resource)
-      setOptions(normalizeOptions(res?.rows || res?.data || [], meta))
+      setOptions(normalizeOptions(res?.rows || res?.data || [], meta, valueAsId))
     } catch {
       setOptions([])
     } finally {
       setLoading(false)
     }
-  }, [canSearch, meta])
+  }, [canSearch, meta, valueAsId])
 
   useEffect(() => {
     load()
@@ -205,7 +213,7 @@ export default function CodeLookupField({
 
   function emit(next) {
     let v = next == null ? '' : String(next)
-    if (uppercase) v = v.toUpperCase()
+    if (forceUpper) v = v.toUpperCase()
     onChange?.(v)
   }
 
