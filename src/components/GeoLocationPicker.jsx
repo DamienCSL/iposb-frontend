@@ -203,7 +203,8 @@ export default function GeoLocationPicker({
         </div>
       </div>
 
-      <form className="geo-picker-search" onSubmit={runSearch}>
+      {/* Not a <form>: this picker renders inside parent forms, and nested forms submit the page. */}
+      <div className="geo-picker-search">
         <div className="input-group">
           <span className="input-group-text"><i className="bi bi-search" /></span>
           <input
@@ -212,9 +213,16 @@ export default function GeoLocationPicker({
             placeholder="Search place, street, or landmark in Sabah…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+                runSearch()
+              }
+            }}
             aria-label="Search location"
           />
-          <button type="submit" className="btn btn-primary" disabled={searching}>
+          <button type="button" className="btn btn-primary" disabled={searching} onClick={runSearch}>
             {searching ? 'Searching…' : 'Search'}
           </button>
           {addressHint ? (
@@ -228,7 +236,7 @@ export default function GeoLocationPicker({
             </button>
           ) : null}
         </div>
-      </form>
+      </div>
 
       <div
         id={`geo-map-${mapId}`}
