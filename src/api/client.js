@@ -165,6 +165,12 @@ export async function quoteConsignment(body) {
   return data
 }
 
+/** Dry-run last-mile resolve (address → delivery point / area / hub). */
+export async function previewCnRoute(body) {
+  const { data } = await api.post('/ops/consignments/preview-route', body)
+  return data
+}
+
 export async function listConsignments(params) {
   const { data } = await api.get('/ops/consignments', { params })
   return data

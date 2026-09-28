@@ -17,6 +17,7 @@ import {
   Select,
   Space,
   Spin,
+  Switch,
   Typography,
   message,
   notification,
@@ -42,6 +43,7 @@ import {
   getCodRecord,
   getConsignment,
   get3plPartners,
+  previewCnRoute,
   quoteConsignment,
   saveConsignment,
   saveMaster,
@@ -111,6 +113,8 @@ function emptyForm() {
     destination_service: 'DOORSTEP',
     sender_address: '',
     remarks: '',
+    receiver_postcode: '',
+    receiver_city: '',
     pu_dt: dayjs().format('YYYY-MM-DD'),
     cn_wt: '',
     cn_pcs: '1',
@@ -425,11 +429,29 @@ export default function ConsignmentEntryPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [routePreview, setRoutePreview] = useState(null)
+  const [resolvingRoute, setResolvingRoute] = useState(false)
+  const [manualDestination, setManualDestination] = useState(false)
   const quoteTimer = useRef(null)
+  const routeTimer = useRef(null)
   const bootstrapped = useRef(false)
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  function applyResolvedRoute(route, { force = false } = {}) {
+    if (!route || (manualDestination && !force)) return
+    setForm((f) => ({
+      ...f,
+      destination_zone: route.destinationZone || f.destination_zone,
+      destination_area_code: route.destinationAreaCode || f.destination_area_code,
+      cn_dstn: route.cnDstn || route.destHubCode || f.cn_dstn,
+      destination_drop_point_id:
+        f.destination_service === 'SELF_COLLECT' && route.destinationDropPointId
+          ? String(route.destinationDropPointId)
+          : f.destination_drop_point_id,
+    }))
   }
 
   useEffect(() => {
@@ -503,6 +525,47 @@ export default function ConsignmentEntryPage() {
     user?.homeHubCode,
     preset,
     isExisting,
+  ])
+
+  // Auto-resolve destination from delivery address (debounced).
+  useEffect(() => {
+    if (manualDestination) return
+    if (form.destination_service !== 'DOORSTEP' && form.destination_service !== 'SELF_COLLECT') return
+    const address = String(form.remarks || '').trim()
+    if (address.length < 8) {
+      setRoutePreview(null)
+      return
+    }
+    if (routeTimer.current) clearTimeout(routeTimer.current)
+    routeTimer.current = setTimeout(async () => {
+      setResolvingRoute(true)
+      try {
+        const data = await previewCnRoute({
+          address,
+          remarks: address,
+          postcode: form.receiver_postcode || '',
+          city: form.receiver_city || '',
+          destinationService: form.destination_service || 'DOORSTEP',
+        })
+        const route = data?.route || data
+        setRoutePreview(route)
+        applyResolvedRoute(route)
+      } catch {
+        setRoutePreview(null)
+      } finally {
+        setResolvingRoute(false)
+      }
+    }, 550)
+    return () => {
+      if (routeTimer.current) clearTimeout(routeTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply only when address inputs change
+  }, [
+    form.remarks,
+    form.receiver_postcode,
+    form.receiver_city,
+    form.destination_service,
+    manualDestination,
   ])
 
   // Overnight is operational, not bookable at entry
@@ -593,6 +656,8 @@ export default function ConsignmentEntryPage() {
       destination_service: existing?.destination_service || 'DOORSTEP',
       sender_address: existing?.sender_address || '',
       remarks: existing?.remarks || '',
+      receiver_postcode: existing?.receiver_postcode || existing?.receiverPostcode || '',
+      receiver_city: existing?.receiver_city || existing?.receiverCity || '',
       pu_dt: (existing?.pu_dt || '').slice(0, 10) || dayjs().format('YYYY-MM-DD'),
       cn_wt: existing?.cn_wt || '',
       cn_pcs: existing?.cn_pcs || '1',
@@ -618,6 +683,19 @@ export default function ConsignmentEntryPage() {
       port_destination: existing?.port_destination || '',
     })
     setIsExisting(Boolean(existing))
+    setManualDestination(Boolean(existing?.destination_zone))
+    setRoutePreview(
+      existing?.route_plan_status
+        ? {
+            routePlanStatus: existing.route_plan_status,
+            matchedBy: existing.route_matched_by,
+            destinationZone: existing.destination_zone,
+            destinationAreaCode: existing.destination_area_code,
+            cnDstn: existing.cn_dstn,
+            destHubCode: existing.cn_dstn,
+          }
+        : null,
+    )
     setSavedFreight(
       existing
         ? {
@@ -684,6 +762,8 @@ export default function ConsignmentEntryPage() {
     setCodInfo(null)
     setSavedFreight(null)
     setIsExisting(false)
+    setRoutePreview(null)
+    setManualDestination(false)
     setForm(emptyForm())
     setParams({})
   }
@@ -697,8 +777,20 @@ export default function ConsignmentEntryPage() {
       message.error('Customer account is required.')
       return
     }
-    if (!form.origin_zone || !form.destination_zone) {
-      message.error('Origin and destination delivery points are required.')
+    if (!form.origin_zone) {
+      message.error('Origin delivery point is required.')
+      return
+    }
+    if (form.destination_service === 'DOORSTEP' && !String(form.remarks || '').trim()) {
+      message.error('Delivery address is required — the system uses it to auto-select the destination.')
+      return
+    }
+    if (!form.destination_zone && !manualDestination) {
+      message.error('Destination could not be auto-resolved yet. Add more address detail, or turn on manual override.')
+      return
+    }
+    if (manualDestination && !form.destination_zone) {
+      message.error('Select a destination delivery point (manual override is on).')
       return
     }
     if (form.origin_service === 'DROP_COUNTER' && !form.origin_drop_point_id) {
@@ -707,10 +799,6 @@ export default function ConsignmentEntryPage() {
     }
     if (form.origin_service === 'ADDRESS_PICKUP' && !String(form.sender_address || '').trim()) {
       message.error('Pickup address is required for address pickup.')
-      return
-    }
-    if (form.destination_service === 'DOORSTEP' && !String(form.remarks || '').trim()) {
-      message.error('Delivery address is required for doorstep delivery.')
       return
     }
     const partnerCode = String(form.partner_code || '').trim().toUpperCase()
@@ -733,6 +821,7 @@ export default function ConsignmentEntryPage() {
         receiver_phone: String(form.receiver_phone || '').trim() || undefined,
         partner_code: partnerCode,
         partner_cn_no: partnerCn,
+        manual_destination: manualDestination,
         cn_wt: dim.pcs > 0 ? dim.chargeableWt : form.cn_wt,
         cn_pcs: dim.pcs > 0 ? dim.pcs : form.cn_pcs,
         pieces: pieceRows,
@@ -741,6 +830,7 @@ export default function ConsignmentEntryPage() {
       const iposbCn = r?.iposbCnNo || payload.cn_no
       const displayCn = r?.cnNo || r?.partnerCnNo || iposbCn
       if (r.quote) setQuote(r.quote)
+      if (r.route) setRoutePreview(r.route)
       notification.success({
         message: 'Consignment saved',
         description:
@@ -783,6 +873,7 @@ export default function ConsignmentEntryPage() {
   }
 
   function pickDestDp(code) {
+    setManualDestination(true)
     const z = zoneOptions.find((x) => zoneCode(x) === code)
     setForm((f) => ({
       ...f,
@@ -1461,11 +1552,15 @@ export default function ConsignmentEntryPage() {
             </Row>
           </Card>
 
-          {/* Step 2: Route */}
+          {/* Step 2: Network path (auto destination) */}
           <Card
             size="small"
-            title={<Text strong>2 · Route</Text>}
-            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Pick delivery points — hubs fill in</Text>}
+            title={<Text strong>2 · Network path</Text>}
+            extra={
+              <Text style={{ fontSize: 12.5, color: MUTED }}>
+                Destination auto-selected from delivery address
+              </Text>
+            }
             style={cardStyle}
             headStyle={cardHead}
           >
@@ -1479,6 +1574,7 @@ export default function ConsignmentEntryPage() {
                     value={form.origin_zone || undefined}
                     options={zoneSelectOptions}
                     onChange={pickOriginDp}
+                    disabled={Boolean(isDpManager && user?.homeDropPointId && form.origin_drop_point_id)}
                     popupMatchSelectWidth={false}
                     dropdownStyle={{ minWidth: 320 }}
                     style={{ width: '100%' }}
@@ -1489,21 +1585,71 @@ export default function ConsignmentEntryPage() {
                 </FieldHint>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Destination delivery point" required style={{ marginBottom: 4 }}>
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Search destination delivery point…"
-                    value={form.destination_zone || undefined}
-                    options={zoneSelectOptions}
-                    onChange={pickDestDp}
-                    popupMatchSelectWidth={false}
-                    dropdownStyle={{ minWidth: 320 }}
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 13, color: LABEL }}>Destination (auto)</Text>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Manual override</Text>
+                    <Switch
+                      size="small"
+                      checked={manualDestination}
+                      onChange={(on) => {
+                        setManualDestination(on)
+                        if (!on && routePreview) applyResolvedRoute(routePreview, { force: true })
+                      }}
+                    />
+                  </Space>
+                </div>
+                {manualDestination ? (
+                  <Form.Item style={{ marginBottom: 4 }}>
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Search destination delivery point…"
+                      value={form.destination_zone || undefined}
+                      options={zoneSelectOptions}
+                      onChange={pickDestDp}
+                      popupMatchSelectWidth={false}
+                      dropdownStyle={{ minWidth: 320 }}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                ) : (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #E2E8F0',
+                      background: '#F8FAFC',
+                      minHeight: 32,
+                    }}
+                  >
+                    {resolvingRoute ? (
+                      <Space><Spin size="small" /><Text type="secondary">Resolving from address…</Text></Space>
+                    ) : form.destination_zone ? (
+                      <Text strong style={{ color: LABEL }}>{destLabel}</Text>
+                    ) : (
+                      <Text type="secondary">Enter a delivery address in Last mile to auto-select.</Text>
+                    )}
+                  </div>
+                )}
                 <FieldHint>
                   Hub: <Text strong style={{ color: LABEL }}>{form.cn_dstn || '—'}</Text>
+                  {routePreview?.routePlanStatus ? (
+                    <>
+                      {' · '}
+                      <Text
+                        strong
+                        style={{
+                          color: routePreview.routePlanStatus === 'RESOLVED' ? BRAND : '#D97706',
+                        }}
+                      >
+                        {routePreview.routePlanStatus}
+                      </Text>
+                      {routePreview.matchedBy && routePreview.matchedBy !== 'none'
+                        ? ` via ${routePreview.matchedBy}`
+                        : ''}
+                    </>
+                  ) : null}
                 </FieldHint>
               </Col>
               <Col span={24}>
@@ -1526,10 +1672,16 @@ export default function ConsignmentEntryPage() {
                       <Text strong style={{ color: LABEL }}>{originLabel}</Text>
                       <Text style={{ color: MUTED }}>→</Text>
                       <Text strong style={{ color: LABEL }}>{destLabel}</Text>
+                      {routePreview?.destinationAreaCode ? (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          · Area {routePreview.destinationAreaCode}
+                          {routePreview.dispatcherCode ? ` · Disp ${routePreview.dispatcherCode}` : ''}
+                        </Text>
+                      ) : null}
                     </>
                   ) : (
                     <Text style={{ color: MUTED }}>
-                      Select origin and destination delivery points to preview the route.
+                      Origin is set from your counter; destination resolves from the delivery address.
                     </Text>
                   )}
                 </div>
@@ -1706,19 +1858,40 @@ export default function ConsignmentEntryPage() {
                         showSearch
                         allowClear
                         optionFilterProp="label"
-                        placeholder="Search area (or leave blank)"
+                        placeholder="Auto-filled from address (optional override)"
                         value={form.destination_area_code || undefined}
                         options={destAreas.map((a) => ({
                           value: a.area_code,
                           label: `${a.area_code} — ${a.area_name}`,
                         }))}
-                        onChange={(code) => set('destination_area_code', code || '')}
+                        onChange={(code) => {
+                          setManualDestination(true)
+                          set('destination_area_code', code || '')
+                        }}
                         popupMatchSelectWidth={false}
                         dropdownStyle={{ minWidth: 280 }}
                         style={{ width: '100%' }}
                       />
                     </Form.Item>
-                    <FieldHint>Optional — assigns the area’s dispatcher for delivery.</FieldHint>
+                    <FieldHint>Usually filled by auto-route; override only if needed.</FieldHint>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="Postcode" style={{ marginBottom: 0 }}>
+                      <Input
+                        value={form.receiver_postcode || ''}
+                        onChange={(e) => set('receiver_postcode', e.target.value)}
+                        placeholder="e.g. 50450"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="City / state" style={{ marginBottom: 0 }}>
+                      <Input
+                        value={form.receiver_city || ''}
+                        onChange={(e) => set('receiver_city', e.target.value)}
+                        placeholder="e.g. Kuala Lumpur"
+                      />
+                    </Form.Item>
                   </Col>
                   <Col span={24}>
                     <Form.Item label="Delivery address" required style={{ marginBottom: 0 }}>
@@ -1726,9 +1899,21 @@ export default function ConsignmentEntryPage() {
                         rows={2}
                         value={form.remarks || ''}
                         onChange={(e) => set('remarks', e.target.value)}
-                        placeholder="Full receiver address (used to match area keywords if area is blank)"
+                        placeholder="Full receiver address — used to auto-select destination delivery point"
                       />
                     </Form.Item>
+                    {resolvingRoute ? (
+                      <FieldHint><Spin size="small" /> Resolving network path…</FieldHint>
+                    ) : routePreview?.routePlanStatus ? (
+                      <FieldHint>
+                        Auto-route:{' '}
+                        <Text strong style={{ color: routePreview.routePlanStatus === 'RESOLVED' ? BRAND : '#D97706' }}>
+                          {routePreview.routePlanStatus}
+                        </Text>
+                        {routePreview.destinationZone ? ` · ${routePreview.destinationZone}` : ''}
+                        {routePreview.destinationAreaName ? ` · ${routePreview.destinationAreaName}` : ''}
+                      </FieldHint>
+                    ) : null}
                   </Col>
                 </>
               )}
