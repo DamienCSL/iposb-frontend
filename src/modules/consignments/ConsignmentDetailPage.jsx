@@ -58,6 +58,16 @@ import { useAuth } from '../../auth/AuthContext'
 import ShipmentStepper from '../../components/ShipmentStepper'
 import StatusTag from '../../components/StatusTag'
 
+/** `pieces` may be a count or the per-piece dimension rows. */
+function pieceCount(d) {
+  const p = d?.pieces
+  if (Array.isArray(p)) {
+    const total = p.reduce((sum, row) => sum + (Number(row?.qty) > 0 ? Number(row.qty) : 1), 0)
+    return total || Number(d?.cn_pcs) || 1
+  }
+  return Number(p) || Number(d?.cn_pcs) || 1
+}
+
 export default function ConsignmentDetailPage() {
   const { cn } = useParams()
   const navigate = useNavigate()
@@ -132,7 +142,7 @@ export default function ConsignmentDetailPage() {
       setData(consignment)
       setTracking(trackRes?.data || trackRes || null)
       setOpsTracking(opsTrackRes || null)
-      setPickup(pickupRes?.data || pickupRes || null)
+      setPickup(pickupRes?.assignment || pickupRes?.data || null)
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -196,7 +206,7 @@ export default function ConsignmentDetailPage() {
       address: data?.address || data?.recp_name || '',
       phone: data?.phone || data?.recp_phone || '',
       weight: data?.weight || data?.cn_wt || 1,
-      pieces: data?.pieces || data?.cn_pcs || 1,
+      pieces: pieceCount(data),
       batch_no: data?.batch_no || data?.pod_batch || '',
       mfg_no: data?.mfg_no || '',
       remarks: data?.remarks || '',
@@ -485,7 +495,7 @@ export default function ConsignmentDetailPage() {
           <div>
             <div style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Weight / Pieces</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#0F1B2D' }}>
-              {data.weight || data.cn_wt || '0.00'} kg · {data.pieces || data.cn_pcs || 1} pcs
+              {data.weight || data.cn_wt || '0.00'} kg · {pieceCount(data)} pcs
             </div>
           </div>
 
@@ -576,7 +586,7 @@ export default function ConsignmentDetailPage() {
                   {data.origin_zone || data.originZone || '—'} → {data.destination_zone || data.destZone || '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Cargo Specs">
-                  {data.weight || data.cn_wt || '0.00'} kg · {data.pieces || data.cn_pcs || 1} pcs
+                  {data.weight || data.cn_wt || '0.00'} kg · {pieceCount(data)} pcs
                 </Descriptions.Item>
                 <Descriptions.Item label="Transport Mode">
                   <Tag color="cyan" style={{ textTransform: 'uppercase' }}>
