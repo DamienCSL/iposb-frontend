@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import './GeoLocationPicker.css'
 import { apiError, geocodeLookup } from '../api/client'
 
 const SABAH_CENTER = [5.9788, 116.0753]
@@ -17,9 +18,9 @@ function makePinIcon() {
   return L.divIcon({
     className: 'geo-pin-wrap',
     html: `<div class="geo-pin"><span class="geo-pin-dot"></span></div>`,
-    iconSize: [28, 40],
-    iconAnchor: [14, 38],
-    popupAnchor: [0, -34],
+    iconSize: [28, 32],
+    iconAnchor: [14, 30],
+    popupAnchor: [0, -28],
   })
 }
 
