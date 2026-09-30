@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
 
+const INK = '#000000'
+const MUTED = '#4B5563'
+const LOGO_SRC = '/iposb-logo.png'
+const TAGLINE = 'Enabling Commerce . Enriching Lives'
+
 function pick(row, ...keys) {
   for (const k of keys) {
     const v = row?.[k]
@@ -23,12 +28,39 @@ function pkgLabel(pkg) {
   return 'Parcel'
 }
 
+function serviceLabel(code) {
+  const c = String(code || '').toUpperCase()
+  if (!c || c === 'STD') return 'STANDARD'
+  if (c === 'EXP') return 'EXPRESS'
+  if (c === 'SDD') return 'SAME DAY'
+  if (c === 'NDD') return 'NEXT DAY'
+  return c
+}
+
 function transportLabel(row) {
   return (
     pick(row, 'transport_mode_label', 'transportModeLabel')
     || pick(row, 'transport_mode', 'transportMode', 'linehaul_mode')
     || 'Road'
   )
+}
+
+function money(v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toFixed(2) : '0.00'
+}
+
+/**
+ * Public tracking link for the QR. Set VITE_PUBLIC_TRACKING_URL (e.g. "https://iposb.my/track?cn={cn}")
+ * once a customer-facing tracking page exists; otherwise falls back to the ops tracking page.
+ */
+function buildTrackingUrl(cn, trackingBase) {
+  const tpl = String(import.meta.env?.VITE_PUBLIC_TRACKING_URL || '').trim()
+  if (tpl) {
+    return tpl.includes('{cn}') ? tpl.replace('{cn}', encodeURIComponent(cn)) : `${tpl}${encodeURIComponent(cn)}`
+  }
+  const base = (trackingBase || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')
+  return `${base}/ops/consignments/tracking?cn=${encodeURIComponent(cn)}`
 }
 
 export function normalizeCnLabel(row) {
@@ -44,6 +76,8 @@ export function normalizeCnLabel(row) {
   const address = pick(row, 'delivery_address', 'deliveryAddress', 'receiver_address')
   const remarkRaw = pick(row, 'remarks', 'note')
   const remark = address && remarkRaw && address === remarkRaw ? '' : remarkRaw
+  const postcode = pick(row, 'receiver_postcode', 'receiverPostcode')
+  const city = pick(row, 'receiver_city', 'receiverCity')
   const firstMile =
     pick(row, 'first_mile_node', 'firstMileNode', 'origin_drop_code', 'originDropCode', 'origin_zone', 'originZone').toUpperCase()
     || pick(row, 'cn_origin', 'cnOrigin').toUpperCase()
@@ -60,6 +94,11 @@ export function normalizeCnLabel(row) {
     ).toUpperCase()
     || pick(row, 'cn_dstn', 'cnDstn').toUpperCase()
     || '—'
+  const destService = pick(row, 'destination_service', 'destinationService').toUpperCase()
+  const payMode = pick(row, 'ppd_cct', 'pay_typ', 'payMode').toUpperCase()
+  const isCod = row?.is_cod === true || row?.is_cod === 1 || row?.is_cod === '1' || payMode === 'COD'
+  const addressLine = [address || remarkRaw, [postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+
   return {
     cn,
     displayCn,
@@ -78,17 +117,24 @@ export function normalizeCnLabel(row) {
     receiverShop: shopName || '—',
     receiverName: receiverName || '—',
     receiverPhone: pick(row, 'receiver_phone', 'recp_phone', 'consignee_phone', 'callback_phone') || '—',
-    receiverAddress: address || remarkRaw || '—',
+    receiverAddress: addressLine || '—',
     pcs: pick(row, 'cn_pcs', 'cnPcs') || '1',
     weight: pick(row, 'cn_wt', 'cnWt') || '0',
     pkg: pkgLabel(pick(row, 'pkg_typ', 'pkgTyp')),
     transport: transportLabel(row),
+    service: serviceLabel(pick(row, 'srv_typ', 'srvTyp', 'service_type')),
+    selfCollect: destService === 'SELF_COLLECT',
+    collectCode: pick(row, 'dest_drop_code', 'destDropCode').toUpperCase(),
+    collectName: pick(row, 'dest_drop_name', 'destDropName'),
+    collectAddress: pick(row, 'dest_drop_address', 'destDropAddress'),
+    isCod,
+    codAmount: money(pick(row, 'cod_collect_amt', 'codCollectAmt', 'cash_amt', 'cashAmt') || 0),
     remark: remark || '',
     trackingUrl: pick(row, 'tracking_url', 'trackingUrl') || '',
   }
 }
 
-function BarcodeSvg({ value, height = 36 }) {
+function BarcodeSvg({ value, height = 44 }) {
   const ref = useRef(null)
   useEffect(() => {
     if (!ref.current || !value) return
@@ -98,80 +144,15 @@ function BarcodeSvg({ value, height = 36 }) {
         displayValue: false,
         margin: 0,
         height,
-        width: 1.4,
+        width: 2,
         background: 'transparent',
+        lineColor: INK,
       })
     } catch {
       /* invalid characters — leave blank */
     }
   }, [value, height])
-  return <svg ref={ref} style={{ width: '100%', maxWidth: '100%', height }} />
-}
-
-/** First-mile node | barcode | last-mile node */
-function BarcodeWithNodes({ cn, firstMile, lastMile, height = 36, compact = false }) {
-  const nodeStyle = {
-    flex: '0 0 auto',
-    minWidth: compact ? 44 : 56,
-    maxWidth: compact ? 72 : 96,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontWeight: 800,
-    fontSize: compact ? 10 : 12,
-    lineHeight: 1.1,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-    wordBreak: 'break-all',
-    color: '#0F1B2D',
-  }
-  const wing = (code, align) => (
-    <div
-      style={{
-        ...nodeStyle,
-        textAlign: align,
-        border: '1.5px solid #0F1B2D',
-        borderRadius: 3,
-        padding: compact ? '4px 3px' : '6px 4px',
-        background: '#F8FAFC',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignSelf: 'stretch',
-      }}
-      title={align === 'left' ? 'First-mile origin node' : 'Last-mile destination node'}
-    >
-      {code || '—'}
-    </div>
-  )
-
-  return (
-    <div
-      className="cn-label-barcode-row"
-      style={{
-        display: 'flex',
-        alignItems: 'stretch',
-        gap: compact ? 4 : 6,
-        width: '100%',
-        marginTop: 4,
-      }}
-    >
-      {wing(firstMile, 'left')}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          borderTop: '1px solid #E2E8F0',
-          borderBottom: '1px solid #E2E8F0',
-          padding: compact ? '2px 0' : '4px 0',
-        }}
-      >
-        <BarcodeSvg value={cn} height={height} />
-      </div>
-      {wing(lastMile, 'right')}
-    </div>
-  )
+  return <svg ref={ref} preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }} />
 }
 
 function QrImg({ value, size = 64 }) {
@@ -186,7 +167,7 @@ function QrImg({ value, size = 64 }) {
       errorCorrectionLevel: 'M',
       margin: 0,
       width: size * 2,
-      color: { dark: '#0F1B2D', light: '#FFFFFF' },
+      color: { dark: INK, light: '#FFFFFF' },
     })
       .then((url) => {
         if (!cancelled) setSrc(url)
@@ -200,35 +181,48 @@ function QrImg({ value, size = 64 }) {
   }, [value, size])
 
   if (!src) {
-    return (
-      <div
-        style={{
-          width: size,
-          height: size,
-          border: '1px dashed #CBD5E1',
-          borderRadius: 4,
-          background: '#F8FAFC',
-        }}
-      />
-    )
+    return <div style={{ width: size, height: size, border: `1px dashed ${MUTED}` }} />
   }
   return <img src={src} alt="QR" width={size} height={size} style={{ display: 'block' }} />
+}
+
+const clamp = (lines) => ({
+  display: '-webkit-box',
+  WebkitLineClamp: lines,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+})
+
+function SectionLabel({ children, s }) {
+  return (
+    <div
+      style={{
+        fontSize: s(8, 9),
+        fontWeight: 800,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+        color: MUTED,
+        marginBottom: s(1, 2),
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 
 /** Single cuttable consignment note (used by A5 and A4 4-up). */
 export function CnLabelNote({ row, compact = false, trackingBase }) {
   const label = useMemo(() => {
     const n = normalizeCnLabel(row)
-    if (!n.trackingUrl && n.cn) {
-      const base = (trackingBase || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')
-      n.trackingUrl = `${base}/ops/consignments/tracking?cn=${encodeURIComponent(n.cn)}`
-    }
+    if (!n.trackingUrl && n.cn) n.trackingUrl = buildTrackingUrl(n.cn, trackingBase)
     return n
   }, [row, trackingBase])
 
-  const pad = compact ? 8 : 12
-  const qrSize = compact ? 52 : 68
-  const barcodeH = compact ? 28 : 36
+  /** size helper: compact (A4 4-up) vs full (A5) */
+  const s = (c, f) => (compact ? c : f)
+  const line = `1.5px solid ${INK}`
+  const cell = { padding: s('4px 6px', '6px 10px') }
+  const mono = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
   return (
     <div
@@ -237,185 +231,212 @@ export function CnLabelNote({ row, compact = false, trackingBase }) {
         boxSizing: 'border-box',
         width: '100%',
         height: '100%',
-        border: '1.5px solid #0F1B2D',
-        borderRadius: 6,
-        padding: pad,
+        border: `2px solid ${INK}`,
         display: 'flex',
         flexDirection: 'column',
-        gap: compact ? 6 : 8,
         background: '#fff',
-        color: '#0F1B2D',
+        color: INK,
         fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: compact ? 11 : 13, fontWeight: 800, letterSpacing: 0.4, color: '#1B8A5A' }}>
-            IPOSB Consignment
-          </div>
+      {/* 1. Brand · service · payment */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1.1fr', borderBottom: line }}>
+        <div style={{ ...cell, display: 'flex', alignItems: 'center', borderRight: line }}>
+          <img src={LOGO_SRC} alt="IPOSB" style={{ maxHeight: s(30, 42), maxWidth: '100%', objectFit: 'contain' }} />
+        </div>
+        <div style={{ ...cell, borderRight: line, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: s(12, 15), fontWeight: 900, letterSpacing: 0.5 }}>{label.service}</div>
+          <div style={{ fontSize: s(9, 10), color: MUTED }}>{label.date}</div>
+        </div>
+        {label.isCod ? (
           <div
             style={{
-              fontSize: compact ? 16 : 20,
-              fontWeight: 800,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              lineHeight: 1.15,
-              marginTop: 2,
+              ...cell,
+              background: INK,
+              color: '#fff',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact',
             }}
           >
-            {label.displayCn || label.cn || '—'}
+            <div style={{ fontSize: s(10, 12), fontWeight: 900, letterSpacing: 1 }}>COD</div>
+            <div style={{ fontSize: s(13, 17), fontWeight: 900, lineHeight: 1.1 }}>RM {label.codAmount}</div>
           </div>
-          {label.partnerCn && label.cn && label.partnerCn !== label.cn ? (
-            <div style={{ fontSize: compact ? 10 : 11, color: '#64748B', marginTop: 2 }}>
-              IPOSB {label.cn}
-              {label.partnerCode ? ` · ${label.partnerCode}` : ''}
-            </div>
-          ) : null}
-          <div style={{ fontSize: compact ? 10 : 11, color: '#475569', marginTop: 2 }}>
+        ) : (
+          <div style={{ ...cell, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ fontSize: s(12, 15), fontWeight: 900, letterSpacing: 0.5 }}>PREPAID</div>
+            <div style={{ fontSize: s(8, 9), color: MUTED }}>No cash to collect</div>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Barcode + CN */}
+      <div style={{ padding: s('6px 10px 4px', '10px 16px 6px'), borderBottom: line, textAlign: 'center' }}>
+        <BarcodeSvg value={label.cn} height={s(38, 54)} />
+        <div style={{ fontFamily: mono, fontWeight: 900, fontSize: s(15, 20), letterSpacing: 2, marginTop: s(3, 5) }}>
+          {label.displayCn || label.cn || '—'}
+        </div>
+        {label.partnerCn && label.cn && label.partnerCn !== label.cn ? (
+          <div style={{ fontSize: s(8, 10), color: MUTED }}>
+            IPOSB {label.cn}
+            {label.partnerCode ? ` · ${label.partnerCode}` : ''}
+          </div>
+        ) : null}
+      </div>
+
+      {/* 3. Sort strip (staff) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1.1fr 1.6fr',
+          background: INK,
+          color: '#fff',
+          borderBottom: line,
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
+        }}
+        title="Sorting: first-mile node · hub route · last-mile node"
+      >
+        <div style={{ ...cell, borderRight: '1.5px solid #fff' }}>
+          <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>FROM NODE</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(11, 13), wordBreak: 'break-all' }}>{label.firstMile}</div>
+        </div>
+        <div style={{ ...cell, borderRight: '1.5px solid #fff' }}>
+          <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>HUB ROUTE</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(11, 13) }}>
             {label.origin} → {label.dest}
-            <span style={{ margin: '0 6px', color: '#CBD5E1' }}>|</span>
-            {label.date}
           </div>
-          <BarcodeWithNodes
-            cn={label.cn}
-            firstMile={label.firstMile}
-            lastMile={label.lastMile}
-            height={barcodeH}
-            compact={compact}
-          />
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <QrImg value={label.trackingUrl || label.cn} size={qrSize} />
-          <div style={{ fontSize: 9, color: '#64748B', marginTop: 2 }}>Scan to track</div>
+        <div style={{ ...cell, textAlign: 'center' }}>
+          <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>DELIVER TO NODE</div>
+          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: s(18, 26), lineHeight: 1.05, wordBreak: 'break-all' }}>
+            {label.lastMile}
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: compact ? 6 : 8,
-          borderTop: '1px solid #E2E8F0',
-          borderBottom: '1px solid #E2E8F0',
-          padding: compact ? '6px 0' : '8px 0',
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-        <PartyBlock
-          title="Sender"
-          compact={compact}
-          lines={[
-            label.senderName,
-            `Tel: ${label.senderPhone}`,
-            label.senderAddress,
-            `Acc: ${label.account}${label.accountName ? ` · ${label.accountName}` : ''}`,
-          ]}
-        />
-        <PartyBlock
-          title="Receiver"
-          compact={compact}
-          accent
-          lines={[
-            label.receiverShop !== label.receiverName ? label.receiverShop : null,
-            label.receiverName,
-            `Tel: ${label.receiverPhone}`,
-            label.receiverAddress,
-          ].filter(Boolean)}
-        />
+      {/* 4. Receiver */}
+      <div style={{ ...cell, borderBottom: line, flex: '0 1 auto', minHeight: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+          <SectionLabel s={s}>To (Receiver)</SectionLabel>
+          <span
+            style={{
+              border: `1.5px solid ${INK}`,
+              borderRadius: 3,
+              padding: s('0 4px', '1px 6px'),
+              fontSize: s(8, 10),
+              fontWeight: 900,
+              letterSpacing: 0.4,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label.selfCollect ? 'SELF-COLLECT' : 'HOME DELIVERY'}
+          </span>
+        </div>
+        {label.receiverShop !== label.receiverName && label.receiverShop !== '—' ? (
+          <div style={{ fontSize: s(10, 12), fontWeight: 700, ...clamp(1) }}>{label.receiverShop}</div>
+        ) : null}
+        <div style={{ fontSize: s(14, 22), fontWeight: 900, lineHeight: 1.15, marginTop: s(0, 2), ...clamp(1) }}>{label.receiverName}</div>
+        <div style={{ fontSize: s(12, 17), fontWeight: 800, marginTop: s(1, 3) }}>{label.receiverPhone}</div>
+        <div style={{ fontSize: s(10.5, 15), lineHeight: 1.35, marginTop: s(2, 5), ...clamp(compact ? 3 : 4) }}>{label.receiverAddress}</div>
+        {label.selfCollect ? (
+          <div
+            style={{
+              marginTop: s(3, 8),
+              border: `1px dashed ${INK}`,
+              padding: s('2px 5px', '6px 10px'),
+              fontSize: s(9, 13),
+              lineHeight: 1.3,
+            }}
+          >
+            <strong>Collect at:</strong>{' '}
+            {label.collectCode || label.collectName
+              ? [label.collectCode, label.collectName].filter(Boolean).join(' · ')
+              : 'Drop point to be assigned — we will notify you'}
+            {label.collectAddress ? <div style={clamp(1)}>{label.collectAddress}</div> : null}
+          </div>
+        ) : null}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 4,
-          fontSize: compact ? 10 : 11,
-        }}
-      >
-        <MetaChip label="Pcs" value={label.pcs} compact={compact} />
-        <MetaChip label="Kg" value={label.weight} compact={compact} />
-        <MetaChip label="Type" value={label.pkg} compact={compact} />
-        <MetaChip label="Mode" value={label.transport} compact={compact} />
+      {/* 5. Sender */}
+      <div style={{ ...cell, borderBottom: line }}>
+        <SectionLabel s={s}>From (Sender)</SectionLabel>
+        <div style={{ fontSize: s(10, 13), lineHeight: 1.3, ...clamp(1) }}>
+          <strong>{label.senderName}</strong> · {label.senderPhone}
+        </div>
+        <div style={{ fontSize: s(9, 12), color: MUTED, lineHeight: 1.3, ...clamp(compact ? 1 : 2) }}>{label.senderAddress}</div>
       </div>
 
-      <div style={{ fontSize: compact ? 10 : 11, color: '#334155' }}>
-        <strong>Remark:</strong> {label.remark || '—'}
+      {/* 6. Parcel info */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: line }}>
+        {[
+          ['Pieces', label.pcs],
+          ['Weight', `${label.weight} kg`],
+          ['Type', label.pkg],
+          ['Mode', label.transport],
+        ].map(([k, v], i) => (
+          <div key={k} style={{ padding: s('3px 5px', '5px 8px'), borderRight: i < 3 ? line : 'none' }}>
+            <div style={{ fontSize: s(7, 8), color: MUTED, fontWeight: 700, textTransform: 'uppercase' }}>{k}</div>
+            <div style={{ fontSize: s(11, 13), fontWeight: 800, ...clamp(1) }}>{v}</div>
+          </div>
+        ))}
       </div>
 
+      {/* 7. Remark */}
+      {label.remark ? (
+        <div style={{ ...cell, borderBottom: line, fontSize: s(9, 11), ...clamp(1) }}>
+          <strong>Remark:</strong> {label.remark}
+        </div>
+      ) : null}
+
+      {/* 8. POD + QR */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', borderBottom: line, flex: '1 1 auto', minHeight: 0 }}>
+        <div style={{ ...cell, borderRight: line, display: 'flex', flexDirection: 'column', gap: s(5, 8), fontSize: s(8, 10) }}>
+          <SectionLabel s={s}>Proof of delivery</SectionLabel>
+          <div
+            style={{
+              flex: '1 1 auto',
+              minHeight: s(22, 40),
+              border: `1px solid ${INK}`,
+              padding: '2px 4px',
+              color: MUTED,
+            }}
+          >
+            Receiver signature
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8 }}>
+            <div style={{ borderBottom: `1px solid ${INK}`, paddingBottom: 1 }}>Name / IC</div>
+            <div style={{ borderBottom: `1px solid ${INK}`, paddingBottom: 1 }}>Date &amp; time</div>
+          </div>
+          <div style={{ borderBottom: `1px solid ${INK}`, paddingBottom: 1 }}>Staff ID</div>
+        </div>
+        <div style={{ ...cell, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <QrImg value={label.trackingUrl || label.cn} size={s(58, 104)} />
+          <div style={{ fontSize: s(7, 9), fontWeight: 700, marginTop: 2 }}>Scan to track</div>
+        </div>
+      </div>
+
+      {/* 9. Footer */}
       <div
         style={{
-          marginTop: 'auto',
-          borderTop: '1px dashed #94A3B8',
-          paddingTop: compact ? 6 : 8,
-          fontSize: compact ? 9 : 10,
-          color: '#475569',
-          display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr 0.8fr',
+          padding: s('3px 6px', '4px 10px'),
+          fontSize: s(7, 9),
+          color: MUTED,
+          display: 'flex',
+          justifyContent: 'space-between',
           gap: 6,
         }}
       >
-        <div>POD / Receiver: ____________________</div>
-        <div>Staff ID: ________</div>
-        <div>Time: ______</div>
+        <span style={clamp(1)}>
+          Acc {label.account}
+          {label.accountName ? ` · ${label.accountName}` : ''}
+        </span>
+        <span style={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>{TAGLINE}</span>
       </div>
-    </div>
-  )
-}
-
-function PartyBlock({ title, lines, compact, accent }) {
-  return (
-    <div
-      style={{
-        background: accent ? '#F0FDF4' : '#F8FAFC',
-        borderRadius: 4,
-        padding: compact ? 6 : 8,
-        border: accent ? '1px solid #BBF7D0' : '1px solid #E2E8F0',
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          fontSize: compact ? 9 : 10,
-          fontWeight: 800,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-          color: accent ? '#166534' : '#64748B',
-          marginBottom: 4,
-        }}
-      >
-        {title}
-      </div>
-      {lines.map((line, i) => (
-        <div
-          key={`${title}-${i}`}
-          style={{
-            fontSize: compact ? 10 : 11,
-            fontWeight: i === 0 ? 700 : 400,
-            lineHeight: 1.25,
-            wordBreak: 'break-word',
-            marginBottom: 2,
-          }}
-        >
-          {line}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function MetaChip({ label, value, compact }) {
-  return (
-    <div
-      style={{
-        border: '1px solid #E2E8F0',
-        borderRadius: 4,
-        padding: compact ? '3px 4px' : '4px 6px',
-        background: '#F8FAFC',
-      }}
-    >
-      <div style={{ fontSize: 9, color: '#64748B', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontWeight: 700 }}>{value}</div>
     </div>
   )
 }
