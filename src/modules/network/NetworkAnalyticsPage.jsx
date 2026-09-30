@@ -34,6 +34,7 @@ import { useSearchParams } from 'react-router-dom'
 import { apiError, downloadCsv, getSummary, listMaster } from '../../api/client'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
+import SummaryScopeBanner from '../../components/SummaryScopeBanner'
 
 const { Title, Text } = Typography
 
@@ -247,6 +248,8 @@ export default function NetworkAnalyticsPage() {
           </Button>
         </Space>
       </div>
+
+      {activeTab === 'analytics' && <SummaryScopeBanner scope={summaryData.scope} />}
 
       <Tabs
         activeKey={activeTab}

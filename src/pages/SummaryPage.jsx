@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { apiError, getSummary } from '../api/client'
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
+import SummaryScopeBanner from '../components/SummaryScopeBanner'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -113,6 +114,8 @@ export default function SummaryPage({ kind = 'status' }) {
           Refresh
         </Button>
       </div>
+
+      <SummaryScopeBanner scope={data.scope} />
 
       <Card size="small">
         <Form form={form} layout="vertical" onFinish={applyFilters}>
