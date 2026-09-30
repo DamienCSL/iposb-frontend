@@ -17,6 +17,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd'
@@ -205,11 +206,34 @@ function emptyCustomerFeeRow() {
   })
 }
 
+/** Stored "no limit" values; the backend treats these as open-ended. */
+const RANGE_NO_LIMIT = { pcsMin: 1, pcsMax: 999999, weightMin: 0, weightMax: 9999.9 }
+
+function isNoLimit(key, value) {
+  if (value === null || value === undefined || value === '') return true
+  const n = Number(value)
+  if (!Number.isFinite(n)) return true
+  if (key === 'pcsMin') return n <= 1
+  if (key === 'weightMin') return n <= 0
+  if (key === 'pcsMax') return n >= 999999
+  if (key === 'weightMax') return n >= 9999
+  return false
+}
+
+function rangeLabel(row, minKey, maxKey, unit) {
+  const anyMin = isNoLimit(minKey, row[minKey])
+  const anyMax = isNoLimit(maxKey, row[maxKey])
+  if (anyMin && anyMax) return `any ${unit}`
+  if (anyMin) return `up to ${row[maxKey]} ${unit}`
+  if (anyMax) return `${row[minKey]}+ ${unit}`
+  return `${row[minKey]}–${row[maxKey]} ${unit}`
+}
+
 function publicBandSummary(row) {
   const mode = FEE_MODES.find((m) => m.code === (row.transportMode || 'road'))?.label || row.transportMode || '—'
   const lane = [row.origin, row.destination].filter(Boolean).join(' → ') || 'Nationwide'
-  const pcs = `${row.pcsMin ?? 1}–${row.pcsMax ?? 999999} pcs`
-  const kg = `${row.weightMin ?? 0}–${row.weightMax ?? 9999.9} kg`
+  const pcs = rangeLabel(row, 'pcsMin', 'pcsMax', 'pcs')
+  const kg = rangeLabel(row, 'weightMin', 'weightMax', 'kg')
   return `${row.rateCode || '—'} · ${mode} · ${lane} · ${pcs} · ${kg}`
 }
 
@@ -1261,54 +1285,66 @@ export default function CommissionPage() {
     },
     {
       title: (
-        <span>
-          Pcs range
-          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>min – max</div>
-        </span>
+        <Tooltip title="This row is only used when the booking's piece count is inside this range. Leave empty for any. It does not change the price — the formula does.">
+          <span>
+            Applies when pcs…
+            <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>from – to · empty = any</div>
+          </span>
+        </Tooltip>
       ),
-      width: 160,
+      width: 170,
       render: (_, row, idx) => (
         <Space size={4}>
           <InputNumber
             size="small"
+            min={0}
             style={{ width: 64 }}
-            value={row.pcsMin ?? 0}
-            onChange={(v) => updateFeeRow(idx, { pcsMin: v }, scope)}
+            placeholder="Any"
+            value={isNoLimit('pcsMin', row.pcsMin) ? null : row.pcsMin}
+            onChange={(v) => updateFeeRow(idx, { pcsMin: v ?? RANGE_NO_LIMIT.pcsMin }, scope)}
           />
           <Text type="secondary">–</Text>
           <InputNumber
             size="small"
+            min={0}
             style={{ width: 72 }}
-            value={row.pcsMax ?? 999999}
-            onChange={(v) => updateFeeRow(idx, { pcsMax: v }, scope)}
+            placeholder="Any"
+            value={isNoLimit('pcsMax', row.pcsMax) ? null : row.pcsMax}
+            onChange={(v) => updateFeeRow(idx, { pcsMax: v ?? RANGE_NO_LIMIT.pcsMax }, scope)}
           />
         </Space>
       ),
     },
     {
       title: (
-        <span>
-          Kg range
-          <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>min – max</div>
-        </span>
+        <Tooltip title="This row is only used when the chargeable weight is inside this range. Leave empty for any. Put weight pricing in the formula (band / step), not here.">
+          <span>
+            Applies when kg…
+            <div style={{ fontWeight: 400, color: '#8c8c8c', fontSize: 11 }}>from – to · empty = any</div>
+          </span>
+        </Tooltip>
       ),
-      width: 160,
+      width: 170,
       render: (_, row, idx) => (
         <Space size={4}>
           <InputNumber
             size="small"
+            min={0}
             step={0.01}
             style={{ width: 64 }}
-            value={row.weightMin ?? 0}
-            onChange={(v) => updateFeeRow(idx, { weightMin: v }, scope)}
+            placeholder="Any"
+            value={isNoLimit('weightMin', row.weightMin) ? null : row.weightMin}
+            onChange={(v) => updateFeeRow(idx, { weightMin: v ?? RANGE_NO_LIMIT.weightMin }, scope)}
           />
           <Text type="secondary">–</Text>
           <InputNumber
             size="small"
+            min={0}
             step={0.01}
             style={{ width: 72 }}
-            value={row.weightMax ?? 9999.9}
-            onChange={(v) => updateFeeRow(idx, { weightMax: v }, scope)}
+            placeholder="Any"
+            value={isNoLimit('weightMax', row.weightMax) ? null : row.weightMax}
+            onChange={(v) => updateFeeRow(idx, { weightMax: v ?? RANGE_NO_LIMIT.weightMax }, scope)}
           />
         </Space>
       ),
