@@ -24,6 +24,7 @@ import {
   BankOutlined,
   CalculatorOutlined,
   HistoryOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   SettingOutlined,
   WalletOutlined,
@@ -2820,9 +2821,14 @@ export default function CommissionPage() {
             </div>
           ) : null}
         </div>
-        <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-          Refresh
-        </Button>
+        <Space wrap>
+          <Link to="/ops/commissions/guide">
+            <Button icon={<QuestionCircleOutlined />}>Formula guide</Button>
+          </Link>
+          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+            Refresh
+          </Button>
+        </Space>
       </div>
 
       <Card size="small" styles={{ body: { padding: 16 } }}>

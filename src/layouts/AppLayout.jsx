@@ -83,6 +83,7 @@ const APP_PAGES = [
   { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/wallets', keywords: ['wallets', 'payouts', 'balance'] },
   { title: 'Commission Rate Rules', path: '/ops/commissions/rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix', 'split', 'engine'] },
   { title: 'Commission Rates Calculator', path: '/ops/commissions/calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if', 'walkthrough', 'split'] },
+  { title: 'Commission & Delivery Fee Formula Guide', path: '/ops/commissions/guide', keywords: ['guide', 'formula', 'help', 'explain', 'band', 'step', 'sla', 'commission'] },
   { title: 'Commission Withdrawals', path: '/ops/commissions/withdrawals', keywords: ['withdrawals', 'payout'] },
   { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
   { title: 'Staff Verification', path: '/ops/staff', keywords: ['staff', 'approval', 'drivers', 'kyc'] },
@@ -188,6 +189,7 @@ function getBreadcrumbs(pathname, search) {
     const seg = pathname.split('/').filter(Boolean).pop()
     const tab = new URLSearchParams(search || '').get('tab') || seg
     if (tab === 'calculator') items.push({ label: 'Calculator', path: '/ops/commissions/calculator' })
+    else if (tab === 'guide') items.push({ label: 'Formula guide', path: '/ops/commissions/guide' })
     else if (tab === 'ledger') items.push({ label: 'Ledger', path: '/ops/commissions/ledger' })
     else if (tab === 'wallets') items.push({ label: 'Partner Wallets', path: '/ops/commissions/wallets' })
     else if (tab === 'withdrawals') items.push({ label: 'Withdrawals', path: '/ops/commissions/withdrawals' })
@@ -246,6 +248,7 @@ function getSelectedKey(pathname, search = '') {
     if (tab === 'wallets') return '/ops/commissions/wallets'
     if (tab === 'withdrawals') return '/ops/commissions/withdrawals'
     if (tab === 'calculator') return '/ops/commissions/calculator'
+    if (tab === 'guide') return '/ops/commissions/guide'
     return '/ops/commissions/rates'
   }
   if (pathname.startsWith('/ops/agents')) return '/ops/billing/agent-in'
@@ -775,6 +778,11 @@ export default function AppLayout() {
             {
               key: '/ops/commissions/calculator',
               label: <Link to="/ops/commissions/calculator" style={{ display: 'block', width: '100%' }}>What-if calculator</Link>,
+              visible: can('commissions') || can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/commissions/guide',
+              label: <Link to="/ops/commissions/guide" style={{ display: 'block', width: '100%' }}>Formula guide</Link>,
               visible: can('commissions') || can('billing') || isAdmin,
             },
             {
