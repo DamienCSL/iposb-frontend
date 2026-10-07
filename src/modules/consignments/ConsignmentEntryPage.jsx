@@ -2093,6 +2093,59 @@ export default function ConsignmentEntryPage() {
                       {' '}(delivery + RM {Number(codFeeRm).toFixed(2)} COD fee)
                     </Text>
                   ) : null}
+                  {quote.calculation?.lines?.length ? (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: '8px 10px',
+                        background: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 6,
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <Text strong style={{ fontSize: 12 }}>How this is calculated</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{quote.calculation.method}</Text>
+                      </div>
+                      {quote.calculation.lines.map((line, i) => (
+                        <div
+                          key={`${line.label}-${i}`}
+                          style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div>{line.label}</div>
+                            {line.how ? (
+                              <Text type="secondary" style={{ fontSize: 11 }}>{line.how}</Text>
+                            ) : null}
+                          </div>
+                          <Text strong style={{ whiteSpace: 'nowrap' }}>{money(line.amount)}</Text>
+                        </div>
+                      ))}
+                      {form.pay_mode === 'COD' && Number(codFeeRm) > 0 ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span>COD fee (receiver)</span>
+                          <Text strong>{money(codFeeRm)}</Text>
+                        </div>
+                      ) : null}
+                      <Divider style={{ margin: '6px 0' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text strong style={{ fontSize: 12 }}>Total</Text>
+                        <Text strong style={{ color: BRAND }}>
+                          {money(
+                            Number(quote.total || 0) + (form.pay_mode === 'COD' ? Number(codFeeRm) || 0 : 0),
+                          )}
+                        </Text>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                        Charged on {Number(quote.calculation.weightUsed || 0).toFixed(3)} kg
+                        {quote.calculation.weightBasis === 'volumetric' ? ' (volumetric)' : ''}
+                        {' · '}
+                        {quote.calculation.pieces} pcs
+                        {quote.calculation.formula ? ` · ${quote.calculation.formula}` : ''}
+                      </Text>
+                    </div>
+                  ) : null}
                   <Divider style={{ margin: '12px 0' }} />
                   <div style={{ fontSize: 12, color: '#64748B' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
