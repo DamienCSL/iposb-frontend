@@ -9,6 +9,7 @@ import {
   removeManifestMember,
   saveManifest,
 } from '../api/client'
+import ManifestLinehaulPanel from '../components/ManifestLinehaulPanel'
 
 function tierLabel(tier) {
   if (tier === 'baby') return 'Baby'
@@ -316,6 +317,7 @@ export default function ManifestStationPage() {
               >
                 <option value="OPEN">Open</option>
                 <option value="CLOSED">Closed</option>
+                <option value="ARRIVED">Arrived</option>
                 <option value="">All</option>
               </select>
             </div>
@@ -472,6 +474,17 @@ export default function ManifestStationPage() {
               )}
             </div>
           </div>
+
+          {activeMfg && manifest ? (
+            <ManifestLinehaulPanel
+              mfgNo={activeMfg}
+              manifest={manifest}
+              onChanged={async () => {
+                setDetail(await getManifest(activeMfg))
+                await refreshList()
+              }}
+            />
+          ) : null}
         </div>
       </div>
     </div>

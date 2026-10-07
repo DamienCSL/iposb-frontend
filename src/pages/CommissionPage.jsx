@@ -2494,6 +2494,23 @@ export default function CommissionPage() {
               <Text type="secondary">Enter scenario details and click Calculate split.</Text>
             ) : (
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                {calcResult.deliveryFeeEnabled === false && calcResult.feeSource !== 'override' ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Delivery-fee quoting is OFF"
+                    description="Live quotes price from the freight tariff, not the delivery-fee bands — this preview does the same. Turn on delivery-fee quoting under Engine & switches (and save) to quote customers from the bands."
+                  />
+                ) : null}
+                {calcResult.customerPrice ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Customer pays (same as live quote): <Text strong>{money(calcResult.customerPrice.total)}</Text>
+                    {calcResult.customerPrice.taxAmount > 0
+                      ? ` = ${money(calcResult.customerPrice.subtotal)} + SST ${money(calcResult.customerPrice.taxAmount)}`
+                      : ''}
+                    {calcResult.serviceType ? ` · service ${calcResult.serviceType}` : ''}
+                  </Text>
+                ) : null}
                 <Row gutter={12}>
                   <Col xs={24} sm={8}>
                     <Card size="small" style={{ height: '100%' }}>

@@ -951,3 +951,23 @@ export async function closeManifest(mfgNo, extra = {}) {
   return data
 }
 
+export async function arriveManifest(mfgNo, body = {}) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/arrive`, body)
+  return data
+}
+
+export async function listLinehaulDrivers() {
+  const { data } = await api.get('/ops/linehaul/drivers')
+  return data
+}
+
+export async function assignLinehaulDriver(mfgNo, body) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/assign-driver`, body)
+  return data
+}
+
+export async function getManifestTrip(mfgNo) {
+  const { data } = await api.get(`/ops/manifests/${encodeURIComponent(mfgNo)}/trip`)
+  return data
+}
+

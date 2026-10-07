@@ -738,14 +738,32 @@ export default function ConsignmentEntryPage() {
   }
 
   async function generateCn() {
+    const dropOff = (form.origin_service || 'DROP_COUNTER') === 'DROP_COUNTER'
+    const selfCollect = form.destination_service === 'SELF_COLLECT'
+    if (dropOff ? !form.origin_drop_point_id : !form.origin_zone && !form.cn_origin) {
+      message.warning(
+        dropOff
+          ? 'Select the origin drop point first — the CN starts with its code.'
+          : 'Select the origin delivery point first — the CN starts with its code.',
+      )
+      return
+    }
     setGenerating(true)
     try {
+      const nodes = {
+        originDropPointId: dropOff ? form.origin_drop_point_id || undefined : undefined,
+        originZone: form.origin_zone || undefined,
+        cnOrigin: form.cn_origin || undefined,
+        destinationDropPointId: selfCollect ? form.destination_drop_point_id || undefined : undefined,
+        destinationZone: form.destination_zone || undefined,
+        cnDstn: form.cn_dstn || undefined,
+      }
       let code
       try {
-        const res = await generateSystemCode({ kind: 'cn_no' })
+        const res = await generateSystemCode({ kind: 'cn_no', ...nodes })
         code = res?.code || res?.cn_no
       } catch {
-        const res = await generateCode('cn_no')
+        const res = await generateCode('cn_no', nodes)
         code = res?.code || res?.cn_no
       }
       if (code) {

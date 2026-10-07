@@ -259,7 +259,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'drop_code', label: 'Drop Point Code', required: true, generate: 'drop_code', useBranch: true },
+      { name: 'drop_code', label: 'Drop Point Code (5–6 chars, used in CN)', required: true, placeholder: 'e.g. INM01', generate: 'drop_code', useBranch: true },
       { name: 'drop_name', label: 'Drop Point Name', required: true },
       { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL', lookup: 'delivery-points' },
       { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
@@ -316,6 +316,15 @@ export const MASTER_SCHEMAS = {
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
       { title: 'Route Code', dataIndex: 'route_cd', key: 'route_cd' },
       {
+        title: 'Type',
+        dataIndex: 'driver_type',
+        key: 'driver_type',
+        render: (v) => {
+          const t = String(v || 'courier').toLowerCase()
+          return <Tag color={t === 'linehaul' ? 'purple' : t === 'both' ? 'geekblue' : 'default'}>{t}</Tag>
+        },
+      },
+      {
         title: 'Status',
         dataIndex: 'is_available',
         key: 'is_available',
@@ -327,6 +336,16 @@ export const MASTER_SCHEMAS = {
       { name: 'phone', label: 'Phone', required: true },
       { name: 'loc_id', label: 'Branch / Location / Hub', required: true, placeholder: 'e.g. BKI', lookup: 'hubs', allowCustom: true },
       { name: 'route_cd', label: 'Assigned Route Code', lookup: 'route-codes' },
+      {
+        name: 'driver_type',
+        label: 'Driver Type',
+        type: 'select',
+        options: [
+          { label: 'Courier (pickup / delivery)', value: 'courier' },
+          { label: 'Linehaul (hub to hub)', value: 'linehaul' },
+          { label: 'Both', value: 'both' },
+        ],
+      },
       { name: 'home_drop_point_id', label: 'Home Drop Point ID' },
       { name: 'preferred_zones', label: 'Preferred Zones', placeholder: 'e.g. BKI, BKI-NORTH' },
       { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
@@ -394,7 +413,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
-      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, generate: 'delivery_point_code', useBranch: true },
+      { name: 'delivery_point_code', label: 'Delivery Point Code (5–6 chars, used in CN)', required: true, placeholder: 'e.g. KKS01', generate: 'delivery_point_code', useBranch: true },
       { name: 'delivery_point_name', label: 'Name', required: true },
       { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },

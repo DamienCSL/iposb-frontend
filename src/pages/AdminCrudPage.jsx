@@ -178,7 +178,7 @@ const SPECS = {
     title: 'Drop Point Management',
     columns: [['drop_code', 'Code'], ['drop_name', 'Name'], ['delivery_point_code', 'Delivery point'], ['hub_code', 'Hub'], ['lat', 'Lat'], ['lng', 'Lng'], ['is_active', 'Active']],
     fields: [
-      { name: 'drop_code', label: 'Drop code', generate: 'drop_code' },
+      { name: 'drop_code', label: 'Drop code (5–6 chars)', generate: 'drop_code' },
       { name: 'drop_name', label: 'Name' },
       { name: 'delivery_point_code', label: 'Delivery point', lookup: 'delivery-points' },
       { name: 'hub_code', label: 'Hub', lookup: 'hubs' },
@@ -239,6 +239,16 @@ const SPECS = {
       { name: 'loc_id', label: 'Location / hub', lookup: 'hubs' },
       { name: 'route_cd', label: 'Route code', lookup: 'route-codes' },
       { name: 'home_drop_point_id', label: 'Home drop point', lookup: 'drop-points' },
+      {
+        name: 'driver_type',
+        label: 'Driver type',
+        type: 'select',
+        options: [
+          ['courier', 'Courier (pickup / delivery)'],
+          ['linehaul', 'Linehaul (hub to hub)'],
+          ['both', 'Both'],
+        ],
+      },
       { name: 'base_lat', label: 'Base latitude', type: 'number' },
       { name: 'base_lng', label: 'Base longitude', type: 'number' },
     ],
@@ -259,7 +269,7 @@ const SPECS = {
     title: 'Delivery Point Management',
     columns: [['delivery_point_code', 'Code'], ['delivery_point_name', 'Name'], ['hub_code', 'Hub'], ['lat', 'Lat'], ['lng', 'Lng'], ['is_active', 'Active']],
     fields: [
-      { name: 'delivery_point_code', label: 'Delivery point code', generate: 'delivery_point_code' },
+      { name: 'delivery_point_code', label: 'Delivery point code (5–6 chars)', generate: 'delivery_point_code' },
       { name: 'delivery_point_name', label: 'Name' },
       { name: 'hub_code', label: 'Hub', lookup: 'hubs' },
       { name: 'address_line1', label: 'Address' },
