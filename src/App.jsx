@@ -27,6 +27,7 @@ import SealStationPage from './pages/SealStationPage'
 import ManifestStationPage from './pages/ManifestStationPage'
 import CommissionPage from './pages/CommissionPage'
 import CommissionGuidePage from './modules/commissions/CommissionGuidePage'
+import SizePricingPage from './modules/commissions/SizePricingPage'
 import TrackingPage from './pages/TrackingPage'
 import ImportLogPage from './pages/ImportLogPage'
 import CancellationLogPage from './pages/CancellationLogPage'
@@ -151,6 +152,7 @@ export default function App() {
                 <Route path="/ops/commissions/rates" element={<CommissionPage />} />
                 <Route path="/ops/commissions/calculator" element={<CommissionPage />} />
                 <Route path="/ops/commissions/guide" element={<CommissionGuidePage />} />
+                <Route path="/ops/commissions/sizes" element={<SizePricingPage />} />
                 <Route path="/ops/commissions/ledger" element={<CommissionPage />} />
                 <Route path="/ops/commissions/wallets" element={<CommissionPage />} />
                 <Route path="/ops/commissions/withdrawals" element={<CommissionPage />} />

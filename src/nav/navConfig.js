@@ -99,6 +99,7 @@ export const NAV_SECTIONS = [
         cap: 'dropPoints',
         items: [
           { to: '/billing/commissions', label: 'Commission & Wallets', icon: 'bi-currency-exchange', live: true },
+          { to: '/ops/commissions/sizes', label: 'Size Pricing', icon: 'bi-box-seam', live: true },
         ],
       },
     ],

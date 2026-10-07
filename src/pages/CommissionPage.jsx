@@ -66,6 +66,7 @@ const FORMULA_TYPES = [
   { value: 'band_table', label: 'Weight band table', hint: 'Fixed RM per 0.5 kg band (+ optional over steps)' },
   { value: 'step_linear', label: 'Step / linear', hint: 'Early tiers + step amount every X kg (e.g. Sarawak)' },
   { value: 'size_pct', label: 'Size × %', hint: 'S/M/L/XL base × pct% (+ over kg) — remote Value Express' },
+  { value: 'size_weight', label: 'Size tiers (by weight)', hint: 'Custom sizes by weight, RM per size — edit on the Size pricing page' },
 ]
 
 const MATRIX_MODES = [
@@ -607,6 +608,12 @@ export default function CommissionPage() {
     if (type === 'size_pct') {
       return `${p.pct || 0}% of size · default ${p.defaultSize || 'M'}`
     }
+    if (type === 'size_weight') {
+      const tiers = Array.isArray(p.tiers) ? p.tiers : []
+      return tiers.length
+        ? `${tiers.length} size(s): ${tiers.map((t) => t.code).join(', ')}`
+        : 'No sizes yet'
+    }
     return ''
   }
 
@@ -736,6 +743,19 @@ export default function CommissionPage() {
       )
     }
 
+    if (type === 'size_weight') {
+      return (
+        <Space direction="vertical" size={4} style={{ width: '100%', minWidth: 220 }}>
+          <Text style={{ fontSize: 12 }}>{formulaPriceSummary(row)}</Text>
+          <Link to="/ops/commissions/sizes">
+            <Button size="small" type="primary" ghost style={{ borderColor: BRAND, color: BRAND }}>
+              Edit on Size pricing…
+            </Button>
+          </Link>
+        </Space>
+      )
+    }
+
     return (
       <Space direction="vertical" size={4} style={{ width: '100%', minWidth: 220 }}>
         <Text style={{ fontSize: 12 }}>{formulaPriceSummary(row)}</Text>
@@ -750,6 +770,17 @@ export default function CommissionPage() {
     const type = formulaDraft.type
     const p = formulaDraft.params || {}
     const hint = FORMULA_TYPES.find((t) => t.value === type)?.hint
+
+    if (type === 'size_weight') {
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message="Size tiers are managed on their own page."
+          description={<Link to="/ops/commissions/sizes">Open Size pricing</Link>}
+        />
+      )
+    }
 
     if (type === 'base_pcs_kg') {
       return (
@@ -1911,9 +1942,14 @@ export default function CommissionPage() {
                   </div>
                 }
                 extra={
-                  <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => setFeeRates((rows) => [...rows, emptyFeeRow()])}>
-                    Add band
-                  </Button>
+                  <Space size={8} wrap>
+                    <Link to="/ops/commissions/sizes">
+                      <Button size="small">Size pricing…</Button>
+                    </Link>
+                    <Button size="small" type="primary" style={{ background: BRAND, borderColor: BRAND }} onClick={() => setFeeRates((rows) => [...rows, emptyFeeRow()])}>
+                      Add band
+                    </Button>
+                  </Space>
                 }
               >
                 <Alert
@@ -1927,6 +1963,7 @@ export default function CommissionPage() {
                         <li><strong>Base + pcs + kg</strong> — Base / RM per piece / RM per kg</li>
                         <li><strong>Flat then /kg</strong> — Flat fee, included kg, extra RM/kg</li>
                         <li><strong>Size × %</strong> — S/M/L/XL bases, charge %, over kg</li>
+                        <li><strong>Size tiers (by weight)</strong> — managed on the <Link to="/ops/commissions/sizes">Size pricing</Link> page</li>
                         <li><strong>Band table / Step linear</strong> — summary in the row; edit full bands or tiers in the popup</li>
                       </ul>
                       <Text type="secondary" style={{ fontSize: 12 }}>
