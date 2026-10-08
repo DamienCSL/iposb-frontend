@@ -13,20 +13,6 @@ export const FORMULAS = [
     summary: 'Fee = Base + (pieces × RM/pc) + (kg × RM/kg). E.g. Land RM 1 per kg.',
   },
   {
-    type: 'flat_then_per_kg',
-    slug: 'flat',
-    prefix: 'FLAT',
-    title: 'Flat then per kg',
-    summary: 'One flat fee covers the first N kg, then RM per kg above that.',
-  },
-  {
-    type: 'band_table',
-    slug: 'weight-bands',
-    prefix: 'BAND',
-    title: 'Weight band table',
-    summary: 'A fixed price per weight band, plus optional steps above a threshold.',
-  },
-  {
     type: 'step_linear',
     slug: 'steps',
     prefix: 'STEP',
@@ -39,13 +25,6 @@ export const FORMULAS = [
     prefix: 'SIZE',
     title: 'Size tiers (by weight)',
     summary: 'Your own sizes by weight, a price per size, and an unlimited top size.',
-  },
-  {
-    type: 'size_pct',
-    slug: 'size-percent',
-    prefix: 'SIZEPCT',
-    title: 'Size × %',
-    summary: 'S / M / L / XL base price × a percentage, plus RM/kg above an included weight.',
   },
 ]
 

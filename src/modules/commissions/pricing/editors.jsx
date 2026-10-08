@@ -9,7 +9,6 @@ import {
   Popconfirm,
   Radio,
   Row,
-  Select,
   Space,
   Table,
   Tabs,
@@ -222,102 +221,6 @@ const baseEditor = perMode({
   ),
 })
 
-const flatEditor = perMode({
-  defaults: () => ({ flatAmount: 0, includedKg: 0, perKgOver: 0 }),
-  fromRow: (row) => {
-    const j = row.formulaJson || {}
-    return { flatAmount: num(j.flatAmount), includedKg: num(j.includedKg), perKgOver: num(j.perKgOver) }
-  },
-  toParams: (p) => ({
-    formulaJson: { flatAmount: num(p.flatAmount), includedKg: num(p.includedKg), perKgOver: num(p.perKgOver) },
-  }),
-  validateParams: (p, mode) =>
-    num(p.flatAmount) > 0 || num(p.perKgOver) > 0 ? [] : [`${mode}: set a flat fee or an RM/kg above.`],
-  Form: ({ params: p, onChange }) => (
-    <Row gutter={[16, 12]}>
-      <Col xs={24} sm={8}>
-        <Field label="Flat fee" extra="Covers the included weight">
-          <Money value={p.flatAmount} onChange={(v) => onChange({ flatAmount: v })} />
-        </Field>
-      </Col>
-      <Col xs={24} sm={8}>
-        <Field label="Included weight" extra="e.g. 15 kg">
-          <Kg value={p.includedKg} onChange={(v) => onChange({ includedKg: v })} />
-        </Field>
-      </Col>
-      <Col xs={24} sm={8}>
-        <Field label="Per kg above included" extra="Charged on every kg over">
-          <Money value={p.perKgOver} step={0.1} precision={4} onChange={(v) => onChange({ perKgOver: v })} />
-        </Field>
-      </Col>
-    </Row>
-  ),
-})
-
-const bandEditor = perMode({
-  defaults: () => ({ bands: withKeys([{ maxKg: 0.5, amount: 0 }, { maxKg: 1, amount: 0 }]), overKg: 0, overStepKg: 0.5, overStepAmount: 0 }),
-  fromRow: (row) => {
-    const j = row.formulaJson || {}
-    return {
-      bands: withKeys(j.bands),
-      overKg: num(j.overKg),
-      overStepKg: num(j.overStepKg, 0.5),
-      overStepAmount: num(j.overStepAmount),
-    }
-  },
-  toParams: (p) => ({
-    formulaJson: {
-      bands: stripKeys(p.bands || []),
-      overKg: num(p.overKg),
-      overStepKg: num(p.overStepKg, 0.5),
-      overStepAmount: num(p.overStepAmount),
-    },
-  }),
-  validateParams: (p, mode) => {
-    const bands = p.bands || []
-    if (!bands.length) return [`${mode}: add at least one weight band.`]
-    return ascendingErrors(bands, 'band', mode)
-  },
-  Form: ({ params: p, onChange }) => {
-    const bands = p.bands || []
-    const lastMax = bands.length ? num(bands[bands.length - 1].maxKg) : 0
-    return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <div>
-          <Text strong>Weight bands</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
-            The parcel is charged the price of the first band its weight fits in.
-          </Text>
-          <KgPriceTable rows={bands} itemLabel="band" onChange={(rows) => onChange({ bands: rows })} />
-        </div>
-        <div>
-          <Text strong>Above the bands</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
-            Heavier parcels pay the last band, plus a fixed amount for every step of kg above the threshold.
-          </Text>
-          <Row gutter={[16, 12]}>
-            <Col xs={24} sm={8}>
-              <Field label="Threshold" extra={`0 = last band (${kg(lastMax)} kg)`}>
-                <Kg value={p.overKg} onChange={(v) => onChange({ overKg: v })} />
-              </Field>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Field label="Step size">
-                <Kg value={p.overStepKg} onChange={(v) => onChange({ overStepKg: v })} />
-              </Field>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Field label="Price per step" extra="0 = no extra charge">
-                <Money value={p.overStepAmount} onChange={(v) => onChange({ overStepAmount: v })} />
-              </Field>
-            </Col>
-          </Row>
-        </div>
-      </Space>
-    )
-  },
-})
-
 const stepEditor = perMode({
   defaults: () => ({
     tiers: withKeys([{ maxKg: 1, amount: 0 }]),
@@ -423,130 +326,6 @@ const stepEditor = perMode({
       </div>
     </Space>
   ),
-})
-
-const sizePctEditor = perMode({
-  defaults: () => ({
-    sizes: ['S', 'M', 'L', 'XL'].map((code) => ({ key: nextKey(), code, amount: 0 })),
-    pct: 100,
-    includedKg: 0,
-    perKgOver: 0,
-    defaultSize: 'M',
-  }),
-  fromRow: (row) => {
-    const j = row.formulaJson || {}
-    const sizes = Object.entries(j.sizes || {}).map(([code, amount]) => ({ key: nextKey(), code, amount: num(amount) }))
-    return {
-      sizes,
-      pct: num(j.pct, 100),
-      includedKg: num(j.includedKg),
-      perKgOver: num(j.perKgOver),
-      defaultSize: j.defaultSize || sizes[0]?.code || 'M',
-    }
-  },
-  toParams: (p) => ({
-    formulaJson: {
-      sizes: Object.fromEntries((p.sizes || []).filter((s) => s.code).map((s) => [s.code.toUpperCase(), num(s.amount)])),
-      pct: num(p.pct, 100),
-      includedKg: num(p.includedKg),
-      perKgOver: num(p.perKgOver),
-      defaultSize: String(p.defaultSize || 'M').toUpperCase(),
-    },
-  }),
-  validateParams: (p, mode) => {
-    const errors = []
-    const codes = (p.sizes || []).map((s) => String(s.code || '').toUpperCase())
-    if (!codes.length) errors.push(`${mode}: add at least one size.`)
-    if (codes.some((c) => !c)) errors.push(`${mode}: every size needs a code.`)
-    if (new Set(codes).size !== codes.length) errors.push(`${mode}: size codes must be unique.`)
-    return errors
-  },
-  Form: ({ params: p, onChange }) => {
-    const sizes = p.sizes || []
-    const patch = (key, s) => onChange({ sizes: sizes.map((x) => (x.key === key ? { ...x, ...s } : x)) })
-    return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Alert
-          type="info"
-          showIcon
-          message="The size comes from the package size chosen on the booking. Use Size tiers (by weight) if you want sizes picked from the weight automatically."
-        />
-        <div>
-          <Text strong>Size base prices</Text>
-          <Table
-            size="small"
-            bordered
-            pagination={false}
-            rowKey="key"
-            dataSource={sizes}
-            style={{ marginTop: 8 }}
-            columns={[
-              {
-                title: 'Size code',
-                width: 140,
-                render: (_, s) => (
-                  <Input
-                    size="small"
-                    value={s.code}
-                    maxLength={8}
-                    onChange={(e) => patch(s.key, { code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
-                  />
-                ),
-              },
-              {
-                title: 'Base price',
-                width: 160,
-                render: (_, s) => <Money size="small" value={s.amount} onChange={(v) => patch(s.key, { amount: v })} />,
-              },
-              {
-                title: 'Charged',
-                render: (_, s) => (
-                  <Text style={{ fontSize: 12 }}>RM {((num(s.amount) * num(p.pct, 100)) / 100).toFixed(2)}</Text>
-                ),
-              },
-              {
-                title: '',
-                width: 44,
-                render: (_, s) => (
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => onChange({ sizes: sizes.filter((x) => x.key !== s.key) })} />
-                ),
-              },
-            ]}
-          />
-          <Button size="small" icon={<PlusOutlined />} style={{ marginTop: 8 }} onClick={() => onChange({ sizes: [...sizes, { key: nextKey(), code: '', amount: 0 }] })}>
-            Add size
-          </Button>
-        </div>
-        <Row gutter={[16, 12]}>
-          <Col xs={24} sm={6}>
-            <Field label="Charge % of base" extra="e.g. 40">
-              <InputNumber min={0} step={1} value={p.pct} addonAfter="%" style={{ width: '100%' }} onChange={(v) => onChange({ pct: v ?? 0 })} />
-            </Field>
-          </Col>
-          <Col xs={24} sm={6}>
-            <Field label="Default size" extra="When the booking has no size">
-              <Select
-                value={p.defaultSize}
-                style={{ width: '100%' }}
-                onChange={(v) => onChange({ defaultSize: v })}
-                options={sizes.filter((s) => s.code).map((s) => ({ value: s.code, label: s.code }))}
-              />
-            </Field>
-          </Col>
-          <Col xs={24} sm={6}>
-            <Field label="Included weight">
-              <Kg value={p.includedKg} onChange={(v) => onChange({ includedKg: v })} />
-            </Field>
-          </Col>
-          <Col xs={24} sm={6}>
-            <Field label="Per kg above included">
-              <Money value={p.perKgOver} step={0.1} precision={4} onChange={(v) => onChange({ perKgOver: v })} />
-            </Field>
-          </Col>
-        </Row>
-      </Space>
-    )
-  },
 })
 
 /* ── Size tiers (by weight): one shared size table, prices per mode ───────── */
@@ -793,9 +572,6 @@ const sizeWeightEditor = {
 
 export const FORMULA_EDITORS = {
   base_pcs_kg: baseEditor,
-  flat_then_per_kg: flatEditor,
-  band_table: bandEditor,
   step_linear: stepEditor,
-  size_pct: sizePctEditor,
   size_weight: sizeWeightEditor,
 }

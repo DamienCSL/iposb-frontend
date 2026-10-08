@@ -61,10 +61,7 @@ const FEE_MODES = [
 
 const FORMULA_TYPES = [
   { value: 'base_pcs_kg', label: 'Base + pcs + kg', hint: 'Fee = Base + (pcs × RM/pc) + (kg × RM/kg)' },
-  { value: 'flat_then_per_kg', label: 'Flat then /kg', hint: 'Flat for first N kg, then RM/kg over (e.g. Labuan)' },
-  { value: 'band_table', label: 'Weight band table', hint: 'Fixed RM per 0.5 kg band (+ optional over steps)' },
   { value: 'step_linear', label: 'Step / linear', hint: 'Early tiers + step amount every X kg (e.g. Sarawak)' },
-  { value: 'size_pct', label: 'Size × %', hint: 'S/M/L/XL base × pct% (+ over kg) — remote Value Express' },
   { value: 'size_weight', label: 'Size tiers (by weight)', hint: 'Custom sizes by weight, RM per size — edit on the Size pricing page' },
 ]
 
@@ -167,7 +164,6 @@ export default function CommissionPage() {
     custAcNo: '',
     origin: '',
     destination: '',
-    packageSize: 'M',
     originService: 'DROP_COUNTER',
     outcome: 'doorstep',
     collectHours: '4',
@@ -381,7 +377,6 @@ export default function CommissionPage() {
         cn_wt: Number(calcForm.weight) || 0,
         origin: calcForm.origin || undefined,
         destination: calcForm.destination || undefined,
-        packageSize: calcForm.packageSize || undefined,
         originService: calcForm.originService,
         outcome: calcForm.outcome,
         collectHours: calcForm.outcome === 'collect' ? Number(calcForm.collectHours) || 0 : undefined,
@@ -1110,15 +1105,6 @@ export default function CommissionPage() {
                       placeholder="e.g. KCH"
                       value={calcForm.destination}
                       onChange={(v) => setCalcForm((f) => ({ ...f, destination: v }))}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={12} md={8}>
-                  <Form.Item label="Package size" extra="Used by Size × % formula">
-                    <Select
-                      value={calcForm.packageSize}
-                      onChange={(v) => setCalcForm((f) => ({ ...f, packageSize: v }))}
-                      options={['S', 'M', 'L', 'XL'].map((s) => ({ value: s, label: s }))}
                     />
                   </Form.Item>
                 </Col>

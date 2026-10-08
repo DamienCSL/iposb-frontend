@@ -156,9 +156,9 @@ export default function CommissionGuidePage() {
         <Col xs={24} lg={18}>
           <Title level={3}>Part 1 — Delivery fee formulas</Title>
           <Paragraph type="secondary">
-            Each rate row (per corridor and transport mode) on <Text strong>Public delivery fee</Text> uses one
-            formula type. <Text strong>Customer overrides</Text> use the same five types for a specific long-term
-            account and win over the public rate.
+            On <Text strong>Customer pricing</Text>, each transport mode uses one of these three formulas, for the
+            public price, for a specific customer, or for a lane override. Customer and lane settings win over the
+            public price.
           </Paragraph>
 
           <Section id="base_pcs_kg" tag="base_pcs_kg" title="1. Base + pieces + kg (default)">
@@ -173,37 +173,7 @@ export default function CommissionGuidePage() {
             </Paragraph>
           </Section>
 
-          <Section id="flat_then_per_kg" tag="flat_then_per_kg" title="2. Flat then per kg (e.g. Labuan)">
-            <FormulaBox>Fee = Flat + max(0, Weight − Included kg) × RM/kg over</FormulaBox>
-            <ExampleBox>
-              Flat RM 8.00 covers the first 1 kg, then RM 3.00 per extra kg — parcel of 3.5 kg
-              <FormulaBox>8.00 + (3.5 − 1) × 3.00 = 8.00 + 7.50 = RM 15.50</FormulaBox>
-            </ExampleBox>
-            <Paragraph>
-              <Text strong>Use for:</Text> one price up to a weight limit, then per kg above it. The extra weight is
-              charged exactly (2.5 kg), not rounded up.
-            </Paragraph>
-          </Section>
-
-          <Section id="band_table" tag="band_table" title="3. Weight band table">
-            <FormulaBox>Fee = price of the first band the weight fits under + over-threshold steps</FormulaBox>
-            <ExampleBox title="Example bands">
-              ≤0.5 kg = RM 6 · ≤1 kg = RM 7 · ≤1.5 kg = RM 8 · ≤2 kg = RM 9 · above 2 kg: +RM 1.50 per 0.5 kg
-              <FormulaBox>
-                {'1.2 kg → band ≤1.5 kg = RM 8.00\n3.2 kg → 9.00 + ceil(1.2 ÷ 0.5) = 3 steps × 1.50 = RM 13.50'}
-              </FormulaBox>
-            </ExampleBox>
-            <Paragraph>
-              <Text strong>Use for:</Text> a fixed price list per weight bracket, like a postage table.
-            </Paragraph>
-            <ul>
-              <li>Over-threshold steps always round up — a partial step counts as a full step.</li>
-              <li>If no over-step price is set, anything heavier than the last band pays the last band&apos;s price.</li>
-              <li>The over threshold defaults to the last band&apos;s weight if left empty.</li>
-            </ul>
-          </Section>
-
-          <Section id="step_linear" tag="step_linear" title="4. Step / linear (e.g. Sarawak)">
+          <Section id="step_linear" tag="step_linear" title="2. Step / linear (e.g. Sarawak)">
             <FormulaBox>
               {'If weight fits an early tier → Fee = tier price\nOtherwise → Fee = Anchor + ceil((Weight − Step from) ÷ Step size) × RM per step\nAbove the cap → + over-cap steps'}
             </FormulaBox>
@@ -221,16 +191,20 @@ export default function CommissionGuidePage() {
             </Paragraph>
           </Section>
 
-          <Section id="size_pct" tag="size_pct" title="5. Size × % (e.g. remote Value Express)">
-            <FormulaBox>Fee = (Size base price × Percentage) + max(0, Weight − Included kg) × RM/kg over</FormulaBox>
+          <Section id="size_weight" tag="size_weight" title="3. Size tiers (by weight)">
+            <FormulaBox>
+              {'Size = first size whose max weight fits the parcel\nFee = size price + (Weight − size start) × RM/kg (optional)'}
+            </FormulaBox>
             <ExampleBox>
-              Sizes S = RM 10, M = RM 15, L = RM 20, XL = RM 30 · charge 40% · 5 kg included · RM 1.00/kg over —
-              size M parcel, 6 kg
-              <FormulaBox>(15 × 40%) + (6 − 5) × 1.00 = 6.00 + 1.00 = RM 7.00</FormulaBox>
+              S ≤1 kg = RM 6 · M ≤5 kg = RM 12 · L ≤15 kg = RM 20 · XL unlimited = RM 30 + RM 1.50/kg above 15 kg
+              <FormulaBox>
+                {'3 kg → M = RM 12.00\n22 kg → XL: 30.00 + (22 − 15) × 1.50 = RM 40.50'}
+              </FormulaBox>
             </ExampleBox>
             <Paragraph>
-              <Text strong>Use for:</Text> pricing by parcel size rather than weight, with a percentage for the service
-              level. If the booking has no size, the <Text strong>Default size</Text> is used.
+              <Text strong>Use for:</Text> simple size-based price lists. The size is picked automatically from the
+              chargeable weight. With <Text strong>Weight per piece</Text>, each piece is sized on its own share of the
+              weight and the size price is charged per piece.
             </Paragraph>
           </Section>
 
@@ -332,10 +306,8 @@ export default function CommissionGuidePage() {
                   title: 'Delivery fee formulas',
                   children: [
                     { key: 'f1', href: '#base_pcs_kg', title: 'Base + pcs + kg' },
-                    { key: 'f2', href: '#flat_then_per_kg', title: 'Flat then per kg' },
-                    { key: 'f3', href: '#band_table', title: 'Weight band table' },
-                    { key: 'f4', href: '#step_linear', title: 'Step / linear' },
-                    { key: 'f5', href: '#size_pct', title: 'Size × %' },
+                    { key: 'f2', href: '#step_linear', title: 'Step / linear' },
+                    { key: 'f3', href: '#size_weight', title: 'Size tiers (by weight)' },
                   ],
                 },
                 {
