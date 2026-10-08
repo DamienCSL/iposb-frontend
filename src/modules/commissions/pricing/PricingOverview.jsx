@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Col, Popconfirm, Row, Space, Switch, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Card, Col, InputNumber, Popconfirm, Row, Space, Switch, Table, Tag, Typography, message } from 'antd'
 import { ArrowLeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
 import { apiError, getCommissionConfig, updateCommissionConfig } from '../../../api/client'
 import PricingTargetBar from './PricingTargetBar'
@@ -37,6 +37,8 @@ export default function PricingOverview({ embedded = false }) {
   const [busy, setBusy] = useState(false)
   const [rows, setRows] = useState([])
   const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(true)
+  const [sst, setSst] = useState({ enabled: false, rate: 6 })
+  const [sstDraft, setSstDraft] = useState({ enabled: false, rate: 6 })
   const [target, setTarget] = useState(() => {
     const t = targetFromSearch(embedded ? '' : location.search)
     return { ...t, origin: '', destination: '', serviceType: '' }
@@ -45,6 +47,12 @@ export default function PricingOverview({ embedded = false }) {
   function applyConfig(cfg) {
     setRows([...(cfg?.deliveryFeeRates || []), ...(cfg?.customerDeliveryFeeRates || [])])
     setDeliveryFeeEnabled(Boolean(cfg?.deliveryFeeEnabled))
+    const nextSst = {
+      enabled: Boolean(cfg?.sstEnabled),
+      rate: Number(cfg?.sstRate) > 0 ? Number(cfg.sstRate) : 6,
+    }
+    setSst(nextSst)
+    setSstDraft(nextSst)
   }
 
   async function load() {
@@ -193,6 +201,42 @@ export default function PricingOverview({ embedded = false }) {
           </Space>
         }
       />
+
+      <Card size="small" title="SST" styles={{ body: { padding: 16 } }}>
+        <Space wrap align="center">
+          <Switch
+            checked={sstDraft.enabled}
+            onChange={(v) => setSstDraft((s) => ({ ...s, enabled: v }))}
+            checkedChildren="On"
+            unCheckedChildren="Off"
+          />
+          <InputNumber
+            min={0}
+            max={100}
+            step={1}
+            precision={2}
+            value={sstDraft.rate}
+            disabled={!sstDraft.enabled}
+            addonAfter="%"
+            style={{ width: 130 }}
+            onChange={(v) => setSstDraft((s) => ({ ...s, rate: v ?? 0 }))}
+          />
+          <Button
+            type="primary"
+            loading={busy}
+            disabled={sstDraft.enabled === sst.enabled && Number(sstDraft.rate) === Number(sst.rate)}
+            onClick={() => save([], { sstEnabled: sstDraft.enabled, sstRate: sstDraft.rate }, 'SST saved')}
+            style={{ background: BRAND, borderColor: BRAND }}
+          >
+            Save SST
+          </Button>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {sst.enabled
+              ? `Customers pay delivery fee + ${sst.rate}% SST (tax-exempt consignments excluded). Also used on invoices.`
+              : 'SST is off. Quotes and invoices show no SST.'}
+          </Text>
+        </Space>
+      </Card>
 
       <Card size="small" title="Formulas" styles={{ body: { padding: 16 } }}>
         <Row gutter={[12, 12]}>

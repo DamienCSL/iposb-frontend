@@ -193,12 +193,12 @@ export default function CommissionGuidePage() {
 
           <Section id="size_weight" tag="size_weight" title="3. Size tiers (by weight)">
             <FormulaBox>
-              {'Size = first size whose max weight fits the parcel\nFee = size price + (Weight − size start) × RM/kg (optional)'}
+              {'Size = first size whose max weight fits the parcel\nFee = size price + max(0, Weight − flat covers up to) × RM/kg\n(flat covers up to defaults to where the size starts)'}
             </FormulaBox>
             <ExampleBox>
-              S ≤1 kg = RM 6 · M ≤5 kg = RM 12 · L ≤15 kg = RM 20 · XL unlimited = RM 30 + RM 1.50/kg above 15 kg
+              S ≤5 kg = RM 6 · M 5–15 kg = RM 10 flat up to 10 kg, then RM 1/kg · XL unlimited = RM 30 + RM 1.50/kg above 15 kg
               <FormulaBox>
-                {'3 kg → M = RM 12.00\n22 kg → XL: 30.00 + (22 − 15) × 1.50 = RM 40.50'}
+                {'8 kg → M = RM 10.00\n13 kg → M: 10.00 + (13 − 10) × 1.00 = RM 13.00\n22 kg → XL: 30.00 + (22 − 15) × 1.50 = RM 40.50'}
               </FormulaBox>
             </ExampleBox>
             <Paragraph>

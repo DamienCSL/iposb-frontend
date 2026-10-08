@@ -362,7 +362,14 @@ const sizeWeightEditor = {
         const code = String(t.code || '').toUpperCase()
         if (!code) return
         if (!byCode[code]) {
-          byCode[code] = { key: nextKey(), code, label: t.label || '', maxKg: t.maxKg == null ? null : num(t.maxKg), prices: emptyPrices() }
+          byCode[code] = {
+            key: nextKey(),
+            code,
+            label: t.label || '',
+            maxKg: t.maxKg == null ? null : num(t.maxKg),
+            flatUpToKg: t.flatUpToKg == null ? null : num(t.flatUpToKg),
+            prices: emptyPrices(),
+          }
           order.push(code)
         }
         byCode[code].prices[m.code] = { amount: num(t.amount), perKgOver: num(t.perKgOver) }
@@ -378,6 +385,7 @@ const sizeWeightEditor = {
         code: String(t.code).trim().toUpperCase(),
         label: String(t.label || '').trim(),
         maxKg: t.maxKg == null ? null : num(t.maxKg),
+        flatUpToKg: t.flatUpToKg == null ? null : num(t.flatUpToKg),
         amount: num(t.prices[modeCode]?.amount),
         perKgOver: num(t.prices[modeCode]?.perKgOver),
       })),
@@ -396,6 +404,13 @@ const sizeWeightEditor = {
       if (!code) errors.push(`Row ${n}: size code is required.`)
       else if (seen.has(code)) errors.push(`Row ${n}: size code "${code}" is used more than once.`)
       seen.add(code)
+      if (t.flatUpToKg != null) {
+        if (t.flatUpToKg <= prev) {
+          errors.push(`Row ${n}: "flat covers up to" (${kg(t.flatUpToKg)} kg) must be above where this size starts (${kg(prev)} kg).`)
+        } else if (t.maxKg != null && t.flatUpToKg > t.maxKg) {
+          errors.push(`Row ${n}: "flat covers up to" (${kg(t.flatUpToKg)} kg) can't be above the size's max weight (${kg(t.maxKg)} kg).`)
+        }
+      }
       if (t.maxKg == null) {
         if (i !== tiers.length - 1) errors.push(`Row ${n}: only the last size can be unlimited.`)
       } else {
@@ -478,6 +493,36 @@ const sizeWeightEditor = {
         ),
       },
       { title: 'Weight range', key: 'range', width: 120, render: (_, __, i) => <Text style={{ fontSize: 12 }}>{rangeText(tiers, i)}</Text> },
+      {
+        title: (
+          <Tooltip title="Optional. The flat price covers the parcel up to this weight; every kg above it is charged at + RM/kg. Leave blank to charge + RM/kg from the start of the size.">
+            <span>Flat covers up to</span>
+          </Tooltip>
+        ),
+        key: 'flatUpToKg',
+        width: 150,
+        render: (_, t, i) => {
+          const start = i > 0 ? num(tiers[i - 1].maxKg) : 0
+          return (
+            <Space direction="vertical" size={2} style={{ width: '100%' }}>
+              <InputNumber
+                {...small}
+                step={0.5}
+                precision={3}
+                value={t.flatUpToKg}
+                placeholder={`${kg(start)} (start)`}
+                addonAfter="kg"
+                onChange={(v) => patchTier(t.key, { flatUpToKg: v == null ? null : v })}
+              />
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t.flatUpToKg != null
+                  ? `RM/kg from ${kg(t.flatUpToKg)} kg`
+                  : `RM/kg from ${kg(start)} kg`}
+              </Text>
+            </Space>
+          )
+        },
+      },
       ...MODES.map((m) => ({
         title: (
           <Space size={6}>
@@ -497,7 +542,7 @@ const sizeWeightEditor = {
           },
           {
             title: (
-              <Tooltip title="Optional. Added per kg above the start of this size's range. Use it on the unlimited size.">
+              <Tooltip title="Optional. Charged per kg above the 'Flat covers up to' weight (or above the start of the size if that is blank).">
                 <span>+ RM/kg</span>
               </Tooltip>
             ),
@@ -550,7 +595,8 @@ const sizeWeightEditor = {
         </Space>
         <Text type="secondary" style={{ fontSize: 12 }}>
           Each size covers weights above the previous size's max, up to its own max, using the chargeable weight (the higher
-          of actual and volumetric).
+          of actual and volumetric). The flat price covers the size up to "Flat covers up to"; heavier parcels in that size
+          add + RM/kg for every kg above it. Example: M 5–15 kg, RM 10 flat up to 10 kg, + RM 1/kg → 13 kg costs RM 13.
           {draft.chargeBy === 'piece'
             ? ' With "per piece", the shipment weight is divided by the piece count and the size price is charged for every piece.'
             : ''}
@@ -562,7 +608,7 @@ const sizeWeightEditor = {
           columns={columns}
           dataSource={tiers}
           pagination={false}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1350 }}
           locale={{ emptyText: <Empty description="No sizes yet. Add one or use the starter sizes." /> }}
         />
       </Space>

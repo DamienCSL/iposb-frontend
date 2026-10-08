@@ -381,7 +381,7 @@ function FormulaPageInner({ formula }) {
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Runs the real quoting rules on the server with your unsaved prices, for {scopeLabel(target.custAcNo)} ·{' '}
-            {laneLabel(target)}. Delivery fee before SST.
+            {laneLabel(target)}. SST is added using the rate set on Customer pricing.
           </Text>
           {testResult ? <TestResult result={testResult} /> : null}
         </Space>
@@ -393,6 +393,10 @@ function FormulaPageInner({ formula }) {
 function TestResult({ result }) {
   const fb = result.feeBreakdown || {}
   const fromBand = ['delivery_fee_rate', 'customer_delivery_fee_rate'].includes(result.feeSource)
+  const price = result.customerPrice || {}
+  const taxRate = Number(price.taxRate || 0)
+  const taxAmount = Number(price.taxAmount || 0)
+  const total = Number(price.total ?? result.deliveryFee ?? 0)
   return (
     <Card size="small" style={{ background: '#fafafa' }}>
       {!fromBand ? (
@@ -416,9 +420,13 @@ function TestResult({ result }) {
             </Space>
           </Descriptions.Item>
         ))}
-        <Descriptions.Item label="Delivery fee">
+        <Descriptions.Item label="Delivery fee">RM {Number(result.deliveryFee || 0).toFixed(2)}</Descriptions.Item>
+        <Descriptions.Item label={taxRate > 0 ? `SST ${taxRate}%` : 'SST'}>
+          {taxRate > 0 ? `RM ${taxAmount.toFixed(2)}` : <Text type="secondary">Off</Text>}
+        </Descriptions.Item>
+        <Descriptions.Item label="Total">
           <Text strong style={{ color: BRAND }}>
-            RM {Number(result.deliveryFee || 0).toFixed(2)}
+            RM {total.toFixed(2)}
           </Text>
         </Descriptions.Item>
         {fb.formulaPlain ? (
