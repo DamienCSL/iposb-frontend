@@ -210,12 +210,9 @@ function SectionLabel({ children, s, color = GREY }) {
   )
 }
 
-/**
- * Single consignment note (A5, A4 4-up, or 100×150 mm thermal roll).
- * `thermal` prints all text solid black: grey is dithered into fuzzy dots on 203 dpi heads.
- */
-export function CnLabelNote({ row, compact = false, thermal = false, trackingBase }) {
-  const MUTED = thermal ? INK : GREY
+/** Single cuttable consignment note (used by A5 and A4 4-up). */
+export function CnLabelNote({ row, compact = false, trackingBase }) {
+  const MUTED = GREY
   const label = useMemo(() => {
     const n = normalizeCnLabel(row)
     if (!n.trackingUrl && n.cn) n.trackingUrl = buildTrackingUrl(n.cn, trackingBase)
@@ -445,14 +442,171 @@ export function CnLabelNote({ row, compact = false, thermal = false, trackingBas
   )
 }
 
+/**
+ * Compact note for the 100×110 mm thermal sticker. All text is solid black: grey is dithered
+ * into fuzzy dots on a 203 dpi head. No signature box — POD is captured in the courier app.
+ */
+export function CnLabelThermal({ row, trackingBase }) {
+  const label = useMemo(() => {
+    const n = normalizeCnLabel(row)
+    if (!n.trackingUrl && n.cn) n.trackingUrl = buildTrackingUrl(n.cn, trackingBase)
+    return n
+  }, [row, trackingBase])
+
+  const line = `1.5px solid ${INK}`
+  const mono = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  const caption = { fontSize: 7, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase' }
+  const inverted = { background: INK, color: '#fff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }
+
+  return (
+    <div
+      className="cn-label-note"
+      style={{
+        boxSizing: 'border-box',
+        width: '100%',
+        height: '100%',
+        border: `2px solid ${INK}`,
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#fff',
+        color: INK,
+        fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Brand · service · payment */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1.1fr', borderBottom: line, flex: '0 0 auto' }}>
+        <div style={{ padding: '3px 5px', borderRight: line, display: 'flex', alignItems: 'center' }}>
+          <img src={LOGO_SRC} alt="IPOSB" style={{ maxHeight: 24, maxWidth: '100%', objectFit: 'contain' }} />
+        </div>
+        <div style={{ padding: '3px 5px', borderRight: line }}>
+          <div style={{ fontSize: 11, fontWeight: 900 }}>{label.service}</div>
+          <div style={{ fontSize: 8 }}>{label.date}</div>
+        </div>
+        {label.isCod ? (
+          <div style={{ ...inverted, padding: '2px 4px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1 }}>COD</div>
+            <div style={{ fontSize: 13, fontWeight: 900, lineHeight: 1.05 }}>RM {label.codAmount}</div>
+          </div>
+        ) : (
+          <div style={{ padding: '3px 4px', textAlign: 'center', alignSelf: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 900 }}>PREPAID</div>
+          </div>
+        )}
+      </div>
+
+      {/* Barcode + CN */}
+      <div style={{ padding: '4px 8px 2px', borderBottom: line, textAlign: 'center', flex: '0 0 auto' }}>
+        <BarcodeSvg value={label.cn} height={40} />
+        <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 14, letterSpacing: 1.5, marginTop: 2 }}>
+          {label.displayCn || label.cn || '—'}
+        </div>
+        {label.partnerCn && label.cn && label.partnerCn !== label.cn ? (
+          <div style={{ fontSize: 7.5 }}>
+            IPOSB {label.cn}
+            {label.partnerCode ? ` · ${label.partnerCode}` : ''}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Sort strip */}
+      <div style={{ ...inverted, display: 'grid', gridTemplateColumns: '1fr 1.1fr 1.5fr', borderBottom: line, flex: '0 0 auto' }}>
+        <div style={{ padding: '2px 4px', borderRight: '1.5px solid #fff' }}>
+          <div style={caption}>From</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 10, wordBreak: 'break-all' }}>{label.firstMile}</div>
+        </div>
+        <div style={{ padding: '2px 4px', borderRight: '1.5px solid #fff' }}>
+          <div style={caption}>Hub route</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 10 }}>
+            {label.origin} → {label.dest}
+          </div>
+        </div>
+        <div style={{ padding: '2px 4px', textAlign: 'center' }}>
+          <div style={caption}>Deliver to</div>
+          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 17, lineHeight: 1.05, wordBreak: 'break-all' }}>
+            {label.lastMile}
+          </div>
+        </div>
+      </div>
+
+      {/* Receiver — takes the remaining height */}
+      <div style={{ padding: '3px 6px', borderBottom: line, flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+          <div style={caption}>To (Receiver)</div>
+          <span style={{ border: line, borderRadius: 3, padding: '0 4px', fontSize: 7.5, fontWeight: 900, whiteSpace: 'nowrap' }}>
+            {label.selfCollect ? 'SELF-COLLECT' : 'HOME DELIVERY'}
+          </span>
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.15, ...clamp(1) }}>
+          {label.receiverName}
+          {label.receiverShop !== label.receiverName && label.receiverShop !== '—' ? ` · ${label.receiverShop}` : ''}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 800 }}>{label.receiverPhone}</div>
+        <div style={{ fontSize: 10.5, lineHeight: 1.25, marginTop: 1, ...clamp(label.selfCollect ? 2 : 3) }}>
+          {label.receiverAddress}
+        </div>
+        {label.selfCollect ? (
+          <div style={{ fontSize: 9, marginTop: 2, border: `1px dashed ${INK}`, padding: '1px 4px', ...clamp(1) }}>
+            <strong>Collect at:</strong>{' '}
+            {label.collectCode || label.collectName
+              ? [label.collectCode, label.collectName].filter(Boolean).join(' · ')
+              : 'Drop point to be assigned'}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Sender */}
+      <div style={{ padding: '2px 6px', borderBottom: line, flex: '0 0 auto' }}>
+        <div style={{ fontSize: 9, lineHeight: 1.25, ...clamp(1) }}>
+          <strong>From:</strong> {label.senderName} · {label.senderPhone}
+        </div>
+        <div style={{ fontSize: 8.5, lineHeight: 1.25, ...clamp(1) }}>{label.senderAddress}</div>
+      </div>
+
+      {/* Parcel info + QR */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', flex: '0 0 auto' }}>
+        <div style={{ borderRight: line, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: '1 1 auto' }}>
+            {[
+              ['Pieces', label.pcs],
+              ['Weight', `${label.weight} kg`],
+              ['Type', label.pkg],
+              ['Mode', label.transport],
+            ].map(([k, v], i) => (
+              <div
+                key={k}
+                style={{
+                  padding: '1px 5px',
+                  borderRight: i % 2 === 0 ? line : 'none',
+                  borderBottom: i < 2 ? line : 'none',
+                }}
+              >
+                <div style={caption}>{k}</div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, ...clamp(1) }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: line, padding: '1px 5px', fontSize: 7.5, ...clamp(1) }}>
+            {label.remark ? `Remark: ${label.remark}` : `Acc ${label.account}${label.accountName ? ` · ${label.accountName}` : ''}`}
+          </div>
+        </div>
+        <div style={{ padding: '3px 5px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <QrImg value={label.trackingUrl || label.cn} size={60} />
+          <div style={{ fontSize: 7, fontWeight: 800, marginTop: 1 }}>Scan to track</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function chunk(arr, size) {
   const out = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out.length ? out : [[]]
 }
 
-/** Label roll for the iDPRT SP410 (4-inch, 203 dpi direct thermal). */
-export const THERMAL_LABEL = { widthMm: 100, heightMm: 150 }
+/** Sticker roll on the iDPRT SP410 (4-inch, 203 dpi direct thermal); must match the driver paper size. */
+export const THERMAL_LABEL = { widthMm: 100, heightMm: 110 }
 
 export const CN_LABEL_FORMATS = [
   { value: 'thermal', label: `Thermal ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm` },
@@ -496,7 +650,7 @@ function PageSize({ format }) {
 
 /**
  * Printable sheet(s):
- * - thermal: one note per 100×150 mm label (iDPRT SP410)
+ * - thermal: one note per THERMAL_LABEL sticker (iDPRT SP410)
  * - a5: one note per page
  * - a4-4: 2×2 cuttable grid (4 notes per A4 page)
  */
@@ -505,12 +659,14 @@ export default function CnLabelPrint({ rows, format = 'thermal', trackingBase })
 
   if (format === 'thermal') {
     if (!notes.length) return null
+    // 1 mm under the sticker length: sub-pixel rounding at the exact length spills onto a second sticker.
+    const sheet = { width: `${THERMAL_LABEL.widthMm}mm`, height: `${THERMAL_LABEL.heightMm - 1}mm` }
     return (
       <div className="cn-label-print-root">
         <PageSize format={format} />
         {notes.map((row, idx) => (
-          <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-thermal">
-            <CnLabelNote row={row} compact thermal trackingBase={trackingBase} />
+          <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-thermal" style={sheet}>
+            <CnLabelThermal row={row} trackingBase={trackingBase} />
           </div>
         ))}
       </div>
