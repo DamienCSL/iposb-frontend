@@ -22,6 +22,7 @@ import {
   LogoutOutlined,
   MoonOutlined,
   PlusCircleOutlined,
+  RocketOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -34,6 +35,7 @@ import {
   KeyOutlined,
   WarningOutlined,
   WalletOutlined,
+  CrownOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -57,6 +59,7 @@ const APP_PAGES = [
   { title: 'Dispatch Driver Assignment', path: '/ops/dispatch?tab=assign', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers', 'plan', 'auto-assign'] },
   { title: 'Remote / 3PL Pickup', path: '/ops/dispatch?tab=remote', keywords: ['3pl', 'remote', 'uncovered', 'partner'] },
   { title: 'Seal Station', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan'] },
+  { title: 'Airport / Port Cargo', path: '/ops/cargo', keywords: ['cargo', 'airport', 'port', 'lodge', 'collect', 'air', 'sea'] },
   { title: 'Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'baby', 'mother', 'father', 'hub'] },
   { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
   { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
@@ -77,6 +80,7 @@ const APP_PAGES = [
   { title: 'Drop Point Credit Notes', path: '/ops/billing/agent-credit', keywords: ['drop point', 'credit', 'bilyet'] },
   { title: 'Drop Point Debit Notes', path: '/ops/billing/agent-debit', keywords: ['drop point', 'debit', 'bilyet'] },
   { title: 'Customer Wallet', path: '/ops/billing/customer-wallet', keywords: ['wallet', 'customer', 'ledger', 'balance'] },
+  { title: 'Loyalty Tiers', path: '/ops/billing/loyalty', keywords: ['loyalty', 'icoins', 'points', 'silver', 'gold', 'platinum', 'membership'] },
   { title: 'Cancellation Policy', path: '/ops/billing/cancellation-settings', keywords: ['cancel', 'policy', 'fees', 'tiers'] },
   { title: 'COD Reconciliation', path: '/ops/cod', keywords: ['cash', 'collect', 'remit', 'settle', 'cod'] },
   { title: 'Commissions Ledger', path: '/ops/commissions/ledger', keywords: ['commissions', 'ledger', 'wallet'] },
@@ -164,6 +168,8 @@ function getBreadcrumbs(pathname, search) {
     items.push({ label: 'Overnight Scan Requests', path: '/ops/overnight-requests' })
   } else if (pathname.startsWith('/ops/ats-claims')) {
     items.push({ label: 'ATS / Problematic Scans', path: '/ops/ats-claims' })
+  } else if (pathname.startsWith('/ops/cargo')) {
+    items.push({ label: 'Airport / Port Cargo', path: '/ops/cargo' })
   } else if (pathname.startsWith('/ops/dispatch')) {
     items.push({ label: 'Dispatch & 3PL', path: '/ops/dispatch?tab=assign' })
     const tab = new URLSearchParams(search || '').get('tab')
@@ -225,6 +231,7 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/ops/pickups')) return '/ops/pickups'
   if (pathname.startsWith('/ops/overnight-requests')) return '/ops/overnight-requests'
   if (pathname.startsWith('/ops/ats-claims')) return '/ops/ats-claims'
+  if (pathname.startsWith('/ops/cargo')) return '/ops/cargo'
   if (pathname.startsWith('/ops/dispatch')) return '/ops/dispatch'
   if (pathname.startsWith('/ops/seals')) return '/ops/seals'
   if (pathname.startsWith('/ops/station/manifests')) return '/ops/station/manifests'
@@ -235,6 +242,7 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/network')) return '/network'
   if (pathname.startsWith('/ops/billing/cancellation-settings')) return '/ops/billing/cancellation-settings'
   if (pathname.startsWith('/ops/billing/customer-wallet')) return '/ops/billing/customer-wallet'
+  if (pathname.startsWith('/ops/billing/loyalty')) return '/ops/billing/loyalty'
   if (pathname.startsWith('/ops/billing/')) {
     const parts = pathname.split('/')
     return `/ops/billing/${parts[3] || 'invoices'}`
@@ -569,6 +577,12 @@ export default function AppLayout() {
           visible: can('manifests') || can('consignments') || isAdmin,
         },
         {
+          key: '/ops/cargo',
+          icon: <RocketOutlined />,
+          label: <Link to="/ops/cargo" style={{ display: 'block', width: '100%' }}>Airport / Port Cargo</Link>,
+          visible: can('manifests') || isAdmin,
+        },
+        {
           key: '/ops/returns',
           icon: <RollbackOutlined />,
           label: <Link to="/ops/returns" style={{ display: 'block', width: '100%' }}>RTS & Returns</Link>,
@@ -756,6 +770,12 @@ export default function AppLayout() {
           key: '/ops/billing/customer-wallet',
           icon: <WalletOutlined />,
           label: <Link to="/ops/billing/customer-wallet" style={{ display: 'block', width: '100%' }}>Customer Wallet</Link>,
+          visible: can('billing') || isAdmin,
+        },
+        {
+          key: '/ops/billing/loyalty',
+          icon: <CrownOutlined />,
+          label: <Link to="/ops/billing/loyalty" style={{ display: 'block', width: '100%' }}>Loyalty Tiers</Link>,
           visible: can('billing') || isAdmin,
         },
         {

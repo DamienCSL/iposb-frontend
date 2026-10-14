@@ -57,6 +57,8 @@ const ROLE_HINTS = {
   Operation: 'Operations desk — consignments, dispatch, and status reports.',
   Invoice: 'Billing team — invoices (paid/unpaid), credit notes, and COD.',
   CSL: 'Customer service — tickets and consignment lookup.',
+  Storekeeper: 'Delivery point manager — runs the Station app at their home delivery point: inbound/outbound, courier dispatch, plus manager-only returns, unassign, self-collect transfer, COD cash-in and the day summary.',
+  'Cargo Team': 'Airport / seaport cargo staff — scan air & sea manifests, bags and CNs as lodged (origin) or collected (destination). Earns the cargo-team commission.',
   Others: 'Limited or custom access — configure modules below.',
 }
 

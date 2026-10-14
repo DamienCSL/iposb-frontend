@@ -103,6 +103,7 @@ function partnerTypeLabel(code) {
   if (c.startsWith('DSP-')) return 'Dispatcher'
   if (c.startsWith('HUB-')) return 'Hub / linehaul'
   if (c.startsWith('DPT-')) return 'Delivery point'
+  if (c.startsWith('CGO-')) return 'Cargo staff'
   return 'Drop point'
 }
 
@@ -682,6 +683,7 @@ export default function CommissionPage() {
         if (line.paidTo === 'delivery_point') return <Tag color="blue">Delivery point</Tag>
         if (line.paidTo === 'drop_point') return <Tag>Drop point</Tag>
         if (line.paidTo === 'dispatcher') return <Tag color="cyan">Dispatcher</Tag>
+        if (line.paidTo === 'cargo') return <Tag color="purple">Cargo staff (scanner)</Tag>
         return <Text type="secondary">—</Text>
       },
     },
@@ -914,6 +916,7 @@ export default function CommissionPage() {
                       <li>First mile <strong>courier pickup</strong>: origin DP own % + origin drop % both → origin delivery point</li>
                       <li>Last mile <strong>self-collect</strong>: dest drop % → dest drop; dest DP own % → dest delivery point</li>
                       <li>Last mile <strong>doorstep</strong>: dest DP own % + dest drop % both → dest delivery point</li>
+                      <li><strong>Cargo team</strong> (air / sea only): origin cargo % → the staff member who scanned it as lodged at the airport / port; destination cargo % → the staff member who scanned it as collected</li>
                     </ul>
                   }
                 />

@@ -273,6 +273,21 @@ export async function getWalletLedger(params) {
   return data
 }
 
+export async function creditCustomerWallet(body) {
+  const { data } = await api.post('/ops/billing/wallet/credit', body)
+  return data
+}
+
+export async function getLoyaltyConfig() {
+  const { data } = await api.get('/ops/billing/loyalty')
+  return data
+}
+
+export async function saveLoyaltyConfig(body) {
+  const { data } = await api.put('/ops/billing/loyalty', body)
+  return data
+}
+
 export async function accrueCommission(cn) {
   const { data } = await api.post(`/ops/commissions/accrue/${encodeURIComponent(cn)}`)
   return data
@@ -549,6 +564,17 @@ export async function settleAtsClaim(id, body = {}) {
 
 export async function detectAtsClaims(body = {}) {
   const { data } = await api.post('/ops/ats-claims/detect', body)
+  return data
+}
+
+// --- Cargo team (airport / port handovers, air & sea) ---
+export async function cargoScan(body) {
+  const { data } = await api.post('/ops/cargo/scan', body)
+  return data
+}
+
+export async function listCargoHandovers(params) {
+  const { data } = await api.get('/ops/cargo/handovers', { params })
   return data
 }
 

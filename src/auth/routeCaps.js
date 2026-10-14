@@ -22,6 +22,7 @@ const ROUTE_RULES = [
   ['/ops/pickups', 'pickups'],
   ['/ops/manifests', 'manifests'],
   ['/ops/seals', 'manifests'],
+  ['/ops/cargo', 'manifests'],
   ['/ops/station/manifests', 'manifests'],
   ['/ops/dispatch', 'dispatch'],
   ['/ops/returns', 'consignments'],

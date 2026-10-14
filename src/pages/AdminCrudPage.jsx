@@ -97,6 +97,8 @@ const SPECS = {
           ['Hub Manager', 'Hub Manager'],
           ['Droppoint Manager', 'Droppoint Manager'],
           ['CSL', 'CSL'],
+          ['Cargo Team', 'Cargo Team'],
+          ['Storekeeper', 'Storekeeper'],
         ],
       },
       { name: 'user_password', label: 'Password', type: 'password' },

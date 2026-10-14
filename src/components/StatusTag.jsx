@@ -12,6 +12,8 @@ const STATUS_MAP = {
   HUB: { label: 'At Dest Hub', color: '#1668DC' },
   SHB: { label: 'At Station', color: '#1668DC' },
   MNF: { label: 'Manifested', color: '#1668DC' },
+  CGL: { label: 'In Transit (Lodged at Airport/Port)', color: '#1668DC' },
+  CGC: { label: 'In Transit (Collected from Airport/Port)', color: '#1668DC' },
   OFD: { label: 'Out for Delivery', color: '#0891B2' },
   DRS: { label: 'With Courier', color: '#0891B2' },
   POD: { label: 'Delivered (POD)', color: '#1B8A5A' },

@@ -20,6 +20,8 @@ export const STAFF_ASSIGNABLE_ROLES = [
   'Operation',
   'Invoice',
   'CSL',
+  'Cargo Team',
+  'Storekeeper',
 ]
 
 export const STAFF_ROLE_OPTIONS = STAFF_ASSIGNABLE_ROLES.map((r) => [r, r])
@@ -63,6 +65,8 @@ export function normalizeRole(role) {
   if (key === 'admin' || key === 'system' || key === 'supervisor') return key === 'admin' ? ADMIN : ADMIN
   if (key === 'agent' || key === 'agent 2') return DROPPOINT_MANAGER
   if (key === 'finance') return 'Invoice'
+  if (key === 'cargo' || key === 'cargo team') return 'Cargo Team'
+  if (key === 'storekeeper' || key === 'store keeper') return 'Storekeeper'
   return raw || 'Others'
 }
 
@@ -161,6 +165,20 @@ export function capabilitiesFor(role) {
       customerService: true,
       summaries: true,
       customerReports: true,
+      reports: true,
+    },
+    'Cargo Team': {
+      ...EMPTY,
+      consignments: true,
+      manifests: true,
+      summaries: true,
+      reports: true,
+    },
+    Storekeeper: {
+      ...EMPTY,
+      consignments: true,
+      summaries: true,
+      cod: true,
       reports: true,
     },
   }

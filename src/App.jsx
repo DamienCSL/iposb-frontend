@@ -13,6 +13,7 @@ import ConsignmentEntryPage from './modules/consignments/ConsignmentEntryPage'
 import PickupsPage from './modules/pickups/PickupsPage'
 import OvernightRequestsPage from './modules/overnight/OvernightRequestsPage'
 import AtsClaimsPage from './modules/ats/AtsClaimsPage'
+import CargoPage from './modules/cargo/CargoPage'
 import DispatchPage from './modules/dispatch/DispatchPage'
 import ManifestsPage from './modules/manifests/ManifestsPage'
 import ReturnsPage from './modules/returns/ReturnsPage'
@@ -34,6 +35,7 @@ import ImportLogPage from './pages/ImportLogPage'
 import CancellationLogPage from './pages/CancellationLogPage'
 import CancellationPolicyPage from './pages/CancellationPolicyPage'
 import WalletPage from './pages/WalletPage'
+import LoyaltyTiersPage from './pages/LoyaltyTiersPage'
 import RoleAccessPage from './pages/RoleAccessPage'
 import SummaryPage from './pages/SummaryPage'
 import { ReportPage, PrintPage } from './pages/ReportPrintPages'
@@ -110,6 +112,7 @@ export default function App() {
                 <Route path="/ops/pickups" element={<PickupsPage />} />
                 <Route path="/ops/overnight-requests" element={<OvernightRequestsPage />} />
                 <Route path="/ops/ats-claims" element={<AtsClaimsPage />} />
+                <Route path="/ops/cargo" element={<CargoPage />} />
                 <Route path="/ops/dispatch" element={<DispatchPage />} />
                 <Route path="/ops/seals" element={<SealStationPage />} />
                 <Route path="/ops/station/manifests" element={<ManifestStationPage />} />
@@ -141,6 +144,7 @@ export default function App() {
                 <Route path="/ops/billing" element={<Navigate to="/ops/billing/invoices" replace />} />
                 <Route path="/ops/billing/cancellation-settings" element={<CancellationPolicyPage />} />
                 <Route path="/ops/billing/customer-wallet" element={<WalletPage />} />
+                <Route path="/ops/billing/loyalty" element={<LoyaltyTiersPage />} />
                 <Route path="/ops/billing/:doc/tracking" element={<BillingTrackingRoute />} />
                 <Route path="/ops/billing/receipts" element={<Navigate to="/ops/billing/invoices" replace />} />
                 <Route path="/ops/billing/receipts/tracking" element={<Navigate to="/ops/billing/invoices/tracking" replace />} />

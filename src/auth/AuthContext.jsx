@@ -29,6 +29,7 @@ function sessionFromApi(token, user, capabilities = null, issuedAt = null) {
       ? Number(user.homeDropPointId)
       : null,
     homeHubCode: user.homeHubCode || null,
+    homeDeliveryPointCode: user.homeDeliveryPointCode || null,
     capabilities: caps,
     issuedAt: issuedAt || Date.now(),
     token,
@@ -45,6 +46,7 @@ function demoSession(found) {
     branchCode: found.branchCode,
     homeDropPointId: found.homeDropPointId || null,
     homeHubCode: found.homeHubCode || null,
+    homeDeliveryPointCode: found.homeDeliveryPointCode || null,
     capabilities: capabilitiesFor(found.role),
     issuedAt: Date.now(),
     token: `demoStaff:${found.username}`,

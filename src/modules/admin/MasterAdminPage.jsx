@@ -559,6 +559,12 @@ export const MASTER_SCHEMAS = {
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       { title: 'Home Hub', dataIndex: 'home_hub_code', key: 'home_hub_code', render: (v) => v || '—' },
       {
+        title: 'Home Delivery Point',
+        dataIndex: 'home_delivery_point_code',
+        key: 'home_delivery_point_code',
+        render: (v) => v || '—',
+      },
+      {
         title: 'Home Drop Point',
         dataIndex: 'home_drop_point_id',
         key: 'home_drop_point_id',
@@ -583,6 +589,8 @@ export const MASTER_SCHEMAS = {
           { label: 'Operation', value: 'Operation' },
           { label: 'Invoice (Billing)', value: 'Invoice' },
           { label: 'CSL (Customer Service)', value: 'CSL' },
+          { label: 'Cargo Team (airport / port)', value: 'Cargo Team' },
+          { label: 'Storekeeper (delivery point manager)', value: 'Storekeeper' },
           { label: 'Others (limited)', value: 'Others' },
         ],
       },
@@ -591,6 +599,12 @@ export const MASTER_SCHEMAS = {
         label: 'Home Hub (Hub Manager)',
         lookup: 'hubs',
         placeholder: 'Assign hub for Hub Manager autofill',
+      },
+      {
+        name: 'home_delivery_point_code',
+        label: 'Home Delivery Point (Storekeeper)',
+        lookup: 'delivery-points',
+        placeholder: 'Delivery point this Storekeeper manages',
       },
       {
         name: 'home_drop_point_id',
