@@ -366,17 +366,61 @@ export const MASTER_SCHEMAS = {
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
       { title: 'Area', dataIndex: 'area_code', key: 'area_code' },
       { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => v || r.zone_code || '—' },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      {
+        title: 'Mobile App Login',
+        dataIndex: 'mobile_email',
+        key: 'mobile_email',
+        render: (v, r) =>
+          v ? (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <span>{v}</span>
+              <Tag color={String(r.mobile_is_active) === '0' ? 'default' : 'green'}>
+                {String(r.mobile_is_active) === '0' ? 'Login disabled' : 'Can sign in'}
+              </Tag>
+            </Space>
+          ) : (
+            <Tag color="orange">No login</Tag>
+          ),
+      },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'dispatcher_code', label: 'Dispatcher Code', required: true, generate: 'dispatcher_code', useBranch: true },
       { name: 'full_name', label: 'Full Name', required: true },
+      {
+        name: 'delivery_point_code',
+        label: 'Delivery Point',
+        required: true,
+        lookup: 'delivery-points',
+        help: 'The station this dispatcher works at — the Delivery Point app opens on it.',
+      },
       { name: 'area_code', label: 'Assigned Area Code', lookup: 'areas' },
-      { name: 'delivery_point_code', label: 'Delivery Point Code', lookup: 'delivery-points' },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
-      { name: 'zone_code', label: 'Zone Code (legacy)', lookup: 'delivery-points', allowCustom: true },
       { name: 'phone', label: 'Phone' },
-      { name: 'email', label: 'Email' },
+      { name: 'email', label: 'Contact Email' },
+      {
+        name: 'mobile_email',
+        label: 'Mobile App Login Email',
+        placeholder: 'dispatcher@example.com',
+        help: 'Signs in to the IPOSB Delivery Point app (Dispatcher tab). Leave blank for no app access.',
+      },
+      {
+        name: 'mobile_password',
+        label: 'Mobile App Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required for a new login. When editing, leave blank to keep the current password, or type a new one to reset it.',
+      },
+      {
+        name: 'is_active',
+        label: 'Status',
+        type: 'select',
+        editOnly: true,
+        options: [
+          { label: 'Active', value: '1' },
+          { label: 'Inactive (also blocks app sign-in)', value: '0' },
+        ],
+      },
     ],
     pk: 'id',
   },
@@ -716,7 +760,11 @@ export default function MasterAdminPage() {
     }
     setEditingItem(record)
     form.resetFields()
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      ...record,
+      delivery_point_code: record.delivery_point_code || record.zone_code || undefined,
+      is_active: record.is_active != null ? String(record.is_active) : undefined,
+    })
     setDrawerOpen(true)
   }
 
@@ -1210,18 +1258,20 @@ export default function MasterAdminPage() {
           />
         )}
         <Form form={form} layout="vertical" onFinish={handleSubmit} disabled={!canManageMaster}>
-          {formFields.map((f) => (
+          {formFields.filter((f) => !f.editOnly || editingItem).map((f) => (
             <Form.Item
               key={f.name}
               label={f.label}
               name={f.name}
               rules={f.required ? [{ required: true, message: `${f.label} is required` }] : []}
               extra={
-                f.generate && !editingItem
-                  ? 'Search existing or click Gen to create a system code'
-                  : f.lookup
-                    ? 'Search from master data — or open Manage to create one'
-                    : undefined
+                f.help
+                  ? f.help
+                  : f.generate && !editingItem
+                    ? 'Search existing or click Gen to create a system code'
+                    : f.lookup
+                      ? 'Search from master data — or open Manage to create one'
+                      : undefined
               }
             >
               {f.type === 'textarea' ? (
