@@ -17,7 +17,13 @@ import {
 import { PrinterOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { apiError, getPrint, getReport } from '../api/client'
-import CnLabelPrint from '../components/CnLabelPrint'
+import CnLabelPrint, {
+  CN_LABEL_FORMATS,
+  THERMAL_LABEL,
+  normalizeCnLabelFormat,
+  saveCnLabelFormat,
+  savedCnLabelFormat,
+} from '../components/CnLabelPrint'
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
 import { money } from '../ui/bits'
@@ -125,7 +131,7 @@ export function PrintPage({ kind, title, idLabel }) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState(null)
   const isCn = kind === 'cn'
-  const formatFromUrl = searchParams.get('format') === 'a5' ? 'a5' : 'a4-4'
+  const formatFromUrl = normalizeCnLabelFormat(searchParams.get('format')) || savedCnLabelFormat()
   const [cnFormat, setCnFormat] = useState(formatFromUrl)
 
   async function run(values) {
@@ -153,14 +159,14 @@ export function PrintPage({ kind, title, idLabel }) {
     const id = String(searchParams.get('id') || '').trim()
     if (!id) return
     form.setFieldsValue({ id })
-    const fmt = searchParams.get('format') === 'a5' ? 'a5' : 'a4-4'
-    setCnFormat(fmt)
+    setCnFormat(normalizeCnLabelFormat(searchParams.get('format')) || savedCnLabelFormat())
     run({ id })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind])
 
   function onFormatChange(value) {
     setCnFormat(value)
+    saveCnLabelFormat(value)
     if (isCn && searchParams.get('id')) {
       const next = new URLSearchParams(searchParams)
       next.set('format', value)
@@ -188,7 +194,7 @@ export function PrintPage({ kind, title, idLabel }) {
         <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>{title}</Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
           {isCn
-            ? 'Print cuttable consignment notes (A5 single or A4 · 4 per page) with barcode and QR.'
+            ? 'Print consignment notes with barcode and QR: thermal label printer, A5, or A4 · 4 per page.'
             : 'Look up a document and print a preview.'}
         </Text>
       </div>
@@ -198,7 +204,6 @@ export function PrintPage({ kind, title, idLabel }) {
           form={form}
           layout={isCn ? 'vertical' : 'inline'}
           onFinish={run}
-          initialValues={isCn ? { format: 'a4-4' } : undefined}
         >
           {isCn ? (
             <Row gutter={12} align="bottom">
@@ -224,10 +229,7 @@ export function PrintPage({ kind, title, idLabel }) {
                     onChange={(e) => onFormatChange(e.target.value)}
                     optionType="button"
                     buttonStyle="solid"
-                    options={[
-                      { value: 'a4-4', label: 'A4 · 4 per page' },
-                      { value: 'a5', label: 'A5 · 1 per page' },
-                    ]}
+                    options={CN_LABEL_FORMATS}
                   />
                 </Form.Item>
               </Col>
@@ -269,9 +271,11 @@ export function PrintPage({ kind, title, idLabel }) {
             }
           >
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {cnFormat === 'a4-4'
-                ? 'Cut along the dashed guides. Each slot is one consignment note with barcode + QR.'
-                : 'One full consignment note per A5 page.'}
+              {cnFormat === 'thermal'
+                ? `One note per ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm label. In the print dialog pick "iDPRT SP410", paper size ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm, margins None, scale 100%.`
+                : cnFormat === 'a4-4'
+                  ? 'Cut along the dashed guides. Each slot is one consignment note with barcode + QR.'
+                  : 'One full consignment note per A5 page.'}
             </Text>
           </Card>
           <div className="cn-print-area">

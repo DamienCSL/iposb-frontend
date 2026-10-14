@@ -3,7 +3,7 @@ import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
 
 const INK = '#000000'
-const MUTED = '#4B5563'
+const GREY = '#4B5563'
 const LOGO_SRC = '/iposb-logo.png'
 const TAGLINE = 'Enabling Commerce . Enriching Lives'
 
@@ -181,7 +181,7 @@ function QrImg({ value, size = 64 }) {
   }, [value, size])
 
   if (!src) {
-    return <div style={{ width: size, height: size, border: `1px dashed ${MUTED}` }} />
+    return <div style={{ width: size, height: size, border: `1px dashed ${GREY}` }} />
   }
   return <img src={src} alt="QR" width={size} height={size} style={{ display: 'block' }} />
 }
@@ -193,7 +193,7 @@ const clamp = (lines) => ({
   overflow: 'hidden',
 })
 
-function SectionLabel({ children, s }) {
+function SectionLabel({ children, s, color = GREY }) {
   return (
     <div
       style={{
@@ -201,7 +201,7 @@ function SectionLabel({ children, s }) {
         fontWeight: 800,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
-        color: MUTED,
+        color,
         marginBottom: s(1, 2),
       }}
     >
@@ -210,8 +210,12 @@ function SectionLabel({ children, s }) {
   )
 }
 
-/** Single cuttable consignment note (used by A5 and A4 4-up). */
-export function CnLabelNote({ row, compact = false, trackingBase }) {
+/**
+ * Single consignment note (A5, A4 4-up, or 100×150 mm thermal roll).
+ * `thermal` prints all text solid black: grey is dithered into fuzzy dots on 203 dpi heads.
+ */
+export function CnLabelNote({ row, compact = false, thermal = false, trackingBase }) {
+  const MUTED = thermal ? INK : GREY
   const label = useMemo(() => {
     const n = normalizeCnLabel(row)
     if (!n.trackingUrl && n.cn) n.trackingUrl = buildTrackingUrl(n.cn, trackingBase)
@@ -447,18 +451,77 @@ function chunk(arr, size) {
   return out.length ? out : [[]]
 }
 
+/** Label roll for the iDPRT SP410 (4-inch, 203 dpi direct thermal). */
+export const THERMAL_LABEL = { widthMm: 100, heightMm: 150 }
+
+export const CN_LABEL_FORMATS = [
+  { value: 'thermal', label: `Thermal ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm` },
+  { value: 'a5', label: 'A5 · 1 per page' },
+  { value: 'a4-4', label: 'A4 · 4 per page' },
+]
+
+const FORMAT_KEY = 'iposb.cnLabelFormat'
+
+export function normalizeCnLabelFormat(value) {
+  return CN_LABEL_FORMATS.some((f) => f.value === value) ? value : null
+}
+
+/** Last format chosen on this computer, so a label-printer PC stays on thermal. */
+export function savedCnLabelFormat() {
+  try {
+    return normalizeCnLabelFormat(localStorage.getItem(FORMAT_KEY)) || 'thermal'
+  } catch {
+    return 'thermal'
+  }
+}
+
+export function saveCnLabelFormat(value) {
+  try {
+    if (normalizeCnLabelFormat(value)) localStorage.setItem(FORMAT_KEY, value)
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** Page size must match the paper, or the driver scales / splits the label across two stickers. */
+function PageSize({ format }) {
+  const size =
+    format === 'thermal'
+      ? `${THERMAL_LABEL.widthMm}mm ${THERMAL_LABEL.heightMm}mm`
+      : format === 'a5'
+        ? 'A5 portrait'
+        : 'A4 portrait'
+  return <style>{`@media print { @page { size: ${size}; margin: 0; } }`}</style>
+}
+
 /**
  * Printable sheet(s):
+ * - thermal: one note per 100×150 mm label (iDPRT SP410)
  * - a5: one note per page
  * - a4-4: 2×2 cuttable grid (4 notes per A4 page)
  */
-export default function CnLabelPrint({ rows, format = 'a5', trackingBase }) {
+export default function CnLabelPrint({ rows, format = 'thermal', trackingBase }) {
   const notes = (rows || []).filter(Boolean)
+
+  if (format === 'thermal') {
+    if (!notes.length) return null
+    return (
+      <div className="cn-label-print-root">
+        <PageSize format={format} />
+        {notes.map((row, idx) => (
+          <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-thermal">
+            <CnLabelNote row={row} compact thermal trackingBase={trackingBase} />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (format === 'a4-4') {
     const sheets = chunk(notes, 4)
     return (
       <div className="cn-label-print-root">
+        <PageSize format={format} />
         {sheets.map((sheetRows, sheetIdx) => {
           const filled = [...sheetRows, ...Array(Math.max(0, 4 - sheetRows.length)).fill(null)].slice(0, 4)
           return (
@@ -487,6 +550,7 @@ export default function CnLabelPrint({ rows, format = 'a5', trackingBase }) {
   if (!notes.length) return null
   return (
     <div className="cn-label-print-root">
+      <PageSize format={format} />
       {notes.map((row, idx) => (
         <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-a5">
           <div className="cn-label-a5-frame">

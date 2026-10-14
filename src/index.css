@@ -565,6 +565,17 @@ code, pre, .font-mono {
   height: calc(210mm - 16mm);
 }
 
+/* 100×150 mm thermal roll (iDPRT SP410). 2.5 mm inset keeps the frame off the unprintable edge. */
+.cn-label-sheet.cn-label-thermal {
+  width: 100mm;
+  height: 150mm;
+  margin: 0 auto;
+  background: #fff;
+  box-sizing: border-box;
+  padding: 2.5mm;
+  overflow: hidden;
+}
+
 .cn-print-area {
   overflow: auto;
   padding: 8px 0 24px;
@@ -633,6 +644,12 @@ code, pre, .font-mono {
     height: 210mm;
     min-height: 210mm;
     padding: 8mm;
+  }
+
+  .cn-label-sheet.cn-label-thermal {
+    width: 100mm;
+    height: 150mm;
+    padding: 2.5mm;
   }
 
   .cn-label-cell::after {

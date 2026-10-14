@@ -184,8 +184,7 @@ export default function ConsignmentsListPage() {
       message.warning('Select at least one consignment to print.')
       return
     }
-    const format = codes.length === 1 ? 'a5' : 'a4-4'
-    navigate(`/ops/reports/cn?id=${encodeURIComponent(codes.join(','))}&format=${format}`)
+    navigate(`/ops/reports/cn?id=${encodeURIComponent(codes.join(','))}`)
   }
 
   // Handle Export

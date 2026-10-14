@@ -343,7 +343,7 @@ export default function ConsignmentDetailPage() {
         icon: <PrinterOutlined />,
         label: 'Print Consignment Note',
         onClick: () =>
-          navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=a5`),
+          navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`),
       },
       {
         key: 'ticket',
@@ -444,7 +444,7 @@ export default function ConsignmentDetailPage() {
           <Button
             icon={<PrinterOutlined />}
             onClick={() =>
-              navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=a5`)
+              navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`)
             }
           >
             Print Note
@@ -833,7 +833,7 @@ export default function ConsignmentDetailPage() {
                     size="small"
                     icon={<PrinterOutlined />}
                     onClick={() =>
-                      navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=a5`)
+                      navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`)
                     }
                   >
                     Print Note

@@ -871,7 +871,7 @@ export default function ConsignmentEntryPage() {
             size="small"
             icon={<PrinterOutlined />}
             onClick={() =>
-              navigate(`/ops/reports/cn?id=${encodeURIComponent(iposbCn)}&format=a5`)
+              navigate(`/ops/reports/cn?id=${encodeURIComponent(iposbCn)}`)
             }
           >
             Print note
@@ -1274,7 +1274,7 @@ export default function ConsignmentEntryPage() {
                 icon={<PrinterOutlined />}
                 onClick={() =>
                   navigate(
-                    `/ops/reports/cn?id=${encodeURIComponent(String(form.cn_no).trim().toUpperCase())}&format=a5`,
+                    `/ops/reports/cn?id=${encodeURIComponent(String(form.cn_no).trim().toUpperCase())}`,
                   )
                 }
               >
@@ -2198,7 +2198,7 @@ export default function ConsignmentEntryPage() {
                   disabled={!String(form.cn_no || '').trim()}
                   onClick={() =>
                     navigate(
-                      `/ops/reports/cn?id=${encodeURIComponent(String(form.cn_no).trim().toUpperCase())}&format=a5`,
+                      `/ops/reports/cn?id=${encodeURIComponent(String(form.cn_no).trim().toUpperCase())}`,
                     )
                   }
                 >
