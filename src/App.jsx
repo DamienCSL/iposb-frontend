@@ -31,6 +31,7 @@ import CommissionGuidePage from './modules/commissions/CommissionGuidePage'
 import PricingOverview from './modules/commissions/pricing/PricingOverview'
 import FormulaPage from './modules/commissions/pricing/FormulaPage'
 import TrackingPage from './pages/TrackingPage'
+import PublicTrackingPage from './pages/PublicTrackingPage'
 import ImportLogPage from './pages/ImportLogPage'
 import CancellationLogPage from './pages/CancellationLogPage'
 import CancellationPolicyPage from './pages/CancellationPolicyPage'
@@ -94,6 +95,7 @@ export default function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/track" element={<PublicTrackingPage />} />
               <Route path="/onboarding/setup-hub" element={<SetupHubPage />} />
 
               <Route element={<AppLayout />}>

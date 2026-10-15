@@ -51,8 +51,8 @@ function money(v) {
 }
 
 /**
- * Public tracking link for the QR. Set VITE_PUBLIC_TRACKING_URL (e.g. "https://iposb.my/track?cn={cn}")
- * once a customer-facing tracking page exists; otherwise falls back to the ops tracking page.
+ * Public tracking link for the QR. VITE_PUBLIC_TRACKING_URL (e.g. "https://iposb.my/track?cn={cn}")
+ * overrides the default visitor page on this site.
  */
 function buildTrackingUrl(cn, trackingBase) {
   const tpl = String(import.meta.env?.VITE_PUBLIC_TRACKING_URL || '').trim()
@@ -60,7 +60,7 @@ function buildTrackingUrl(cn, trackingBase) {
     return tpl.includes('{cn}') ? tpl.replace('{cn}', encodeURIComponent(cn)) : `${tpl}${encodeURIComponent(cn)}`
   }
   const base = (trackingBase || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')
-  return `${base}/ops/consignments/tracking?cn=${encodeURIComponent(cn)}`
+  return `${base}/track?cn=${encodeURIComponent(cn)}`
 }
 
 export function normalizeCnLabel(row) {

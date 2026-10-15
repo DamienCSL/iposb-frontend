@@ -469,6 +469,10 @@ export default function AppLayout() {
   }
 
   if (!user) {
+    // QR codes on labels printed before /track existed point here.
+    if (location.pathname === '/ops/consignments/tracking' && new URLSearchParams(location.search).get('cn')) {
+      return <Navigate to={`/track${location.search}`} replace />
+    }
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 

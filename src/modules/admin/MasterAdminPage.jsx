@@ -52,6 +52,7 @@ import {
   deleteMaster,
   geocodeBackfill,
   listMaster,
+  restoreMaster,
   rotateApiKey,
   saveMaster,
 } from '../../api/client'
@@ -60,6 +61,13 @@ import GeoLocationPicker from '../../components/GeoLocationPicker'
 import CodeLookupField from '../../components/CodeLookupField'
 import ListPageLayout from '../../components/ListPageLayout'
 import StatusTag from '../../components/StatusTag'
+
+// Removing these only deactivates the row (is_active = 0) so history keeps its codes.
+const SOFT_DELETE_RESOURCES = new Set([
+  'users', 'branches', 'hubs', 'drop-points', '3pl', 'dispatchers', 'routes', 'zones', 'delivery-points', 'areas', 'route-codes',
+])
+
+const isInactiveRow = (r) => r?.is_active != null && String(r.is_active) === '0'
 
 const GEO_PAIRS = {
   hubs: { lat: 'lat', lng: 'lng', label: 'Pin hub location on map' },
@@ -200,7 +208,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Name', dataIndex: 'branch_name', key: 'branch_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
       { title: 'Address', dataIndex: 'address_line1', key: 'address_line1' },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'branch_code', label: 'Branch Code', required: true, placeholder: 'e.g. BKI', generate: 'branch_code' },
@@ -221,7 +229,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       { title: 'Type', dataIndex: 'hub_type', key: 'hub_type', render: (v, r) => v || r.hub_level || '—' },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'hub_code', label: 'Hub Code', required: true, placeholder: 'e.g. BKI-HUB', generate: 'hub_code', useBranch: true },
@@ -256,7 +264,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Type', dataIndex: 'drop_type', key: 'drop_type' },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'drop_code', label: 'Drop Point Code (5–6 chars, used in CN)', required: true, placeholder: 'e.g. INM01', generate: 'drop_code', useBranch: true },
@@ -454,7 +462,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'delivery_point_code', label: 'Delivery Point Code (5–6 chars, used in CN)', required: true, placeholder: 'e.g. KKS01', generate: 'delivery_point_code', useBranch: true },
@@ -478,7 +486,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code' },
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'area_code', label: 'Area Code', required: true, generate: 'area_code', useBranch: true },
@@ -529,7 +537,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Origin Zone', dataIndex: 'origin_zone', key: 'origin_zone' },
       { title: 'Dest Zone', dataIndex: 'destination_zone', key: 'destination_zone' },
       { title: 'Priority', dataIndex: 'priority', key: 'priority' },
-      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'rule_code', label: 'Rule Code', required: true, generate: 'rule_code' },
@@ -614,7 +622,7 @@ export const MASTER_SCHEMAS = {
         key: 'home_drop_point_id',
         render: (v) => (v ? <Tag>{v}</Tag> : '—'),
       },
-      { title: 'Active', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={v === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+      { title: 'Active', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'username', label: 'Username', required: true },
@@ -723,13 +731,16 @@ export default function MasterAdminPage() {
 
   // Count active entities
   const activeCount = useMemo(() => {
-    return rows.filter((r) => r.is_active !== '0' && r.is_available !== false).length
+    return rows.filter((r) => !isInactiveRow(r) && r.is_available !== false).length
   }, [rows])
 
-  async function loadData() {
+  const softDelete = SOFT_DELETE_RESOURCES.has(currentResource)
+  const [showRemoved, setShowRemoved] = useState(false)
+
+  async function loadData(includeInactive = showRemoved) {
     setLoading(true)
     try {
-      const res = await listMaster(currentResource)
+      const res = await listMaster(currentResource, { includeInactive })
       setRows(res?.data || res?.rows || (Array.isArray(res) ? res : []))
     } catch (err) {
       message.error(apiError(err))
@@ -740,8 +751,15 @@ export default function MasterAdminPage() {
 
   useEffect(() => {
     setSearch('')
-    loadData()
+    setShowRemoved(false)
+    loadData(false)
   }, [currentResource])
+
+  function toggleShowRemoved() {
+    const next = !showRemoved
+    setShowRemoved(next)
+    loadData(next)
+  }
 
   function openCreate() {
     if (!canManageMaster) {
@@ -795,7 +813,21 @@ export default function MasterAdminPage() {
     }
     try {
       await deleteMaster(currentResource, id)
-      message.success(`${schema.singular} removed`)
+      message.success(softDelete ? `${schema.singular} removed — restore it from "Show removed"` : `${schema.singular} deleted`)
+      loadData()
+    } catch (err) {
+      message.error(apiError(err))
+    }
+  }
+
+  async function handleRestore(id) {
+    if (!canManageMaster) {
+      message.error('Unauthorized: You do not have permission to restore master records.')
+      return
+    }
+    try {
+      await restoreMaster(currentResource, id)
+      message.success(`${schema.singular} restored`)
       loadData()
     } catch (err) {
       message.error(apiError(err))
@@ -888,6 +920,17 @@ export default function MasterAdminPage() {
           const pkField = schema.pk || 'id'
           const id = r[pkField] || r.id
 
+          if (softDelete && isInactiveRow(r)) {
+            return (
+              <Space size="small">
+                <Tag>Removed</Tag>
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => handleRestore(id)}>
+                  Restore
+                </Button>
+              </Space>
+            )
+          }
+
           return (
             <Space size="small">
               {currentResource === '3pl' && isAdmin && (
@@ -906,7 +949,11 @@ export default function MasterAdminPage() {
               </Button>
               <Popconfirm
                 title={`Delete this ${schema.singular.toLowerCase()}?`}
-                description="This will permanently delete this master record."
+                description={
+                  softDelete
+                    ? 'It will be deactivated and hidden from lists. You can restore it later from "Show removed".'
+                    : 'This will permanently delete this master record.'
+                }
                 onConfirm={() => handleDelete(id)}
                 okText="Delete"
                 cancelText="Cancel"
@@ -919,7 +966,7 @@ export default function MasterAdminPage() {
         },
       },
     ]
-  }, [schema, canManageMaster, currentResource, isAdmin])
+  }, [schema, canManageMaster, currentResource, isAdmin, softDelete, showRemoved])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1196,8 +1243,18 @@ export default function MasterAdminPage() {
             key: 'reload',
             label: 'Refresh',
             icon: <ReloadOutlined />,
-            onClick: loadData,
+            onClick: () => loadData(),
           },
+          ...(softDelete
+            ? [
+                {
+                  key: 'removed',
+                  label: showRemoved ? 'Hide removed' : 'Show removed',
+                  icon: <DeleteOutlined />,
+                  onClick: toggleShowRemoved,
+                },
+              ]
+            : []),
           ...(canManageMaster && GEO_BACKFILL_RESOURCES.includes(currentResource)
             ? [
                 {

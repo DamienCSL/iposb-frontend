@@ -353,8 +353,10 @@ export async function saveBilling(doc, body) {
   return data
 }
 
-export async function listMaster(resource) {
-  const { data } = await api.get(`/ops/admin/${resource}`)
+export async function listMaster(resource, { includeInactive = false } = {}) {
+  const { data } = await api.get(`/ops/admin/${resource}`, {
+    params: includeInactive ? { includeInactive: 1 } : undefined,
+  })
   return data
 }
 
@@ -367,6 +369,17 @@ export async function saveMaster(resource, body, id) {
 
 export async function deleteMaster(resource, id) {
   const { data } = await api.delete(`/ops/admin/${resource}/${id}`)
+  return data
+}
+
+/** Visitor tracking for the label QR — GET /api/track/{cn}, no login. */
+export async function publicTracking(cn) {
+  const { data } = await api.get(`/track/${encodeURIComponent(cn)}`)
+  return data
+}
+
+export async function restoreMaster(resource, id) {
+  const { data } = await api.post(`/ops/admin/${resource}/${id}/restore`)
   return data
 }
 
