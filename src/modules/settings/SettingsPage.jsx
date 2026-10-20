@@ -323,7 +323,7 @@ export default function SettingsPage() {
                     <Radio.Button value="3pl">3PL Partners</Radio.Button>
                     <Radio.Button value="routes">Route Table</Radio.Button>
                     <Radio.Button value="zones">Zones</Radio.Button>
-                    <Radio.Button value="route-codes">Route Codes</Radio.Button>
+                    <Radio.Button value="areas">Network Areas</Radio.Button>
                   </Radio.Group>
                 </Card>
 

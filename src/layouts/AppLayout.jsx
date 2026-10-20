@@ -102,7 +102,6 @@ const APP_PAGES = [
   { title: 'Master Data: Routing Rules', path: '/ops/admin/routes', keywords: ['routes', 'rules', 'origin', 'dest'] },
   { title: 'Master Data: Delivery Points', path: '/ops/admin/zones', keywords: ['zones', 'delivery points', 'coverage', 'postcode'] },
   { title: 'Master Data: Network Areas', path: '/ops/admin/areas', keywords: ['areas', 'network', 'last-mile'] },
-  { title: 'Master Data: Route Codes', path: '/ops/admin/route-codes', keywords: ['route-codes', 'sector', 'area'] },
   { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
   { title: 'Master Data: Staff Users', path: '/ops/admin/users', keywords: ['users', 'accounts', 'passwords', 'roles'] },
   { title: 'Master Data: Storekeepers', path: '/ops/admin/storekeepers', keywords: ['storekeeper', 'store keepers', 'delivery point manager', 'dep'] },
@@ -917,11 +916,6 @@ export default function AppLayout() {
               key: '/ops/admin/areas',
               label: <Link to="/ops/admin/areas" style={{ display: 'block', width: '100%' }}>Network Areas</Link>,
               visible: can('admin') || can('routing') || isAdmin,
-            },
-            {
-              key: '/ops/admin/route-codes',
-              label: <Link to="/ops/admin/route-codes" style={{ display: 'block', width: '100%' }}>Route Codes</Link>,
-              visible: can('admin') || isAdmin,
             },
             {
               key: '/ops/admin/customers',

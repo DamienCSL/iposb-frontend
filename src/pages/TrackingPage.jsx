@@ -76,17 +76,6 @@ function formatWhen(value) {
   return d.toLocaleString()
 }
 
-function serviceModeLabel(code) {
-  const map = {
-    DROP_COUNTER: 'Drop at counter',
-    ADDRESS_PICKUP: 'Address pickup',
-    DOORSTEP: 'Doorstep delivery',
-    SELF_COLLECT: 'Self-collect at drop point',
-  }
-  const key = String(code || '').toUpperCase()
-  return map[key] || code || '—'
-}
-
 function dash(value) {
   if (value == null || value === '') return '—'
   return String(value)
@@ -113,57 +102,26 @@ function stepGlance(step) {
     DHUB: 'Dest hub',
     DDEP: 'Dest DEP',
     DDP: 'Dest DEP',
-    AREA: 'Last-mile area',
+    AREA: 'Network area',
     DP: 'Self-collect',
     DL: 'Delivery',
   }
-  const role = roles[code] || code
-  const m = raw.match(/\b([A-Z0-9][A-Z0-9._-]{1,})\s*$/i)
-  let place = m ? m[1] : ''
-  if (code === 'DL') {
-    place = raw.replace(/^Doorstep delivery in\s+/i, '').replace(/^Receiver\s+/i, '') || place
+  const role = step?.role || roles[code] || code
+  const placeCode = step?.placeCode || (() => {
+    const m = raw.match(/\b([A-Z0-9][A-Z0-9._-]{1,})\s*$/i)
+    if (code === 'DL') {
+      const cleaned = raw.replace(/^Doorstep delivery in\s+/i, '').replace(/^Receiver\s+/i, '')
+      return m ? m[1] : cleaned !== raw ? cleaned : ''
+    }
+    return m ? m[1] : ''
+  })()
+  const placeName = step?.placeName || ''
+  return {
+    role,
+    placeCode: placeCode || null,
+    placeName: placeName || null,
+    detail: raw,
   }
-  return { role, place: place || raw, detail: raw }
-}
-
-function RouteNode({ kind, code, name }) {
-  const label = kind === 'origin' ? 'From' : kind === 'dest' ? 'To' : 'Via'
-  return (
-    <div
-      style={{
-        flex: '1 1 120px',
-        minWidth: 100,
-        padding: '10px 12px',
-        background: '#F8FAFC',
-        border: '1px solid #E2E8F0',
-        borderRadius: 8,
-      }}
-    >
-      <div style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F1B2D', marginTop: 2 }}>{code || '—'}</div>
-      {name ? (
-        <div style={{ fontSize: 12, color: '#5B6B7C', marginTop: 2 }}>{name}</div>
-      ) : null}
-    </div>
-  )
-}
-
-function ServicePill({ label, value, wide }) {
-  return (
-    <div
-      style={{
-        flex: wide ? '1 1 100%' : '1 1 140px',
-        minWidth: wide ? '100%' : 140,
-        padding: '8px 10px',
-        background: '#FFFFFF',
-        border: '1px solid #E5E8EB',
-        borderRadius: 6,
-      }}
-    >
-      <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#0F1B2D', fontWeight: 500, marginTop: 2 }}>{value}</div>
-    </div>
-  )
 }
 
 function pieceCount(cn) {
@@ -568,114 +526,6 @@ export default function TrackingPage() {
           ) : data ? (
             <Spin spinning={loading}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Card
-                  size="small"
-                  style={{ borderRadius: 8 }}
-                  title={
-                    <Space wrap>
-                      <Text strong style={{ fontFamily: 'monospace', fontSize: 16, color: BRAND_GREEN }}>
-                        CN: {data.cnNo || active}
-                      </Text>
-                      <StatusTag status={data.statusCode} text={data.scanningType || data.shortLabel} />
-                    </Space>
-                  }
-                >
-                  <Row gutter={[16, 16]}>
-                    <Col xs={24} md={12}>
-                      <Descriptions column={1} size="small" bordered>
-                        <Descriptions.Item label="Origin">
-                          <div>
-                            {data.origin || '—'}
-                            {data.originName ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                  {data.originName}
-                                </Text>
-                              </div>
-                            ) : null}
-                            {data.originZone ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                  Zone {data.originZone}
-                                </Text>
-                              </div>
-                            ) : null}
-                          </div>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Destination">
-                          <div>
-                            {data.destination || '—'}
-                            {data.dstnName ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                  {data.dstnName}
-                                </Text>
-                              </div>
-                            ) : null}
-                            {data.destinationZone ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                  Zone {data.destinationZone}
-                                </Text>
-                              </div>
-                            ) : null}
-                          </div>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Recipient">{data.recipientName || '—'}</Descriptions.Item>
-                        <Descriptions.Item label="Location">
-                          {data.locationLabel || data.location || data.originDropLabel || '—'}
-                        </Descriptions.Item>
-                        {data.originDropLabel ? (
-                          <Descriptions.Item label="Dropped at">{data.originDropLabel}</Descriptions.Item>
-                        ) : null}
-                      </Descriptions>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Descriptions column={1} size="small" bordered>
-                        <Descriptions.Item label="Status">
-                          <Space direction="vertical" size={4}>
-                            <Space wrap>
-                              <StatusTag status={data.statusCode} text={data.scanningType || data.shortLabel} />
-                              {data.statusCode ? (
-                                <Text type="secondary" style={{ fontSize: 12, fontFamily: 'monospace' }}>
-                                  {data.statusCode}
-                                </Text>
-                              ) : null}
-                            </Space>
-                            {data.customerLabel ? (
-                              <Text style={{ fontWeight: 500 }}>{data.customerLabel}</Text>
-                            ) : null}
-                          </Space>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Payment">
-                          <div>
-                            {data.isCod || data.payMode === 'COD' ? (
-                              <Tag color="orange">COD</Tag>
-                            ) : (
-                              <Tag>{data.payMode || 'PPD'}</Tag>
-                            )}
-                            {data.isCod || data.payMode === 'COD' ? (
-                              <div style={{ fontSize: 12, marginTop: 6 }}>
-                                Status: <Text strong>{data.codStatus || 'PENDING'}</Text>
-                                {data.expectedAmt != null ? <> · Due {money(data.expectedAmt)}</> : null}
-                                {data.collectedAmt != null && Number(data.collectedAmt) > 0 ? (
-                                  <> · Collected {money(data.collectedAmt)}</>
-                                ) : null}
-                                <div style={{ marginTop: 4 }}>
-                                  <Link to={`/ops/cod?cn=${encodeURIComponent(data.cnNo || active)}`}>
-                                    Open COD outstanding
-                                  </Link>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Delivery Date">{data.podDate || '—'}</Descriptions.Item>
-                      </Descriptions>
-                    </Col>
-                  </Row>
-                </Card>
-
                 <Row gutter={[16, 16]}>
                   <Col xs={24} lg={8}>
                     <Card
@@ -924,8 +774,36 @@ export default function TrackingPage() {
                             {data.transportModeLabel || data.transportMode ? (
                               <Tag>{data.transportModeLabel || data.transportMode}</Tag>
                             ) : null}
-                            {route?.preferredRouteCd ? (
-                              <Tag color="blue">{route.preferredRouteCd}</Tag>
+                            {(route?.networkArea ||
+                              route?.destinationArea ||
+                              assignment?.networkArea ||
+                              assignment?.destinationAreaCode) ? (
+                              <Tag
+                                color="blue"
+                                title={
+                                  route?.networkAreaName ||
+                                  route?.destinationAreaName ||
+                                  assignment?.networkAreaName ||
+                                  assignment?.destinationAreaName ||
+                                  ''
+                                }
+                              >
+                                {route?.networkArea ||
+                                  route?.destinationArea ||
+                                  assignment?.networkArea ||
+                                  assignment?.destinationAreaCode}
+                                {(route?.networkAreaName ||
+                                  route?.destinationAreaName ||
+                                  assignment?.networkAreaName ||
+                                  assignment?.destinationAreaName)
+                                  ? ` — ${
+                                      route?.networkAreaName ||
+                                      route?.destinationAreaName ||
+                                      assignment?.networkAreaName ||
+                                      assignment?.destinationAreaName
+                                    }`
+                                  : ''}
+                              </Tag>
                             ) : null}
                           </Space>
                         }
@@ -938,84 +816,6 @@ export default function TrackingPage() {
                             message={`Could not plan path: ${route.error}`}
                           />
                         ) : null}
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'stretch',
-                            gap: 8,
-                            flexWrap: 'wrap',
-                            marginBottom: 12,
-                          }}
-                        >
-                          <RouteNode
-                            kind="origin"
-                            code={route?.originZone || route?.originHubCode || data.origin}
-                            name={route?.originZoneName}
-                          />
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 4px',
-                              color: '#64748B',
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                              minWidth: 48,
-                            }}
-                            aria-hidden="true"
-                          >
-                            {[
-                              route?.viaHubCode &&
-                              route.viaHubCode !== (route?.destHubCode || route?.destHubBooked)
-                                ? route.viaHubCode
-                                : null,
-                              route?.destHubCode || route?.destHubBooked || data.destination,
-                            ]
-                              .filter(Boolean)
-                              .filter((v, i, a) => a.indexOf(v) === i)
-                              .join(' → ') || '···'}
-                          </div>
-                          <RouteNode
-                            kind="dest"
-                            code={route?.destinationZone || route?.destHubCode || data.destination}
-                            name={
-                              [
-                                route?.destinationZoneName,
-                                route?.destinationArea
-                                  ? route.destinationAreaName || route.destinationArea
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .filter((v, i, a) => a.indexOf(v) === i)
-                                .join(' · ') || null
-                            }
-                          />
-                        </div>
-
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                          <ServicePill
-                            label="Pickup"
-                            value={serviceModeLabel(route?.originService || assignment?.originService)}
-                          />
-                          <ServicePill
-                            label="Delivery"
-                            value={serviceModeLabel(route?.destinationService || assignment?.destinationService)}
-                          />
-                          {route?.destinationArea ? (
-                            <ServicePill
-                              wide
-                              label="Area"
-                              value={
-                                <>
-                                  {route.destinationArea}
-                                  {route.destinationAreaName ? ` — ${route.destinationAreaName}` : ''}
-                                </>
-                              }
-                            />
-                          ) : null}
-                        </div>
 
                         {routeSteps.length === 0 ? (
                           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -1030,74 +830,82 @@ export default function TrackingPage() {
                                   key={`${step.step}-${step.code}`}
                                   style={{
                                     display: 'flex',
-                                    alignItems: 'baseline',
-                                    gap: 8,
-                                    padding: '6px 0',
+                                    alignItems: 'flex-start',
+                                    gap: 10,
+                                    padding: '10px 0',
                                     borderBottom: idx < routeSteps.length - 1 ? '1px solid #F1F5F9' : 'none',
                                   }}
                                 >
                                   <span
                                     style={{
-                                      width: 22,
-                                      height: 22,
+                                      width: 26,
+                                      height: 26,
                                       borderRadius: '50%',
                                       background: '#F0FDF4',
                                       color: BRAND_GREEN,
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: 700,
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
                                       flexShrink: 0,
+                                      marginTop: 1,
                                     }}
                                   >
                                     {idx + 1}
                                   </span>
-                                  <Text strong style={{ fontSize: 12, minWidth: 88 }}>
-                                    {g.role}
-                                  </Text>
-                                  <Text style={{ fontSize: 12 }} title={g.detail}>
-                                    {g.place}
-                                  </Text>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Text strong style={{ fontSize: 13, display: 'block' }}>
+                                      {g.role}
+                                    </Text>
+                                    {g.placeCode || g.placeName ? (
+                                      <div style={{ marginTop: 2 }}>
+                                        {g.placeCode ? (
+                                          <Text
+                                            style={{
+                                              fontFamily: 'monospace',
+                                              fontWeight: 700,
+                                              fontSize: 13,
+                                              color: '#0F1B2D',
+                                            }}
+                                          >
+                                            {g.placeCode}
+                                          </Text>
+                                        ) : null}
+                                        {g.placeName ? (
+                                          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                            {g.placeName}
+                                          </Text>
+                                        ) : null}
+                                      </div>
+                                    ) : (
+                                      <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {g.detail || '—'}
+                                      </Text>
+                                    )}
+                                  </div>
                                 </li>
                               )
                             })}
                           </ol>
                         )}
-
-                        {data.originDropLabel || data.destDropLabel ? (
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 16,
-                              marginTop: 12,
-                              paddingTop: 12,
-                              borderTop: '1px solid #F1F5F9',
-                            }}
-                          >
-                            {data.originDropLabel ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                                  Origin drop
-                                </Text>
-                                <Text style={{ fontSize: 13 }}>{data.originDropLabel}</Text>
-                              </div>
-                            ) : null}
-                            {data.destDropLabel ? (
-                              <div>
-                                <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                                  Dest drop
-                                </Text>
-                                <Text style={{ fontSize: 13 }}>{data.destDropLabel}</Text>
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
                       </Card>
                     </Col>
                     <Col xs={24} lg={12}>
-                      <Card size="small" style={{ borderRadius: 8, height: '100%' }} title="Assigned details">
+                      <Card
+                        size="small"
+                        style={{ borderRadius: 8, height: '100%' }}
+                        title={
+                          <Space wrap>
+                            <span>Assigned details</span>
+                            {(assignment?.gapsCount || assignment?.gaps?.length) > 0 ? (
+                              <Tag color="orange">
+                                {assignment.gapsCount || assignment.gaps.length} open
+                              </Tag>
+                            ) : null}
+                          </Space>
+                        }
+                      >
                         <Descriptions column={1} size="small" bordered>
                           <Descriptions.Item label="Assigned driver">
                             <div>
@@ -1105,9 +913,6 @@ export default function TrackingPage() {
                                 (assignment?.assignedDriverId
                                   ? `Driver #${assignment.assignedDriverId}`
                                   : '—')}
-                              {assignment?.assignedDriverRoute ? (
-                                <Text type="secondary"> · route {assignment.assignedDriverRoute}</Text>
-                              ) : null}
                               {assignment?.assignedDriverPhone ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
@@ -1153,11 +958,11 @@ export default function TrackingPage() {
                               ) : null}
                             </div>
                           </Descriptions.Item>
-                          <Descriptions.Item label="Dest area">
-                            {assignment?.destinationAreaCode
-                              ? `${assignment.destinationAreaCode}${
-                                  assignment.destinationAreaName
-                                    ? ` — ${assignment.destinationAreaName}`
+                          <Descriptions.Item label="Network area">
+                            {assignment?.networkArea || assignment?.destinationAreaCode
+                              ? `${assignment?.networkArea || assignment.destinationAreaCode}${
+                                  assignment?.networkAreaName || assignment?.destinationAreaName
+                                    ? ` — ${assignment?.networkAreaName || assignment.destinationAreaName}`
                                     : ''
                                 }`
                               : '—'}
@@ -1182,6 +987,49 @@ export default function TrackingPage() {
                             {dash(assignment?.destDropLabel || data.destDropLabel)}
                           </Descriptions.Item>
                         </Descriptions>
+
+                        {Array.isArray(assignment?.gaps) && assignment.gaps.length > 0 ? (
+                          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <Text strong style={{ fontSize: 13 }}>
+                              Why nothing was auto-assigned
+                            </Text>
+                            {assignment.gaps.map((gap) => (
+                              <Alert
+                                key={gap.key}
+                                type="warning"
+                                showIcon
+                                message={gap.role}
+                                description={
+                                  <div>
+                                    <div style={{ marginBottom: 8 }}>{gap.reason}</div>
+                                    <Space wrap size={6}>
+                                      {(gap.actions || []).map((action) => (
+                                        <Button
+                                          key={`${gap.key}-${action.path}`}
+                                          size="small"
+                                          type="primary"
+                                          ghost
+                                          style={{ borderColor: BRAND_GREEN, color: BRAND_GREEN }}
+                                          onClick={() => navigate(action.path)}
+                                        >
+                                          {action.label}
+                                        </Button>
+                                      ))}
+                                    </Space>
+                                  </div>
+                                }
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <Alert
+                            type="success"
+                            showIcon
+                            style={{ marginTop: 14 }}
+                            message="No assignment gaps"
+                            description="Required personnel for this CN’s service mode are present or not needed yet."
+                          />
+                        )}
                       </Card>
                     </Col>
                   </Row>

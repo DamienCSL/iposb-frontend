@@ -518,12 +518,12 @@ export default function DashboardPage() {
                     desc: 'Mobile drivers & route pools',
                   },
                   {
-                    key: 'route-codes',
+                    key: 'areas',
                     show: can('routing') || can('admin') || isAdmin,
-                    path: '/ops/admin/route-codes',
+                    path: '/ops/admin/areas',
                     icon: <SafetyCertificateOutlined />,
-                    title: 'Route Codes',
-                    desc: 'Preferred driver route pools',
+                    title: 'Network Areas',
+                    desc: 'Last-mile territories for dispatch',
                   },
                   {
                     key: 'staff',

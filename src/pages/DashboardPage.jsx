@@ -55,7 +55,7 @@ export default function DashboardPage() {
     { to: '/admin/dispatchers', title: 'Dispatcher Management', desc: 'Assigned to a last-mile area', icon: 'bi-headset', color: 'danger', show: can(caps, 'staff') },
     { to: '/admin/drivers', title: 'Driver Management', desc: 'Mobile drivers (app login + routes)', icon: 'bi-truck', color: 'danger', show: can(caps, 'staff') },
     { to: '/admin/routes', title: 'Route Table', desc: 'Origin→dest delivery-point / hub rules', icon: 'bi-signpost-2', color: 'danger', show: can(caps, 'routing') },
-    { to: '/admin/route-codes', title: 'Route Codes', desc: 'Preferred driver route pools (BKI001…)', icon: 'bi-sign-turn-right', color: 'danger', show: can(caps, 'routing') },
+    { to: '/admin/areas', title: 'Network Areas', desc: 'Last-mile territories for dispatch', icon: 'bi-pin-map', color: 'danger', show: can(caps, 'routing') },
   ].filter((a) => a.show)
 
   return (

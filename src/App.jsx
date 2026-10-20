@@ -187,6 +187,7 @@ export default function App() {
                 <Route path="/ops/admin" element={<Navigate to="/ops/admin/branches" replace />} />
                 <Route path="/ops/admin/role-access" element={<RoleAccessPage />} />
                 <Route path="/ops/admin/agents" element={<Navigate to="/ops/admin/customers" replace />} />
+                <Route path="/ops/admin/route-codes" element={<Navigate to="/ops/admin/areas" replace />} />
                 <Route path="/ops/admin/:resource" element={<MasterAdminPage />} />
                 <Route path="/ops/logs" element={<SystemLogsPage />} />
                 <Route path="/network" element={<NetworkAnalyticsPage />} />
@@ -243,7 +244,7 @@ export default function App() {
                 <Route path="/admin/role-access" element={<Navigate to="/ops/admin/role-access" replace />} />
                 <Route path="/admin/customers" element={<Navigate to="/ops/admin/customers" replace />} />
                 <Route path="/admin/dispatchers" element={<Navigate to="/ops/admin/dispatchers" replace />} />
-                <Route path="/admin/route-codes" element={<Navigate to="/ops/admin/route-codes" replace />} />
+                <Route path="/admin/route-codes" element={<Navigate to="/ops/admin/areas" replace />} />
                 <Route path="/admin/branches" element={<Navigate to="/ops/admin/branches" replace />} />
                 <Route path="/admin/hubs" element={<Navigate to="/ops/admin/hubs" replace />} />
                 <Route path="/admin/delivery-points" element={<Navigate to="/ops/admin/zones" replace />} />

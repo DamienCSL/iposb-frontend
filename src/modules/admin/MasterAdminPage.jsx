@@ -23,7 +23,6 @@ import {
 import {
   ApartmentOutlined,
   AppstoreOutlined,
-  BarcodeOutlined,
   BranchesOutlined,
   CarOutlined,
   CheckCircleOutlined,
@@ -64,7 +63,7 @@ import StatusTag from '../../components/StatusTag'
 
 // Removing these only deactivates the row (is_active = 0) so history keeps its codes.
 const SOFT_DELETE_RESOURCES = new Set([
-  'users', 'storekeepers', 'branches', 'hubs', 'drop-points', '3pl', 'dispatchers', 'routes', 'zones', 'delivery-points', 'areas', 'route-codes',
+  'users', 'storekeepers', 'branches', 'hubs', 'drop-points', '3pl', 'dispatchers', 'routes', 'zones', 'delivery-points', 'areas',
 ])
 
 const isInactiveRow = (r) => r?.is_active != null && String(r.is_active) === '0'
@@ -177,11 +176,10 @@ export const MASTER_CATEGORIES = [
     key: 'routing',
     title: 'Routing & Zones',
     icon: <BranchesOutlined />,
-    description: 'Delivery zones, dispatch routing codes, and automated cross-zone linehaul rules.',
+    description: 'Delivery points, network areas, and automated cross-zone linehaul rules.',
     resources: [
       { key: 'zones', label: 'Delivery Points', icon: <EnvironmentOutlined /> },
       { key: 'areas', label: 'Network Areas', icon: <GlobalOutlined /> },
-      { key: 'route-codes', label: 'Route Codes', icon: <BarcodeOutlined /> },
       { key: 'routes', label: 'Routing Matrix', icon: <BranchesOutlined /> },
     ],
   },
@@ -363,7 +361,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Driver ID', dataIndex: 'driver_id', key: 'driver_id', render: (v) => <Tag>{v}</Tag> },
       { title: 'Full Name', dataIndex: 'full_name', key: 'full_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-      { title: 'Route Code', dataIndex: 'route_cd', key: 'route_cd' },
+      { title: 'Network Area', dataIndex: 'route_cd', key: 'route_cd' },
       {
         title: 'Type',
         dataIndex: 'driver_type',
@@ -384,7 +382,7 @@ export const MASTER_SCHEMAS = {
       { name: 'full_name', label: 'Full Name', required: true },
       { name: 'phone', label: 'Phone', required: true },
       { name: 'loc_id', label: 'Branch / Location / Hub', required: true, placeholder: 'e.g. BKI', lookup: 'hubs', allowCustom: true },
-      { name: 'route_cd', label: 'Assigned Route Code', lookup: 'route-codes' },
+      { name: 'route_cd', label: 'Network Area', lookup: 'areas' },
       {
         name: 'driver_type',
         label: 'Driver Type',
@@ -716,26 +714,6 @@ export const MASTER_SCHEMAS = {
     ],
     pk: 'id',
   },
-  'route-codes': {
-    title: 'Route Codes',
-    singular: 'Route Code',
-    category: 'routing',
-    icon: <BarcodeOutlined />,
-    columns: [
-      { title: 'Route Code', dataIndex: 'route_cd', key: 'route_cd', render: (v) => <Tag color="gold">{v}</Tag> },
-      { title: 'Name', dataIndex: 'route_name', key: 'route_name', render: (v) => <strong>{v}</strong> },
-      { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => v || r.zone_code || '—' },
-      { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
-    ],
-    fields: [
-      { name: 'route_cd', label: 'Route Code', required: true, generate: 'route_cd', useBranch: true },
-      { name: 'route_name', label: 'Route Name', required: true },
-      { name: 'delivery_point_code', label: 'Delivery Point Code', lookup: 'delivery-points' },
-      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
-      { name: 'zone_code', label: 'Zone Code (legacy)', lookup: 'delivery-points', allowCustom: true },
-    ],
-    pk: 'id',
-  },
   routes: {
     title: 'Routing Matrix Rules',
     singular: 'Routing Rule',
@@ -897,7 +875,14 @@ export default function MasterAdminPage() {
 
   const canManageMaster = Boolean(isAdmin || isPic || can('admin'))
 
-  const currentResource = pathResource || 'branches'
+  // Route Codes master page removed — use Network Areas instead.
+  useEffect(() => {
+    if (pathResource === 'route-codes') {
+      navigate('/ops/admin/areas', { replace: true })
+    }
+  }, [pathResource, navigate])
+
+  const currentResource = pathResource === 'route-codes' ? 'areas' : pathResource || 'branches'
   const schema = MASTER_SCHEMAS[currentResource] || MASTER_SCHEMAS.branches
   const geoPair = GEO_PAIRS[currentResource] || null
   const formFields = useMemo(

@@ -130,7 +130,7 @@ const MODULE_META = {
   },
   routing: {
     icon: BranchesOutlined,
-    hint: 'Zones, routes, and route codes for planning',
+    hint: 'Zones, network areas, and routing rules for planning',
   },
   admin: {
     icon: SettingOutlined,

@@ -57,12 +57,13 @@ export const CODE_LOOKUP_KINDS = {
     label: 'area',
   },
   'route-codes': {
-    resource: 'route-codes',
-    codeKeys: ['route_cd', 'route_code', 'code'],
-    nameKeys: ['route_name', 'name'],
-    manageTo: '/ops/admin/route-codes',
-    generateKind: 'route_cd',
-    label: 'route code',
+    // Legacy alias — route codes removed; look up network areas instead.
+    resource: 'areas',
+    codeKeys: ['area_code', 'route_cd', 'code'],
+    nameKeys: ['area_name', 'name'],
+    manageTo: '/ops/admin/areas',
+    generateKind: 'area_code',
+    label: 'network area',
   },
   customers: {
     resource: 'customers',
@@ -97,7 +98,7 @@ const GENERATE_KIND_META = {
   delivery_point_code: CODE_LOOKUP_KINDS['delivery-points'],
   area_code: CODE_LOOKUP_KINDS.areas,
   coverage: CODE_LOOKUP_KINDS.areas,
-  route_cd: CODE_LOOKUP_KINDS['route-codes'],
+  route_cd: CODE_LOOKUP_KINDS.areas,
   dispatcher_code: CODE_LOOKUP_KINDS.dispatchers,
   partner_code: CODE_LOOKUP_KINDS['3pl'],
   cust_ac_no: CODE_LOOKUP_KINDS.customers,

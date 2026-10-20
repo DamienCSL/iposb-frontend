@@ -64,14 +64,6 @@ function mapLookupOptions(kind, rows) {
           delivery_point_code: r.delivery_point_code || '',
           hub_code: r.hub_code || '',
         }))
-    case 'route-codes':
-      return list
-        .filter((r) => r.route_cd)
-        .map((r) => ({
-          value: String(r.route_cd),
-          label: `${r.route_cd} — ${r.route_name || r.route_cd}`,
-          delivery_point_code: r.delivery_point_code || '',
-        }))
     default:
       return []
   }
@@ -248,13 +240,13 @@ const SPECS = {
   },
   drivers: {
     title: 'Driver Management',
-    columns: [['driver_id', 'ID'], ['full_name', 'Name'], ['loc_id', 'Loc'], ['route_cd', 'Route'], ['mobile_email', 'Mobile login'], ['base_lat', 'Lat'], ['base_lng', 'Lng'], ['is_available', 'Available']],
+    columns: [['driver_id', 'ID'], ['full_name', 'Name'], ['loc_id', 'Loc'], ['route_cd', 'Network area'], ['mobile_email', 'Mobile login'], ['base_lat', 'Lat'], ['base_lng', 'Lng'], ['is_available', 'Available']],
     fields: [
       { name: 'firebase_uid', label: 'Firebase UID', generate: 'firebase_uid' },
       { name: 'full_name', label: 'Name' },
       { name: 'phone', label: 'Phone' },
       { name: 'loc_id', label: 'Location / hub', lookup: 'hubs' },
-      { name: 'route_cd', label: 'Route code', lookup: 'route-codes' },
+      { name: 'route_cd', label: 'Network area', lookup: 'areas' },
       { name: 'home_drop_point_id', label: 'Home drop point', lookup: 'drop-points' },
       { name: 'preferred_zones', label: 'Preferred zones / delivery points', lookup: 'delivery-points' },
       {
@@ -317,16 +309,6 @@ const SPECS = {
       { name: 'lat', label: 'Centroid latitude', type: 'number' },
       { name: 'lng', label: 'Centroid longitude', type: 'number' },
       { name: 'notes', label: 'Notes' },
-    ],
-    pk: 'id',
-  },
-  'route-codes': {
-    title: 'Route Codes',
-    columns: [['route_cd', 'Code'], ['route_name', 'Name'], ['delivery_point_code', 'Delivery point']],
-    fields: [
-      { name: 'route_cd', label: 'Route code', generate: 'route_cd' },
-      { name: 'route_name', label: 'Name' },
-      { name: 'delivery_point_code', label: 'Delivery point', lookup: 'delivery-points' },
     ],
     pk: 'id',
   },

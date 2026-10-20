@@ -79,9 +79,8 @@ export const NAV_SECTIONS = [
         cap: 'routing',
         items: [
           { to: '/admin/delivery-points', label: 'Delivery Points', icon: 'bi-geo-alt', live: true },
-          { to: '/admin/areas', label: 'Areas', icon: 'bi-pin-map', live: true },
+          { to: '/admin/areas', label: 'Network Areas', icon: 'bi-pin-map', live: true },
           { to: '/admin/routes', label: 'Route Table', icon: 'bi-signpost-2', live: true },
-          { to: '/admin/route-codes', label: 'Route Codes', icon: 'bi-sign-turn-right', live: true },
         ],
       },
       {
