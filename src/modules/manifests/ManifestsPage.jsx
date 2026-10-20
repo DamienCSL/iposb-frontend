@@ -374,7 +374,7 @@ export default function ManifestsPage() {
                     render: (v) => (
                       <span
                         style={{ fontFamily: 'monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer' }}
-                        onClick={() => navigate(`/ops/consignments/${encodeURIComponent(v)}`)}
+                        onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(v)}&tab=${encodeURIComponent(v)}`)}
                       >
                         {v}
                       </span>

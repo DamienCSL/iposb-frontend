@@ -99,7 +99,7 @@ export default function CargoPage() {
     {
       title: 'Consignment',
       dataIndex: 'cnNo',
-      render: (cn) => <Link to={`/ops/consignments/${encodeURIComponent(cn)}`}>{cn}</Link>,
+      render: (cn) => <Link to={`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}&tab=${encodeURIComponent(cn)}`}>{cn}</Link>,
     },
     { title: 'Handover', dataIndex: 'stage', render: (s) => <StageTag stage={s} /> },
     { title: 'Mode', dataIndex: 'transportMode', width: 80, render: (m) => String(m || '').toUpperCase() },

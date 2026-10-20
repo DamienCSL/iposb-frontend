@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Modal } from 'antd'
 import {
   apiError,
   closeSeal,
@@ -13,12 +14,13 @@ import {
   scanSeal,
   sealArriveCn,
 } from '../api/client'
+import { printSealLabel, SealLabelNote } from '../components/SealLabelPrint'
 
 const PHASES = [
   {
     id: 'origin_dp',
     step: 1,
-    title: 'Origin DP',
+    title: 'Origin DEP',
     summary: 'Pack CNs into Baby → close',
   },
   {
@@ -31,12 +33,12 @@ const PHASES = [
     id: 'dest_hub',
     step: 3,
     title: 'Dest Hub',
-    summary: 'Seal arrival → open Father/Mother → depart to DP',
+    summary: 'Seal arrival → open Father/Mother → depart to DEP',
   },
   {
     id: 'dest_dp',
     step: 4,
-    title: 'Dest DP',
+    title: 'Dest DEP',
     summary: 'Unseal Baby → scan each CN (SHB)',
   },
 ]
@@ -49,8 +51,8 @@ const PHASE_SCAN = {
   ],
   dest_hub: [
     { code: 'HUB', label: 'Arrive dest hub' },
-    { code: 'GWD', label: 'Depart to dest DP' },
-    { code: 'MNF', label: 'Manifested depart to DP' },
+    { code: 'GWD', label: 'Depart to dest DEP' },
+    { code: 'MNF', label: 'Manifested depart to DEP' },
   ],
 }
 
@@ -108,6 +110,7 @@ export default function SealStationPage() {
   const [message, setMessage] = useState('')
   const [ok, setOk] = useState('')
   const [filterTier, setFilterTier] = useState('')
+  const [labelPreviewOpen, setLabelPreviewOpen] = useState(false)
 
   function applyPack(data) {
     setPack(data || null)
@@ -353,32 +356,6 @@ export default function SealStationPage() {
     }
   }
 
-  function printLabel() {
-    if (!seal) return
-    const w = window.open('', '_blank', 'width=420,height=520')
-    if (!w) return
-    w.document.write(`<!doctype html><html><head><title>${seal.sealNo}</title>
-      <style>
-        body{font-family:system-ui,sans-serif;padding:24px}
-        .code{font-size:28px;font-weight:800;letter-spacing:0.04em}
-        .meta{margin-top:12px;font-size:14px;line-height:1.5}
-        .tier{text-transform:uppercase;color:#64748b;font-size:12px;font-weight:700}
-      </style></head><body>
-      <div class="tier">${tierLabel(seal.tier)} seal</div>
-      <div class="code">${seal.sealNo}</div>
-      <div class="meta">
-        <div><strong>Label:</strong> ${seal.label || ''}</div>
-        <div><strong>Lifecycle:</strong> ${seal.lifecycle || ''}</div>
-        ${seal.destAreaCode ? `<div><strong>Dest area:</strong> ${seal.destAreaCode}</div>` : ''}
-        ${seal.destDeliveryPoint ? `<div><strong>Dest DP:</strong> ${seal.destDeliveryPoint}</div>` : ''}
-        ${seal.destHubCode ? `<div><strong>Dest hub:</strong> ${seal.destHubCode}</div>` : ''}
-        <div><strong>Members:</strong> ${seal.memberCount || 0} · <strong>CNs:</strong> ${seal.cnCount || 0}</div>
-      </div>
-      <script>window.print()</script>
-      </body></html>`)
-    w.document.close()
-  }
-
   const areaOptions = useMemo(
     () =>
       (areas || []).map((a) => ({
@@ -404,6 +381,25 @@ export default function SealStationPage() {
     [hubs]
   )
 
+  const labelLookups = useMemo(() => {
+    const names = {}
+    for (const a of areaOptions) {
+      if (a.code) names[String(a.code).toUpperCase()] = a.name || ''
+    }
+    for (const d of dpOptions) {
+      if (d.code) names[String(d.code).toUpperCase()] = d.name || ''
+    }
+    for (const h of hubOptions) {
+      if (h.code) names[String(h.code).toUpperCase()] = h.name || ''
+    }
+    return { names }
+  }, [areaOptions, dpOptions, hubOptions])
+
+  function printLabel() {
+    if (!seal) return
+    printSealLabel(seal, labelLookups, pack)
+  }
+
   const lifecycle = seal?.lifecycle || ''
   const canAdd = phase === 'origin_dp' && lifecycle === 'open'
   const canClose = phase === 'origin_dp' && lifecycle === 'open'
@@ -427,7 +423,7 @@ export default function SealStationPage() {
         <div>
           <h1 className="h3 mb-1">Seal Station</h1>
           <p className="text-muted mb-0">
-            Guided SOP — Origin DP → Origin Hub → Dest Hub → Dest DP.
+            Guided SOP — Origin DEP → Origin Hub → Dest Hub → Dest DEP.
           </p>
         </div>
         <div className="d-flex align-items-center gap-2">
@@ -437,7 +433,7 @@ export default function SealStationPage() {
             style={{ width: '8rem' }}
             value={locId}
             onChange={(e) => setLocId(e.target.value.toUpperCase())}
-            placeholder="DP / hub"
+            placeholder="DEP / hub"
           />
         </div>
       </div>
@@ -493,12 +489,12 @@ export default function SealStationPage() {
                       {phase === 'origin_dp' ? (
                         <>
                           <option value="baby">Baby — dest area (CNs)</option>
-                          <option value="mother">Mother — dest DP (baby seals)</option>
+                          <option value="mother">Mother — dest DEP (baby seals)</option>
                         </>
                       ) : (
                         <>
                           <option value="father">Father — dest hub (sea / East↔West only)</option>
-                          <option value="mother">Mother — dest DP (optional hub bag)</option>
+                          <option value="mother">Mother — dest DEP (optional hub bag)</option>
                         </>
                       )}
                     </select>
@@ -518,7 +514,7 @@ export default function SealStationPage() {
                     <div>
                       <label className="form-label">Dest delivery point</label>
                       <select className="form-select" value={destDp} onChange={(e) => setDestDp(e.target.value)} required>
-                        <option value="">Select DP…</option>
+                        <option value="">Select DEP…</option>
                         {dpOptions.map((d) => (
                           <option key={d.code} value={d.code}>{d.code}{d.name ? ` — ${d.name}` : ''}</option>
                         ))}
@@ -552,7 +548,7 @@ export default function SealStationPage() {
                   ) : null}
                   <div className="row g-2">
                     <div className="col-md-6">
-                      <label className="form-label">Origin DP (optional)</label>
+                      <label className="form-label">Origin DEP (optional)</label>
                       <input className="form-control" value={originDp} onChange={(e) => setOriginDp(e.target.value.toUpperCase())} />
                     </div>
                     <div className="col-md-6">
@@ -694,6 +690,13 @@ export default function SealStationPage() {
                       </div>
                     </div>
                     <div className="d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => setLabelPreviewOpen(true)}
+                      >
+                        Preview label
+                      </button>
                       <button type="button" className="btn btn-outline-secondary btn-sm" onClick={printLabel}>
                         Print label
                       </button>
@@ -707,6 +710,18 @@ export default function SealStationPage() {
                           {phase === 'dest_dp' ? 'Unseal Baby' : `Open ${tierLabel(seal.tier)}`}
                         </button>
                       ) : null}
+                    </div>
+                  </div>
+
+                  <div className="border rounded p-3 mb-3 bg-white">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <strong className="small text-uppercase text-muted">Seal label preview</strong>
+                      <button type="button" className="btn btn-sm btn-primary" onClick={printLabel}>
+                        Print
+                      </button>
+                    </div>
+                    <div className="d-flex justify-content-center">
+                      <SealLabelNote seal={seal} pack={pack} lookups={labelLookups} />
                     </div>
                   </div>
 
@@ -831,7 +846,7 @@ export default function SealStationPage() {
 
                   {canCnArrive ? (
                     <form onSubmit={onCnArrive} className="border-top pt-3">
-                      <div className="fw-semibold mb-2">CN arrival at dest DP (SHB)</div>
+                      <div className="fw-semibold mb-2">CN arrival at dest DEP (SHB)</div>
                       <div className="d-flex gap-2">
                         <input
                           ref={packInputRef}
@@ -850,7 +865,7 @@ export default function SealStationPage() {
 
                   {phase === 'dest_dp' && seal?.tier === 'baby' && lifecycle !== 'opened' ? (
                     <div className="alert alert-warning py-2 mb-0">
-                      Unseal this Baby at dest DP before scanning CNs.
+                      Unseal this Baby at dest DEP before scanning CNs.
                     </div>
                   ) : null}
                 </>
@@ -859,6 +874,28 @@ export default function SealStationPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        title="Seal label preview"
+        open={labelPreviewOpen && Boolean(seal)}
+        onCancel={() => setLabelPreviewOpen(false)}
+        width={440}
+        footer={[
+          <button key="close" type="button" className="btn btn-outline-secondary" onClick={() => setLabelPreviewOpen(false)}>
+            Close
+          </button>,
+          <button key="print" type="button" className="btn btn-primary ms-2" onClick={printLabel}>
+            Print
+          </button>,
+        ]}
+      >
+        <div className="small text-muted mb-2">
+          Barcode encodes <strong>{seal?.sealNo}</strong> — scannable by hubs / DPs.
+        </div>
+        <div className="d-flex justify-content-center">
+          {seal ? <SealLabelNote seal={seal} pack={pack} lookups={labelLookups} /> : null}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -165,7 +165,7 @@ export default function CodPage() {
       title: 'CN',
       key: 'cn',
       render: (_, r) => (
-        <Link to={`/ops/consignments/${encodeURIComponent(cnOf(r))}`}>
+        <Link to={`/ops/consignments/tracking?cn=${encodeURIComponent(cnOf(r))}&tab=${encodeURIComponent(cnOf(r))}`}>
           <Text code style={{ color: BRAND }}>{cnOf(r)}</Text>
         </Link>
       ),

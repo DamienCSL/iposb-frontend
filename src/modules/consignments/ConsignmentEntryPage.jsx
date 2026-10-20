@@ -7,6 +7,7 @@ import {
   Card,
   Checkbox,
   Col,
+  Collapse,
   DatePicker,
   Divider,
   Form,
@@ -51,12 +52,76 @@ import {
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { HUB_MANAGER, isDroppointManager, normalizeRole } from '../../auth/rbac'
+import { lookupMyPostcode, normalizePostcode } from '../../utils/myPostcode'
 
 const { Title, Text } = Typography
 
 const BRAND = '#1B8A5A'
 const MUTED = '#475569'
 const LABEL = '#1E293B'
+
+/** Deck labels → existing DB codes (Phase 1: no new service/payment codes). */
+const SERVICE_OFFERS = [
+  { value: 'STD', label: 'Standard', srv_typ: 'STD', oda: false },
+  { value: 'STD_ODA', label: 'Standard - ODA', srv_typ: 'STD', oda: true },
+  { value: 'EXP', label: 'Value Express', srv_typ: 'EXP', oda: false },
+  { value: 'LUGGAGE', label: 'Luggage', srv_typ: 'EXP', oda: false },
+]
+
+const PAYMENT_OFFERS = [
+  { value: 'CASH', label: 'Cash', pay_mode: 'PPD' },
+  { value: 'ONLINE', label: 'Online Transfer', pay_mode: 'PPD' },
+  { value: 'CREDIT', label: 'Credit', pay_mode: 'PPD' },
+  { value: 'COD', label: 'COD', pay_mode: 'COD' },
+  { value: 'FPS', label: 'FPS / SenangPay', pay_mode: 'PPD' },
+]
+
+const ITEM_CATEGORIES = [
+  'Health & Beauty',
+  'Stationery',
+  'Electronic & Gadgets',
+  'Other',
+]
+
+function applyServiceOffer(offerValue, form) {
+  const offer = SERVICE_OFFERS.find((o) => o.value === offerValue) || SERVICE_OFFERS[0]
+  const next = {
+    ...form,
+    service_offer: offer.value,
+    srv_typ: offer.srv_typ,
+  }
+  if (offer.oda) {
+    if (form.spec_handle !== 'Y') next.spec_cd = 'ODA'
+  } else if (form.spec_cd === 'ODA' && form.spec_handle !== 'Y') {
+    next.spec_cd = ''
+  }
+  if (offer.value === 'LUGGAGE' && !String(form.item_category || '').trim()) {
+    next.item_category = 'Other'
+  }
+  return next
+}
+
+function applyPaymentOffer(offerValue, form) {
+  const offer = PAYMENT_OFFERS.find((o) => o.value === offerValue) || PAYMENT_OFFERS[0]
+  return {
+    ...form,
+    payment_offer: offer.value,
+    pay_mode: offer.pay_mode,
+    cash_amt: offer.pay_mode === 'COD' ? form.cash_amt : '',
+  }
+}
+
+function serviceOfferFromRow(existing) {
+  const srv = String(existing?.srv_typ || 'STD').toUpperCase()
+  const oda = String(existing?.oda_cd || existing?.spec_cd || '').toUpperCase() === 'ODA'
+  if (srv === 'EXP') return 'EXP'
+  if (oda) return 'STD_ODA'
+  return 'STD'
+}
+
+function paymentOfferFromRow(existing) {
+  return String(existing?.ppd_cct || existing?.pay_mode || '').toUpperCase() === 'COD' ? 'COD' : 'CASH'
+}
 
 function FieldHint({ children }) {
   return (
@@ -101,6 +166,7 @@ function emptyForm() {
     cn_no: '',
     cust_ac_no: '',
     srv_typ: 'STD',
+    service_offer: 'STD',
     pkg_typ: 'P',
     cn_origin: '',
     cn_dstn: '',
@@ -112,9 +178,18 @@ function emptyForm() {
     origin_service: 'DROP_COUNTER',
     destination_service: 'DOORSTEP',
     sender_address: '',
+    sender_postcode: '',
+    sender_city: '',
+    sender_state: '',
+    sender_email: '',
     remarks: '',
     receiver_postcode: '',
     receiver_city: '',
+    receiver_state: '',
+    receiver_email: '',
+    parcel_value: '',
+    item_category: '',
+    item_category_other: '',
     pu_dt: dayjs().format('YYYY-MM-DD'),
     cn_wt: '',
     cn_pcs: '1',
@@ -130,6 +205,7 @@ function emptyForm() {
     partner_code: '',
     partner_cn_no: '',
     pay_mode: 'PPD',
+    payment_offer: 'CASH',
     cash_amt: '',
     transport_mode: 'road',
     linehaul_mode: '',
@@ -440,6 +516,28 @@ export default function ConsignmentEntryPage() {
     setForm((f) => ({ ...f, [k]: v }))
   }
 
+  function setSenderPostcode(raw) {
+    const pc = normalizePostcode(raw)
+    const hit = lookupMyPostcode(pc)
+    setForm((f) => ({
+      ...f,
+      sender_postcode: pc,
+      sender_city: hit?.city || (pc.length < 5 ? f.sender_city : ''),
+      sender_state: hit?.state || (pc.length < 5 ? f.sender_state : ''),
+    }))
+  }
+
+  function setReceiverPostcode(raw) {
+    const pc = normalizePostcode(raw)
+    const hit = lookupMyPostcode(pc)
+    setForm((f) => ({
+      ...f,
+      receiver_postcode: pc,
+      receiver_city: hit?.city || (pc.length < 5 ? f.receiver_city : ''),
+      receiver_state: hit?.state || (pc.length < 5 ? f.receiver_state : ''),
+    }))
+  }
+
   function applyResolvedRoute(route, { force = false } = {}) {
     if (!route || (manualDestination && !force)) return
     // Counter bookings take the resolver result as-is so a stale match never survives an address change.
@@ -642,7 +740,8 @@ export default function ConsignmentEntryPage() {
           itemDesc: p.itemDesc || p.item_desc || '',
         }))
       : [emptyPiece()]
-    setForm({
+    const base = {
+      ...emptyForm(),
       cn_no: cnNo,
       cust_ac_no: existing?.cust_ac_no || '',
       srv_typ: existing?.srv_typ || 'STD',
@@ -660,6 +759,7 @@ export default function ConsignmentEntryPage() {
       remarks: existing?.remarks || '',
       receiver_postcode: existing?.receiver_postcode || existing?.receiverPostcode || '',
       receiver_city: existing?.receiver_city || existing?.receiverCity || '',
+      receiver_state: existing?.receiver_state || existing?.receiverState || '',
       pu_dt: (existing?.pu_dt || '').slice(0, 10) || dayjs().format('YYYY-MM-DD'),
       cn_wt: existing?.cn_wt || '',
       cn_pcs: existing?.cn_pcs || '1',
@@ -683,7 +783,15 @@ export default function ConsignmentEntryPage() {
       sailing_date: (existing?.sailing_date || '').slice(0, 10) || '',
       port_origin: existing?.port_origin || '',
       port_destination: existing?.port_destination || '',
-    })
+      service_offer: serviceOfferFromRow(existing),
+      payment_offer: paymentOfferFromRow(existing),
+    }
+    const recvPc = lookupMyPostcode(base.receiver_postcode)
+    if (recvPc) {
+      if (!base.receiver_city) base.receiver_city = recvPc.city
+      if (!base.receiver_state) base.receiver_state = recvPc.state
+    }
+    setForm(base)
     setIsExisting(Boolean(existing))
     setManualDestination(!dropMode && Boolean(existing?.destination_zone))
     setRoutePreview(
@@ -837,20 +945,57 @@ export default function ConsignmentEntryPage() {
     try {
       const pieceRows = piecesPayload(form.pieces)
       const dim = summarizePieces(form.pieces, lookups.volumetricDivisor)
-      const { pieces: _omitPieces, ...formRest } = form
+      const categoryLabel =
+        form.item_category === 'Other'
+          ? String(form.item_category_other || '').trim() || 'Other'
+          : String(form.item_category || '').trim()
+      const piecesWithCategory = pieceRows.map((p, i) =>
+        i === 0 && categoryLabel && !p.itemDesc ? { ...p, itemDesc: categoryLabel } : p,
+      )
+      const {
+        pieces: _omitPieces,
+        service_offer: _so,
+        payment_offer: _po,
+        item_category: _ic,
+        item_category_other: _ico,
+        parcel_value: _pv,
+        sender_email: _se,
+        receiver_email: _re,
+        sender_postcode: _spc,
+        sender_city: _sc,
+        sender_state: _ss,
+        receiver_state: _rs,
+        ...formRest
+      } = form
+      const offer = SERVICE_OFFERS.find((o) => o.value === form.service_offer) || SERVICE_OFFERS[0]
+      const payOffer = PAYMENT_OFFERS.find((o) => o.value === form.payment_offer) || PAYMENT_OFFERS[0]
+      const remarkBits = [String(form.remarks || '').trim()]
+      if (_pv !== '' && _pv != null) remarkBits.push(`Parcel value: RM ${Number(_pv).toFixed(2)}`)
+      if (categoryLabel) remarkBits.push(`Category: ${categoryLabel}`)
+      if (_se) remarkBits.push(`Sender email: ${_se}`)
+      if (_re) remarkBits.push(`Receiver email: ${_re}`)
+      if (payOffer.value !== 'COD' && payOffer.value !== 'CASH') {
+        remarkBits.push(`Payment: ${payOffer.label}`)
+      }
       const payload = {
         ...formRest,
         cn_no: serverAssignsCn ? 'AUTO' : String(form.cn_no).trim().toUpperCase(),
+        srv_typ: offer.srv_typ,
+        pay_mode: payOffer.pay_mode,
+        spec_cd: offer.oda && form.spec_handle !== 'Y' ? 'ODA' : form.spec_cd,
         transport_mode: String(form.transport_mode || 'road').toLowerCase(),
         recp_name: form.recp_name || form.consignee,
         sender_phone: String(form.sender_phone || '').trim() || undefined,
         receiver_phone: String(form.receiver_phone || '').trim() || undefined,
+        receiver_postcode: form.receiver_postcode || undefined,
+        receiver_city: [form.receiver_city, form.receiver_state].filter(Boolean).join(', ') || form.receiver_city,
         partner_code: partnerCode,
         partner_cn_no: partnerCn,
         manual_destination: manualDestination,
         cn_wt: dim.pcs > 0 ? dim.chargeableWt : form.cn_wt,
         cn_pcs: dim.pcs > 0 ? dim.pcs : form.cn_pcs,
-        pieces: pieceRows,
+        pieces: piecesWithCategory,
+        remarks: remarkBits.filter(Boolean).join(' | '),
       }
       const r = await saveConsignment(payload)
       const iposbCn = r?.iposbCnNo || r?.cnNo || payload.cn_no
@@ -878,7 +1023,7 @@ export default function ConsignmentEntryPage() {
           </Button>
         ),
       })
-      navigate(`/ops/consignments/${encodeURIComponent(iposbCn)}`)
+      navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(iposbCn)}&tab=${encodeURIComponent(iposbCn)}`)
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -1064,10 +1209,10 @@ export default function ConsignmentEntryPage() {
   const networkPathCard = (
     <Card
       size="small"
-      title={<Text strong>{dropMode ? '4' : '2'} · Network path</Text>}
+      title={<Text strong>Network path</Text>}
       extra={
         <Text style={{ fontSize: 12.5, color: MUTED }}>
-          Destination auto-selected from the receiver address
+          Destination auto-selected from receiver postcode / address
         </Text>
       }
       style={cardStyle}
@@ -1262,9 +1407,7 @@ export default function ConsignmentEntryPage() {
                     : 'New consignment'}
               </Title>
               <Text style={{ fontSize: 13.5, color: MUTED }}>
-                {dropMode
-                  ? 'Origin is drop-at-counter. Optional partner AWB links 3PL consignments for dual tracking.'
-                  : 'Fill the steps below. Delivery points set hubs automatically.'}
+                Sender → Receiver → Parcel → Summary. Route is assigned from the receiver postcode.
               </Text>
             </div>
           </Space>
@@ -1298,15 +1441,15 @@ export default function ConsignmentEntryPage() {
       <Row gutter={20} align="top">
         {/* ─── Main form column ─── */}
         <Col xs={24} lg={16}>
-          {/* Step 1: Basics */}
+          {/* 1 · Sender */}
           <Card
             size="small"
-            title={<Text strong>1 · Basics</Text>}
-            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>CN, customer, service, parcel</Text>}
+            title={<Text strong>1 · Sender</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Who is shipping</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Row gutter={[16, 16]}>
+            <Row gutter={[16, 12]}>
               <Col xs={24} xl={14}>
                 {dropMode ? (
                   <>
@@ -1318,36 +1461,27 @@ export default function ConsignmentEntryPage() {
                         style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
                       />
                     </Form.Item>
-                    <FieldHint>The system issues a unique CN on save, so numbers never clash.</FieldHint>
+                    <FieldHint>The system issues a unique CN on save.</FieldHint>
                   </>
                 ) : (
-                <>
-                <Form.Item label="Consignment number" required {...formItemProps}>
-                  <Space.Compact style={{ width: '100%' }}>
-                    <Input
-                      value={form.cn_no}
-                      maxLength={20}
-                      placeholder="Generate or type CN number"
-                      style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
-                      onChange={(e) => {
-                        setIsExisting(false)
-                        set('cn_no', e.target.value.toUpperCase())
-                      }}
-                    />
-                    <Button loading={generating} onClick={generateCn}>
-                      Generate
-                    </Button>
-                    <Button
-                      loading={loading}
-                      disabled={!String(form.cn_no || '').trim()}
-                      onClick={() => loadCn(form.cn_no)}
-                    >
-                      Load
-                    </Button>
-                  </Space.Compact>
-                </Form.Item>
-                <FieldHint>Generate for a new CN, or type an existing number and Load to edit.</FieldHint>
-                </>
+                  <>
+                    <Form.Item label="Consignment number" required {...formItemProps}>
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Input
+                          value={form.cn_no}
+                          maxLength={20}
+                          placeholder="Generate or type CN number"
+                          style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
+                          onChange={(e) => {
+                            setIsExisting(false)
+                            set('cn_no', e.target.value.toUpperCase())
+                          }}
+                        />
+                        <Button loading={generating} onClick={generateCn}>Generate</Button>
+                        <Button loading={loading} disabled={!String(form.cn_no || '').trim()} onClick={() => loadCn(form.cn_no)}>Load</Button>
+                      </Space.Compact>
+                    </Form.Item>
+                  </>
                 )}
               </Col>
               <Col xs={24} xl={10}>
@@ -1355,34 +1489,269 @@ export default function ConsignmentEntryPage() {
                   <CustomerPicker
                     value={form.cust_ac_no}
                     onSelect={(c) => {
+                      const addr = [c.cust_addr1, c.cust_addr2, c.cust_addr3].filter(Boolean).join(', ')
+                      const pc = normalizePostcode(c.cust_postcode || c.postcode || '')
+                      const hit = lookupMyPostcode(pc)
                       setForm((f) => ({
                         ...f,
                         cust_ac_no: String(c.cust_ac_no || '').toUpperCase(),
                         consigner: c.cust_name || f.consigner,
+                        sender_phone: c.cust_tel || c.phone || f.sender_phone,
+                        sender_email: c.cust_email || c.email || f.sender_email,
+                        sender_address: addr || f.sender_address,
+                        sender_postcode: pc || f.sender_postcode,
+                        sender_city: hit?.city || c.cust_state || f.sender_city,
+                        sender_state: hit?.state || f.sender_state,
                       }))
                     }}
                   />
                 </Form.Item>
               </Col>
-
-              <Col xs={24} sm={12} lg={8}>
-                <Form.Item label="Service type" {...formItemProps}>
-                  <Select
-                    value={form.srv_typ}
-                    onChange={(v) => set('srv_typ', v)}
-                    options={serviceTypeOptions.map((s) => ({
-                      value: s.code,
-                      label: s.cd_desc || s.label || s.code,
-                    }))}
-                    optionLabelProp="label"
-                    popupMatchSelectWidth={false}
-                    dropdownStyle={{ minWidth: 220 }}
-                    style={{ width: '100%' }}
+              <Col xs={24} md={12}>
+                <Form.Item label="Name" required {...formItemProps}>
+                  <Input value={form.consigner} onChange={(e) => set('consigner', e.target.value)} placeholder="Sender name" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="Phone No." required {...formItemProps}>
+                  <Input value={form.sender_phone} onChange={(e) => set('sender_phone', e.target.value)} placeholder="01X-XXXXXXX" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="Email" {...formItemProps}>
+                  <Input value={form.sender_email} onChange={(e) => set('sender_email', e.target.value)} placeholder="Optional" />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="Address" required={form.origin_service === 'ADDRESS_PICKUP'} {...formItemProps}>
+                  <Input.TextArea
+                    rows={2}
+                    value={form.sender_address || ''}
+                    onChange={(e) => set('sender_address', e.target.value)}
+                    placeholder="Full sender address"
                   />
                 </Form.Item>
               </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Postcode" required {...formItemProps}>
+                  <Input value={form.sender_postcode} maxLength={5} onChange={(e) => setSenderPostcode(e.target.value)} placeholder="e.g. 90000" />
+                </Form.Item>
+                <FieldHint>City and state auto-fill from postcode.</FieldHint>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="City" {...formItemProps}>
+                  <Input value={form.sender_city} onChange={(e) => set('sender_city', e.target.value)} placeholder="Auto from postcode" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="State" {...formItemProps}>
+                  <Input value={form.sender_state} onChange={(e) => set('sender_state', e.target.value)} placeholder="Auto from postcode" />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="How the parcel enters the network" style={{ marginBottom: 8 }}>
+                  <Radio.Group
+                    buttonStyle="solid"
+                    value={form.origin_service || 'DROP_COUNTER'}
+                    onChange={(e) => {
+                      const mode = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        origin_service: mode,
+                        origin_drop_point_id: mode === 'DROP_COUNTER' ? f.origin_drop_point_id : '',
+                      }))
+                    }}
+                    style={{ width: '100%', display: 'flex' }}
+                  >
+                    {originServices.map((s) => (
+                      <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
+                        {s.label || s.code}
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
+              </Col>
+              {form.origin_service === 'DROP_COUNTER' ? (
+                <Col xs={24} md={16}>
+                  <Form.Item label="Drop point" style={{ marginBottom: 0 }}>
+                    <Select
+                      showSearch
+                      allowClear
+                      optionFilterProp="label"
+                      placeholder="Search drop counter…"
+                      value={form.origin_drop_point_id ? String(form.origin_drop_point_id) : undefined}
+                      options={pickupDrops.map((d) => ({
+                        value: String(d.id),
+                        label: `${d.drop_code} — ${d.drop_name}${d.delivery_point_code ? ` · ${d.delivery_point_code}` : ''}`,
+                      }))}
+                      onChange={(id) => (id ? pickOriginDrop(id) : set('origin_drop_point_id', ''))}
+                      popupMatchSelectWidth={false}
+                      dropdownStyle={{ minWidth: 280 }}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+              ) : null}
+            </Row>
+          </Card>
+
+          {/* 2 · Receiver */}
+          <Card
+            size="small"
+            title={<Text strong>2 · Receiver</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Route auto-assigns from postcode</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
+          >
+            <Row gutter={[16, 12]}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Name" required {...formItemProps}>
+                  <Input
+                    value={form.consignee}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setForm((f) => ({ ...f, consignee: v, recp_name: v }))
+                    }}
+                    placeholder="Receiver name"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="Phone No." required {...formItemProps}>
+                  <Input value={form.receiver_phone} onChange={(e) => set('receiver_phone', e.target.value)} placeholder="01X-XXXXXXX" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
+                <Form.Item label="Email" {...formItemProps}>
+                  <Input value={form.receiver_email} onChange={(e) => set('receiver_email', e.target.value)} placeholder="Optional" />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="Address" required={form.destination_service === 'DOORSTEP' || dropMode} {...formItemProps}>
+                  <Input.TextArea
+                    rows={2}
+                    value={form.remarks || ''}
+                    onChange={(e) => set('remarks', e.target.value)}
+                    placeholder="Full receiver address"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Postcode" required {...formItemProps}>
+                  <Input value={form.receiver_postcode || ''} maxLength={5} onChange={(e) => setReceiverPostcode(e.target.value)} placeholder="e.g. 88000" />
+                </Form.Item>
+                <FieldHint>City / state and destination route fill from postcode.</FieldHint>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="City" {...formItemProps}>
+                  <Input value={form.receiver_city || ''} onChange={(e) => set('receiver_city', e.target.value)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="State" {...formItemProps}>
+                  <Input value={form.receiver_state || ''} onChange={(e) => set('receiver_state', e.target.value)} />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="Delivery method" style={{ marginBottom: 8 }}>
+                  <Radio.Group
+                    buttonStyle="solid"
+                    value={form.destination_service || 'DOORSTEP'}
+                    onChange={(e) => {
+                      const mode = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        destination_service: mode,
+                        destination_drop_point_id: mode === 'SELF_COLLECT' ? f.destination_drop_point_id : '',
+                        destination_area_code: mode === 'DOORSTEP' ? f.destination_area_code : '',
+                      }))
+                    }}
+                    style={{ width: '100%', display: 'flex' }}
+                  >
+                    {destinationServices.map((s) => (
+                      <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
+                        {s.label || s.code}
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
+              </Col>
+              {form.destination_service === 'SELF_COLLECT' ? (
+                <Col xs={24} md={12}>
+                  <Form.Item label="Self-collect drop point" style={{ marginBottom: 0 }}>
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Search self-collect drop…"
+                      value={form.destination_drop_point_id ? String(form.destination_drop_point_id) : undefined}
+                      options={deliveryDrops.map((d) => ({
+                        value: String(d.id),
+                        label: `${d.drop_code} — ${d.drop_name}`,
+                      }))}
+                      onChange={(id) => set('destination_drop_point_id', id || '')}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+              ) : null}
+              {resolvingRoute ? (
+                <Col span={24}><FieldHint><Spin size="small" /> Resolving destination from postcode / address…</FieldHint></Col>
+              ) : routePreview?.routePlanStatus ? (
+                <Col span={24}>
+                  <FieldHint>
+                    Auto-route:{' '}
+                    <Text strong style={{ color: routePreview.routePlanStatus === 'RESOLVED' ? BRAND : '#D97706' }}>
+                      {routePreview.routePlanStatus}
+                    </Text>
+                    {routePreview.destinationZone ? ` · ${routePreview.destinationZone}` : ''}
+                    {routePreview.destinationAreaName ? ` · ${routePreview.destinationAreaName}` : ''}
+                    {form.cn_dstn ? ` · Hub ${form.cn_dstn}` : ''}
+                  </FieldHint>
+                </Col>
+              ) : null}
+            </Row>
+          </Card>
+
+          {/* 3 · Parcel & dimensions */}
+          <Card
+            size="small"
+            title={<Text strong>3 · Parcel &amp; dimensions</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Chargeable = higher of actual / volumetric</Text>}
+            style={cardStyle}
+            headStyle={cardHead}
+          >
+            <Row gutter={[16, 12]}>
               <Col xs={24} sm={12} lg={8}>
-                <Form.Item label="Package type" {...formItemProps}>
+                <Form.Item label="Service type" required {...formItemProps}>
+                  <Select
+                    value={form.service_offer || 'STD'}
+                    onChange={(v) => setForm((f) => applyServiceOffer(v, f))}
+                    options={SERVICE_OFFERS.map((o) => ({ value: o.value, label: o.label }))}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <FieldHint>Maps to Standard / Express rates in pricing.</FieldHint>
+              </Col>
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Payment type" required {...formItemProps}>
+                  <Select
+                    value={form.payment_offer || 'CASH'}
+                    onChange={(v) => {
+                      setForm((f) => applyPaymentOffer(v, f))
+                      if (v !== 'COD') setCodInfo(null)
+                    }}
+                    options={PAYMENT_OFFERS.map((o) => ({ value: o.value, label: o.label }))}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <FieldHint>
+                  {form.pay_mode === 'COD'
+                    ? `Receiver pays freight + RM ${Number(codFeeRm).toFixed(2)} COD fee.`
+                    : 'Prepaid / account — shipper pays freight.'}
+                </FieldHint>
+              </Col>
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Parcel type" {...formItemProps}>
                   <Select
                     value={form.pkg_typ}
                     onChange={(v) => set('pkg_typ', v)}
@@ -1395,29 +1764,36 @@ export default function ConsignmentEntryPage() {
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12} lg={8}>
-                <Form.Item label="Payment" {...formItemProps}>
-                  <Checkbox
-                    checked={form.pay_mode === 'COD'}
-                    onChange={(e) => {
-                      const on = e.target.checked
-                      setForm((f) => ({
-                        ...f,
-                        pay_mode: on ? 'COD' : 'PPD',
-                        cash_amt: '',
-                      }))
-                      if (!on) setCodInfo(null)
-                    }}
-                  >
-                    Cash on Delivery (COD)
-                  </Checkbox>
-                  <FieldHint>
-                    {form.pay_mode === 'COD'
-                      ? `Receiver pays delivery fee + RM ${Number(codFeeRm).toFixed(2)} COD fee at delivery.`
-                      : 'Unchecked = prepaid / account — shipper pays freight up front.'}
-                  </FieldHint>
+                <Form.Item label="Parcel value (RM)" {...formItemProps}>
+                  <InputNumber
+                    min={0}
+                    step={0.01}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    value={form.parcel_value === '' ? null : Number(form.parcel_value)}
+                    onChange={(v) => set('parcel_value', v == null ? '' : String(v))}
+                  />
                 </Form.Item>
               </Col>
-
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Category of items" {...formItemProps}>
+                  <Select
+                    value={form.item_category || undefined}
+                    allowClear
+                    placeholder="Select category"
+                    onChange={(v) => set('item_category', v || '')}
+                    options={ITEM_CATEGORIES.map((c) => ({ value: c, label: c }))}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              {form.item_category === 'Other' ? (
+                <Col xs={24} sm={12} lg={8}>
+                  <Form.Item label="Other category" {...formItemProps}>
+                    <Input value={form.item_category_other} onChange={(e) => set('item_category_other', e.target.value)} placeholder="Describe items" />
+                  </Form.Item>
+                </Col>
+              ) : null}
               <Col xs={24} sm={12} lg={8}>
                 <Form.Item label="Pickup date" {...formItemProps}>
                   <DatePicker
@@ -1429,20 +1805,6 @@ export default function ConsignmentEntryPage() {
                   />
                 </Form.Item>
               </Col>
-
-              {form.pay_mode === 'COD' && quote?.total != null ? (
-                <Col xs={24} sm={12} lg={8}>
-                  <Form.Item label="Receiver pays (auto)" {...formItemProps}>
-                    <div style={{ fontWeight: 700, color: '#92400E', fontSize: 16 }}>
-                      {money(Number(quote.total) + Number(codFeeRm))}
-                    </div>
-                    <FieldHint>
-                      Delivery {money(quote.total)} + COD fee {money(codFeeRm)}
-                    </FieldHint>
-                  </Form.Item>
-                </Col>
-              ) : null}
-
               <Col xs={24} sm={8} md={6}>
                 <Form.Item label="Transport mode" {...formItemProps}>
                   <Select
@@ -1452,15 +1814,6 @@ export default function ConsignmentEntryPage() {
                         ...f,
                         transport_mode: mode,
                         linehaul_mode: mode === 'multi' ? f.linehaul_mode || 'sea' : '',
-                        ...(mode !== 'sea' && !(mode === 'multi' && (f.linehaul_mode || 'sea') === 'sea')
-                          ? {
-                              vessel_name: '',
-                              voyage_ref: '',
-                              sailing_date: '',
-                              port_origin: '',
-                              port_destination: '',
-                            }
-                          : {}),
                       }))
                     }}
                     options={transportModes.map((m) => ({
@@ -1487,161 +1840,13 @@ export default function ConsignmentEntryPage() {
                   </Form.Item>
                 </Col>
               ) : null}
-              {showSeaFields ? (
-                <>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Vessel" {...formItemProps}>
-                      <Input value={form.vessel_name || ''} onChange={(e) => set('vessel_name', e.target.value)} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Voyage ref" {...formItemProps}>
-                      <Input value={form.voyage_ref || ''} onChange={(e) => set('voyage_ref', e.target.value)} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Sailing date" {...formItemProps}>
-                      <DatePicker
-                        style={{ width: '100%' }}
-                        format="YYYY-MM-DD"
-                        value={form.sailing_date ? dayjs(form.sailing_date) : null}
-                        onChange={(d) => set('sailing_date', d ? d.format('YYYY-MM-DD') : '')}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Port origin" {...formItemProps}>
-                      <Input value={form.port_origin || ''} onChange={(e) => set('port_origin', e.target.value)} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Port destination" {...formItemProps}>
-                      <Input
-                        value={form.port_destination || ''}
-                        onChange={(e) => set('port_destination', e.target.value)}
-                      />
-                    </Form.Item>
-                  </Col>
-                </>
-              ) : null}
-              <Col xs={24} sm={8} md={6}>
-                <Form.Item label="Special handling" {...formItemProps}>
-                  <Select
-                    value={form.spec_handle}
-                    onChange={(v) => set('spec_handle', v)}
-                    options={[
-                      { value: 'N', label: 'No' },
-                      { value: 'Y', label: 'Yes' },
-                    ]}
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              </Col>
-              {form.spec_handle === 'Y' ? (
-                <>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Handling code" {...formItemProps}>
-                      <Input
-                        maxLength={10}
-                        value={form.spec_cd}
-                        onChange={(e) => set('spec_cd', e.target.value)}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={8} md={6}>
-                    <Form.Item label="Handling amount (RM)" {...formItemProps}>
-                      <InputNumber
-                        min={0}
-                        step={0.01}
-                        precision={2}
-                        style={{ width: '100%' }}
-                        value={form.spec_amt === '' ? null : Number(form.spec_amt)}
-                        onChange={(v) => set('spec_amt', v == null ? '' : String(v))}
-                      />
-                    </Form.Item>
-                  </Col>
-                </>
-              ) : null}
             </Row>
-          </Card>
 
-          <Card
-            size="small"
-            title={<Text strong>1a · Partner / 3PL consignment (optional)</Text>}
-            extra={
-              <Text style={{ fontSize: 12.5, color: MUTED }}>
-                Track by partner AWB; barcode stays IPOSB CN
-              </Text>
-            }
-            style={cardStyle}
-            headStyle={cardHead}
-          >
-            <Row gutter={[16, 12]}>
-              <Col xs={24} md={8}>
-                <Form.Item label="Partner code" style={{ marginBottom: 0 }}>
-                  <Select
-                    showSearch
-                    allowClear
-                    placeholder="e.g. JNT"
-                    value={form.partner_code || undefined}
-                    optionFilterProp="label"
-                    options={[
-                      ...partners3pl.map((p) => ({
-                        value: String(p.partner_code || p.code || '').toUpperCase(),
-                        label: `${String(p.partner_code || p.code || '').toUpperCase()} — ${p.partner_name || p.name || ''}`,
-                      })),
-                    ].filter((o) => o.value)}
-                    onChange={(v) => set('partner_code', v ? String(v).toUpperCase() : '')}
-                    dropdownRender={(menu) => (
-                      <>
-                        {menu}
-                        <Divider style={{ margin: '8px 0' }} />
-                        <Input
-                          placeholder="Or type a code"
-                          maxLength={20}
-                          value={form.partner_code}
-                          onChange={(e) => set('partner_code', e.target.value.toUpperCase())}
-                          style={{ margin: '0 8px 8px', width: 'calc(100% - 16px)' }}
-                        />
-                      </>
-                    )}
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={16}>
-                <Form.Item label="Partner CN / AWB" style={{ marginBottom: 0 }}>
-                  <Input
-                    value={form.partner_cn_no}
-                    maxLength={40}
-                    placeholder="Third-party consignment number"
-                    style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
-                    onChange={(e) => set('partner_cn_no', e.target.value.toUpperCase())}
-                  />
-                </Form.Item>
-                <FieldHint>
-                  Unique per partner. Leave both blank for IPOSB-only. Tracking accepts either number.
-                </FieldHint>
-              </Col>
-            </Row>
-          </Card>
-
-          <Card
-            size="small"
-            title={<Text strong>1b · Piece dimensions (cm / kg)</Text>}
-            extra={
-              <Space size={8}>
-                <Text style={{ fontSize: 12, color: MUTED }}>
-                  Divisor {dimSummary.divisor} · chargeable = max(actual, volumetric)
-                </Text>
-                <Button size="small" icon={<PlusOutlined />} onClick={addPiece}>
-                  Add piece
-                </Button>
-              </Space>
-            }
-            style={cardStyle}
-            headStyle={cardHead}
-          >
+            <Divider style={{ margin: '12px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text strong>Piece dimensions (cm / kg)</Text>
+              <Button size="small" icon={<PlusOutlined />} onClick={addPiece}>Add piece</Button>
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
@@ -1653,7 +1858,6 @@ export default function ConsignmentEntryPage() {
                     <th style={{ padding: '6px 4px' }}>Wt (kg)</th>
                     <th style={{ padding: '6px 4px', width: 64 }}>Qty</th>
                     <th style={{ padding: '6px 4px' }}>Vol kg</th>
-                    <th style={{ padding: '6px 4px' }}>CBM</th>
                     <th style={{ padding: '6px 4px' }}>Desc</th>
                     <th style={{ padding: '6px 4px', width: 40 }} />
                   </tr>
@@ -1680,7 +1884,6 @@ export default function ConsignmentEntryPage() {
                           <InputNumber min={1} precision={0} style={{ width: '100%' }} value={Number(p.qty) || 1} onChange={(v) => setPiece(idx, { qty: v || 1 })} />
                         </td>
                         <td style={{ padding: '6px 4px', fontFamily: 'monospace' }}>{row.volWeight != null ? row.volWeight.toFixed(3) : '—'}</td>
-                        <td style={{ padding: '6px 4px', fontFamily: 'monospace' }}>{row.cbm != null ? row.cbm.toFixed(4) : '—'}</td>
                         <td style={{ padding: '4px' }}>
                           <Input value={p.itemDesc || ''} onChange={(e) => setPiece(idx, { itemDesc: e.target.value })} placeholder="Optional" />
                         </td>
@@ -1703,337 +1906,140 @@ export default function ConsignmentEntryPage() {
                 <div style={{ fontWeight: 700 }}>{dimSummary.volWt.toFixed(3)}</div>
               </Col>
               <Col xs={12} sm={6}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Chargeable kg (billed)</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>Chargeable kg</Text>
                 <div style={{ fontWeight: 800, color: BRAND }}>{chargeableWt > 0 ? chargeableWt.toFixed(3) : '—'}</div>
               </Col>
               <Col xs={12} sm={6}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Total CBM</Text>
-                <div style={{ fontWeight: 700 }}>{dimSummary.cbm.toFixed(4)} m³</div>
+                <Text type="secondary" style={{ fontSize: 12 }}>Estimate postage</Text>
+                <div style={{ fontWeight: 800, color: BRAND }}>{quote ? money(quote.total) : quoting ? '…' : '—'}</div>
               </Col>
             </Row>
-            <div style={{ marginTop: 8 }}>
-              <FieldHint>
-                Delivery fee uses chargeable weight. Pieces = {dimSummary.pcs || form.cn_pcs || 1}.
-                Or enter a single total weight below if you skip dimensions.
-              </FieldHint>
-            </div>
             <Row gutter={[16, 16]} style={{ marginTop: 12 }}>
               <Col xs={12} sm={8}>
                 <Form.Item label="Fallback weight (kg)" {...formItemProps}>
-                  <InputNumber
-                    min={0.1}
-                    step={0.1}
-                    style={{ width: '100%' }}
-                    disabled={dimSummary.pcs > 0}
-                    value={form.cn_wt === '' ? null : Number(form.cn_wt)}
-                    onChange={(v) => set('cn_wt', v == null ? '' : String(v))}
-                  />
+                  <InputNumber min={0.1} step={0.1} style={{ width: '100%' }} disabled={dimSummary.pcs > 0} value={form.cn_wt === '' ? null : Number(form.cn_wt)} onChange={(v) => set('cn_wt', v == null ? '' : String(v))} />
                 </Form.Item>
               </Col>
               <Col xs={12} sm={8}>
                 <Form.Item label="Fallback pieces" {...formItemProps}>
-                  <InputNumber
-                    min={1}
-                    precision={0}
-                    style={{ width: '100%' }}
-                    disabled={dimSummary.pcs > 0}
-                    value={form.cn_pcs === '' ? null : Number(form.cn_pcs)}
-                    onChange={(v) => set('cn_pcs', v == null ? '1' : String(v))}
-                  />
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} disabled={dimSummary.pcs > 0} value={form.cn_pcs === '' ? null : Number(form.cn_pcs)} onChange={(v) => set('cn_pcs', v == null ? '1' : String(v))} />
                 </Form.Item>
               </Col>
             </Row>
+
+            <Collapse
+              ghost
+              style={{ marginTop: 8 }}
+              items={[
+                {
+                  key: 'partner',
+                  label: <Text type="secondary">Partner / 3PL AWB (optional)</Text>,
+                  children: (
+                    <Row gutter={[16, 12]}>
+                      <Col xs={24} md={8}>
+                        <Form.Item label="Partner code" style={{ marginBottom: 0 }}>
+                          <Select
+                            showSearch
+                            allowClear
+                            placeholder="e.g. JNT"
+                            value={form.partner_code || undefined}
+                            optionFilterProp="label"
+                            options={partners3pl.map((p) => ({
+                              value: String(p.partner_code || p.code || '').toUpperCase(),
+                              label: `${String(p.partner_code || p.code || '').toUpperCase()} — ${p.partner_name || p.name || ''}`,
+                            })).filter((o) => o.value)}
+                            onChange={(v) => set('partner_code', v ? String(v).toUpperCase() : '')}
+                            style={{ width: '100%' }}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={16}>
+                        <Form.Item label="Partner CN / AWB" style={{ marginBottom: 0 }}>
+                          <Input
+                            value={form.partner_cn_no}
+                            maxLength={40}
+                            placeholder="Third-party consignment number"
+                            style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
+                            onChange={(e) => set('partner_cn_no', e.target.value.toUpperCase())}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  ),
+                },
+                {
+                  key: 'network',
+                  label: <Text type="secondary">Advanced — network path (manual override)</Text>,
+                  children: networkPathCard,
+                },
+              ]}
+            />
           </Card>
 
-          {!dropMode ? networkPathCard : null}
-
-          {/* First mile */}
+          {/* 4 · Summary */}
           <Card
             size="small"
-            title={<Text strong>{dropMode ? '2' : '3'} · First mile</Text>}
-            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>How the parcel enters the network</Text>}
+            title={<Text strong>4 · Summary</Text>}
+            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>Review before saving</Text>}
             style={cardStyle}
             headStyle={cardHead}
           >
-            <Form.Item style={{ marginBottom: 16 }}>
-              <Radio.Group
-                buttonStyle="solid"
-                value={form.origin_service || 'DROP_COUNTER'}
-                onChange={(e) => {
-                  const mode = e.target.value
-                  setForm((f) => ({
-                    ...f,
-                    origin_service: mode,
-                    origin_drop_point_id: mode === 'DROP_COUNTER' ? f.origin_drop_point_id : '',
-                    sender_address: mode === 'ADDRESS_PICKUP' ? f.sender_address : '',
-                  }))
-                }}
-                style={{ width: '100%', display: 'flex' }}
-              >
-                {originServices.map((s) => (
-                  <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
-                    {s.label || s.code}
-                  </Radio.Button>
-                ))}
-              </Radio.Group>
-            </Form.Item>
-            <Row gutter={[16, 12]}>
-              {form.origin_service === 'DROP_COUNTER' ? (
-                <Col xs={24} md={16}>
-                  <Form.Item label="Drop point" style={{ marginBottom: 4 }}>
-                    <Select
-                      showSearch
-                      allowClear
-                      optionFilterProp="label"
-                      placeholder="Search drop counter…"
-                      value={form.origin_drop_point_id ? String(form.origin_drop_point_id) : undefined}
-                      options={pickupDrops.map((d) => ({
-                        value: String(d.id),
-                        label: `${d.drop_code} — ${d.drop_name}${d.delivery_point_code ? ` · ${d.delivery_point_code}` : ''}`,
-                      }))}
-                      onChange={(id) => (id ? pickOriginDrop(id) : set('origin_drop_point_id', ''))}
-                      popupMatchSelectWidth={false}
-                      dropdownStyle={{ minWidth: 280 }}
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                  <FieldHint>
-                    {user?.homeDropPointId
-                      ? 'Prefilled from your home drop point. Changing it also updates the origin delivery point.'
-                      : 'Choosing a drop point also sets the origin delivery point.'}
-                  </FieldHint>
-                </Col>
-              ) : (
-                <Col span={24}>
-                  <Form.Item label="Pickup address" required style={{ marginBottom: 0 }}>
-                    <Input.TextArea
-                      rows={2}
-                      value={form.sender_address || ''}
-                      onChange={(e) => set('sender_address', e.target.value)}
-                      placeholder="Full sender address for collection"
-                    />
-                  </Form.Item>
-                </Col>
-              )}
+            <Row gutter={[16, 16]}>
               <Col xs={24} md={12}>
-                <Form.Item label="Sender / consigner" style={{ marginBottom: 0 }}>
-                  <Input
-                    value={form.consigner}
-                    onChange={(e) => set('consigner', e.target.value)}
-                    placeholder="Sender name"
-                  />
-                </Form.Item>
+                <Text type="secondary" style={{ fontSize: 12 }}>Sender</Text>
+                <div style={{ fontWeight: 600 }}>{form.consigner || '—'}</div>
+                <div style={{ fontSize: 13, color: MUTED }}>{form.sender_phone || '—'}</div>
+                <div style={{ fontSize: 13, color: MUTED }}>
+                  {[form.sender_address, form.sender_postcode, form.sender_city, form.sender_state].filter(Boolean).join(', ') || '—'}
+                </div>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Sender phone" style={{ marginBottom: 0 }}>
-                  <Input
-                    value={form.sender_phone}
-                    onChange={(e) => set('sender_phone', e.target.value)}
-                    placeholder="Optional contact number"
-                  />
-                </Form.Item>
+                <Text type="secondary" style={{ fontSize: 12 }}>Receiver</Text>
+                <div style={{ fontWeight: 600 }}>{form.consignee || form.recp_name || '—'}</div>
+                <div style={{ fontSize: 13, color: MUTED }}>{form.receiver_phone || '—'}</div>
+                <div style={{ fontSize: 13, color: MUTED }}>
+                  {[form.remarks, form.receiver_postcode, form.receiver_city, form.receiver_state].filter(Boolean).join(', ') || '—'}
+                </div>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Total weight</Text>
+                <div style={{ fontWeight: 700 }}>{chargeableWt > 0 ? `${chargeableWt.toFixed(2)} kg` : '—'}</div>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Parcel value</Text>
+                <div style={{ fontWeight: 700 }}>{form.parcel_value !== '' ? money(form.parcel_value) : '—'}</div>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Estimate postage</Text>
+                <div style={{ fontWeight: 800, color: BRAND }}>{quote ? money(quote.total) : '—'}</div>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Text type="secondary" style={{ fontSize: 12 }}>COD charges</Text>
+                <div style={{ fontWeight: 700 }}>
+                  {form.pay_mode === 'COD' ? money(codFeeRm) : '—'}
+                </div>
+              </Col>
+              <Col span={24}>
+                <Divider style={{ margin: '4px 0 12px' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Payment type : {PAYMENT_OFFERS.find((p) => p.value === form.payment_offer)?.label || form.payment_offer}
+                    </Text>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: BRAND }}>
+                      Total payment{' '}
+                      {quote
+                        ? money(Number(quote.total || 0) + (form.pay_mode === 'COD' ? Number(codFeeRm) || 0 : 0))
+                        : '—'}
+                    </div>
+                  </div>
+                  <Button type="primary" size="large" icon={<SaveOutlined />} loading={saving} onClick={onSave} style={{ background: BRAND, borderColor: BRAND }}>
+                    {saveLabel}
+                  </Button>
+                </div>
               </Col>
             </Row>
           </Card>
-
-          {/* Last mile */}
-          <Card
-            size="small"
-            title={<Text strong>{dropMode ? '3' : '4'} · Last mile</Text>}
-            extra={<Text style={{ fontSize: 12.5, color: MUTED }}>How the receiver gets the parcel</Text>}
-            style={cardStyle}
-            headStyle={cardHead}
-          >
-            <Form.Item style={{ marginBottom: 16 }}>
-              <Radio.Group
-                buttonStyle="solid"
-                value={form.destination_service || 'DOORSTEP'}
-                onChange={(e) => {
-                  const mode = e.target.value
-                  setForm((f) => ({
-                    ...f,
-                    destination_service: mode,
-                    destination_drop_point_id: mode === 'SELF_COLLECT' ? f.destination_drop_point_id : '',
-                    destination_area_code: mode === 'DOORSTEP' ? f.destination_area_code : '',
-                    remarks: mode === 'DOORSTEP' || dropMode ? f.remarks : '',
-                  }))
-                }}
-                style={{ width: '100%', display: 'flex' }}
-              >
-                {destinationServices.map((s) => (
-                  <Radio.Button key={s.code} value={s.code} style={{ flex: 1, textAlign: 'center' }}>
-                    {s.label || s.code}
-                  </Radio.Button>
-                ))}
-              </Radio.Group>
-            </Form.Item>
-            <Row gutter={[16, 12]}>
-              <Col xs={24} md={12}>
-                <Form.Item label="Receiver / consignee" style={{ marginBottom: 0 }}>
-                  <Input
-                    value={form.consignee}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setForm((f) => ({ ...f, consignee: v, recp_name: v }))
-                    }}
-                    placeholder="Receiver name"
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Receiver phone" style={{ marginBottom: 0 }}>
-                  <Input
-                    value={form.receiver_phone}
-                    onChange={(e) => set('receiver_phone', e.target.value)}
-                    placeholder="Optional contact number"
-                  />
-                </Form.Item>
-              </Col>
-              {dropMode ? (
-                <>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Postcode" style={{ marginBottom: 0 }}>
-                      <Input
-                        value={form.receiver_postcode || ''}
-                        onChange={(e) => set('receiver_postcode', e.target.value)}
-                        placeholder="e.g. 50450"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="City / state" style={{ marginBottom: 0 }}>
-                      <Input
-                        value={form.receiver_city || ''}
-                        onChange={(e) => set('receiver_city', e.target.value)}
-                        placeholder="e.g. Kuala Lumpur"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Receiver address" required style={{ marginBottom: 0 }}>
-                      <Input.TextArea
-                        rows={2}
-                        value={form.remarks || ''}
-                        onChange={(e) => set('remarks', e.target.value)}
-                        placeholder="Full receiver address"
-                      />
-                    </Form.Item>
-                    <FieldHint>
-                      {form.destination_service === 'SELF_COLLECT'
-                        ? 'Used to pick the nearest drop point for the receiver to collect from.'
-                        : 'Used to pick the destination delivery point and dispatcher.'}
-                    </FieldHint>
-                    {resolvingRoute ? (
-                      <FieldHint><Spin size="small" /> Resolving network path…</FieldHint>
-                    ) : routePreview?.routePlanStatus ? (
-                      <FieldHint>
-                        Auto-route:{' '}
-                        <Text strong style={{ color: routePreview.routePlanStatus === 'RESOLVED' ? BRAND : '#D97706' }}>
-                          {routePreview.routePlanStatus}
-                        </Text>
-                        {form.destination_service === 'SELF_COLLECT' && routePreview.destinationDropCode
-                          ? ` · Collect at ${routePreview.destinationDropCode}${routePreview.destinationDropName ? ` — ${routePreview.destinationDropName}` : ''}`
-                          : ''}
-                        {form.destination_service !== 'SELF_COLLECT' && routePreview.destinationZone
-                          ? ` · ${routePreview.destinationZone}`
-                          : ''}
-                        {form.destination_service !== 'SELF_COLLECT' && routePreview.destinationAreaName
-                          ? ` · ${routePreview.destinationAreaName}`
-                          : ''}
-                      </FieldHint>
-                    ) : null}
-                  </Col>
-                </>
-              ) : form.destination_service === 'SELF_COLLECT' ? (
-                <Col xs={24} md={12}>
-                  <Form.Item label="Self-collect drop point" style={{ marginBottom: 0 }}>
-                    <Select
-                      showSearch
-                      optionFilterProp="label"
-                      placeholder="Search self-collect drop…"
-                      value={form.destination_drop_point_id ? String(form.destination_drop_point_id) : undefined}
-                      options={deliveryDrops.map((d) => ({
-                        value: String(d.id),
-                        label: `${d.drop_code} — ${d.drop_name}`,
-                      }))}
-                      onChange={(id) => set('destination_drop_point_id', id || '')}
-                      popupMatchSelectWidth={false}
-                      dropdownStyle={{ minWidth: 280 }}
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                </Col>
-              ) : (
-                <>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Destination area" style={{ marginBottom: 4 }}>
-                      <Select
-                        showSearch
-                        allowClear
-                        optionFilterProp="label"
-                        placeholder="Auto-filled from address (optional override)"
-                        value={form.destination_area_code || undefined}
-                        options={destAreas.map((a) => ({
-                          value: a.area_code,
-                          label: `${a.area_code} — ${a.area_name}`,
-                        }))}
-                        onChange={(code) => {
-                          setManualDestination(true)
-                          set('destination_area_code', code || '')
-                        }}
-                        popupMatchSelectWidth={false}
-                        dropdownStyle={{ minWidth: 280 }}
-                        style={{ width: '100%' }}
-                      />
-                    </Form.Item>
-                    <FieldHint>Usually filled by auto-route; override only if needed.</FieldHint>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Postcode" style={{ marginBottom: 0 }}>
-                      <Input
-                        value={form.receiver_postcode || ''}
-                        onChange={(e) => set('receiver_postcode', e.target.value)}
-                        placeholder="e.g. 50450"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="City / state" style={{ marginBottom: 0 }}>
-                      <Input
-                        value={form.receiver_city || ''}
-                        onChange={(e) => set('receiver_city', e.target.value)}
-                        placeholder="e.g. Kuala Lumpur"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Delivery address" required style={{ marginBottom: 0 }}>
-                      <Input.TextArea
-                        rows={2}
-                        value={form.remarks || ''}
-                        onChange={(e) => set('remarks', e.target.value)}
-                        placeholder="Full receiver address — used to auto-select destination delivery point"
-                      />
-                    </Form.Item>
-                    {resolvingRoute ? (
-                      <FieldHint><Spin size="small" /> Resolving network path…</FieldHint>
-                    ) : routePreview?.routePlanStatus ? (
-                      <FieldHint>
-                        Auto-route:{' '}
-                        <Text strong style={{ color: routePreview.routePlanStatus === 'RESOLVED' ? BRAND : '#D97706' }}>
-                          {routePreview.routePlanStatus}
-                        </Text>
-                        {routePreview.destinationZone ? ` · ${routePreview.destinationZone}` : ''}
-                        {routePreview.destinationAreaName ? ` · ${routePreview.destinationAreaName}` : ''}
-                      </FieldHint>
-                    ) : null}
-                  </Col>
-                </>
-              )}
-            </Row>
-          </Card>
-
-          {dropMode ? networkPathCard : null}
 
           {savedFreight?.total != null && Number(savedFreight.total) > 0 ? (
             <Alert
@@ -2175,7 +2181,7 @@ export default function ConsignmentEntryPage() {
                     ? quoting
                       ? 'Calculating quote…'
                       : 'No quote returned — check rate tables.'
-                    : 'Enter customer, hubs/DPs, and weight for a quote'}
+                    : 'Enter customer, receiver postcode, and weight for a quote'}
                 </Text>
               )}
 

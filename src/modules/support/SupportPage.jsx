@@ -258,7 +258,7 @@ export default function SupportPage() {
                 style={{ fontSize: 11, fontFamily: 'monospace', color: '#1B8A5A', cursor: 'pointer' }}
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigate(`/ops/consignments/${encodeURIComponent(cn)}`)
+                  navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}&tab=${encodeURIComponent(cn)}`)
                 }}
               >
                 CN: {cn}
@@ -436,7 +436,7 @@ export default function SupportPage() {
                   CN:{' '}
                   <span
                     style={{ fontFamily: 'monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => navigate(`/ops/consignments/${encodeURIComponent(detail.cn_no || detail.awb)}`)}
+                    onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(detail.cn_no || detail.awb)}&tab=${encodeURIComponent(detail.cn_no || detail.awb)}`)}
                   >
                     {detail.cn_no || detail.awb}
                   </span>

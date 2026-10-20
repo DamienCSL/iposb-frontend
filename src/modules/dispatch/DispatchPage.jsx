@@ -352,8 +352,8 @@ export default function DispatchPage() {
             <Card size="small" title={`Consignment ${cn.cnNo || cnNo}`}>
               <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
                 <Descriptions.Item label="Status">{cn.cnStatus || cn.status || '—'}</Descriptions.Item>
-                <Descriptions.Item label="Origin DP">{cn.originZone || cn.origin_zone || '—'}</Descriptions.Item>
-                <Descriptions.Item label="Dest DP">{cn.destinationZone || cn.destination_zone || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Origin DEP">{cn.originZone || cn.origin_zone || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Dest DEP">{cn.destinationZone || cn.destination_zone || '—'}</Descriptions.Item>
                 <Descriptions.Item label="Dest Area">
                   {planInfo?.path?.destinationArea || cn.destination_area_code || '—'}
                 </Descriptions.Item>

@@ -61,7 +61,7 @@ const legacyColumns = [
 const legacyRows = [
   {
     key: 'hub',
-    line: 'Origin DP — hub-count',
+    line: 'Origin DEP — hub-count',
     formula: 'First 3 pcs × RM 0.70, then each extra pc × RM 0.30',
     example: '2.10 + 0.60 = RM 2.70',
   },
@@ -73,14 +73,14 @@ const legacyRows = [
   },
   {
     key: 'dwell',
-    line: 'Dest DP — warehouse dwell',
+    line: 'Dest DEP — warehouse dwell',
     formula:
       'Paid by nights the parcel sits: T0 same day RM 1.50 · T1 1.40 · T2 1.30 · T3 1.20 · T4 1.10 · T5 1.00, then −RM 0.10 per extra night (floor RM 0.50)',
     example: 'Same day → RM 1.50',
   },
   {
     key: 'deliv',
-    line: 'Dest DP — dwell tiers off',
+    line: 'Dest DEP — dwell tiers off',
     formula: 'Weight × RM/kg (default 0.60)',
     example: '3.5 × 0.60 = RM 2.10',
   },

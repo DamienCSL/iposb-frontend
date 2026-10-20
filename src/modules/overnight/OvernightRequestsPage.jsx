@@ -160,7 +160,7 @@ export default function OvernightRequestsPage() {
       dataIndex: 'consignmentNo',
       key: 'consignmentNo',
       render: (v) => (
-        <Link to={`/ops/consignments/${encodeURIComponent(v)}`} style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+        <Link to={`/ops/consignments/tracking?cn=${encodeURIComponent(v)}&tab=${encodeURIComponent(v)}`} style={{ fontFamily: 'monospace', fontWeight: 700 }}>
           {v}
         </Link>
       ),
@@ -220,7 +220,7 @@ export default function OvernightRequestsPage() {
       render: (_, r) => {
         if (r.requestStatus !== 'PENDING' || !canReview) {
           return (
-            <Button size="small" onClick={() => navigate(`/ops/consignments/${encodeURIComponent(r.consignmentNo)}`)}>
+            <Button size="small" onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(r.consignmentNo)}&tab=${encodeURIComponent(r.consignmentNo)}`)}>
               Open CN
             </Button>
           )

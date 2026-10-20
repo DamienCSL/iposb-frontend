@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Button,
@@ -11,12 +11,22 @@ import {
   Row,
   Space,
   Spin,
+  Statistic,
   Tabs,
   Tag,
   Typography,
   message,
 } from 'antd'
-import { PlusOutlined, ClearOutlined, StopOutlined, FileSearchOutlined } from '@ant-design/icons'
+import {
+  CarOutlined,
+  ClearOutlined,
+  DollarCircleOutlined,
+  EnvironmentOutlined,
+  PlusOutlined,
+  StopOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
 import { apiError, getTracking } from '../api/client'
 import CancelConsignmentModal from '../components/CancelConsignmentModal'
 import DataTable from '../components/DataTable'
@@ -97,10 +107,12 @@ function stepGlance(step) {
   const code = String(step?.code || '').toUpperCase()
   const raw = String(step?.label || step?.code || '')
   const roles = {
-    ODP: 'Origin DP',
+    ODEP: 'Origin DEP',
+    ODP: 'Origin DEP',
     HUB: 'Via hub',
     DHUB: 'Dest hub',
-    DDP: 'Dest DP',
+    DDEP: 'Dest DEP',
+    DDP: 'Dest DEP',
     AREA: 'Last-mile area',
     DP: 'Self-collect',
     DL: 'Delivery',
@@ -154,7 +166,17 @@ function ServicePill({ label, value, wide }) {
   )
 }
 
+function pieceCount(cn) {
+  const p = cn?.pieces
+  if (Array.isArray(p)) {
+    const total = p.reduce((sum, row) => sum + (Number(row?.qty) > 0 ? Number(row.qty) : 1), 0)
+    return total || Number(cn?.cn_pcs) || 1
+  }
+  return Number(p) || Number(cn?.cn_pcs) || 1
+}
+
 export default function TrackingPage() {
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const initial = useMemo(() => loadSession(), [])
   const [cn, setCn] = useState('')
@@ -201,7 +223,7 @@ export default function TrackingPage() {
           [code]: { found: false, error: null },
         }))
       } else {
-        setPanels((prev) => ({ ...prev, [code]: { found: true, data } }))
+      setPanels((prev) => ({ ...prev, [code]: { found: true, data } }))
       }
     } catch (err) {
       const status = err?.response?.status
@@ -249,9 +271,9 @@ export default function TrackingPage() {
       okText: 'Clear all',
       okButtonProps: { danger: true },
       onOk: () => {
-        persist([], '')
-        setPanels({})
-        sessionStorage.removeItem(SESSION_KEY)
+    persist([], '')
+    setPanels({})
+    sessionStorage.removeItem(SESSION_KEY)
       },
     })
   }
@@ -270,6 +292,7 @@ export default function TrackingPage() {
 
   const panel = panels[active]
   const data = panel?.data
+  const cnRow = data?.cn || {}
   const cancellation = data?.cancellation
   const route = data?.route || null
   const assignment = data?.assignment || null
@@ -278,6 +301,27 @@ export default function TrackingPage() {
   const transportLegs = Array.isArray(data?.transportLegs) ? data.transportLegs : []
   const events = Array.isArray(data?.timeline) ? [...data.timeline].reverse() : []
   const failedAttempts = Array.isArray(data?.scanAttempts) ? data.scanAttempts : []
+  const bagNo = cnRow.batch_no || cnRow.pod_batch || cnRow.bag_no || null
+  const manifestNo = cnRow.mfg_no || null
+  const agentName =
+    assignment?.assignedDriverName ||
+    (assignment?.assignedDriverId ? `Driver #${assignment.assignedDriverId}` : null) ||
+    assignment?.originDropLabel ||
+    data?.originDropLabel ||
+    null
+  const agentRole = assignment?.assignedDriverName || assignment?.assignedDriverId
+    ? 'Courier Driver'
+    : assignment?.originDropLabel || data?.originDropLabel
+      ? 'Drop Point Operator'
+      : 'Unassigned'
+  const isMultimodalOrSea =
+    ['sea', 'multimodal', 'ocean'].includes(
+      String(data?.transportMode || cnRow.transport_mode || cnRow.srv_typ || '').toLowerCase(),
+    ) || Boolean(data?.vesselName || cnRow.vessel_name || data?.voyageRef || cnRow.voyage_ref)
+  const freightTotal = Number(cnRow.tot_cn_amt ?? cnRow.con_ramt ?? data?.expectedAmt ?? 0) || 0
+  const codAmt = Number(cnRow.cod_amt ?? (data?.isCod ? data?.expectedAmt : 0) ?? 0) || 0
+  const payMode =
+    cnRow.ppd_cct || cnRow.pay_typ || data?.payMode || (codAmt > 0 || data?.isCod ? 'COD' : 'PPD')
 
   const transportColumns = [
     { title: '#', key: 'seq', width: 48, render: (_, leg, i) => leg.seq || i + 1 },
@@ -319,14 +363,31 @@ export default function TrackingPage() {
       ),
     },
     {
+      title: 'Location',
+      key: 'location',
+      width: 200,
+      render: (_, ev) => (
+        <div style={{ fontSize: 13, fontWeight: 600 }}>
+          {ev.locationLabel || ev.location || '—'}
+        </div>
+      ),
+    },
+    {
+      title: 'Done by',
+      key: 'by',
+      width: 200,
+      render: (_, ev) => (
+        <div style={{ fontSize: 13, fontWeight: 600 }}>
+          {ev.byLabel || ev.byName || ev.by || 'system'}
+        </div>
+      ),
+    },
+    {
       title: 'Tracking Record',
       key: 'record',
       render: (_, ev) => (
         <div>
           {ev.trackingRecord || ev.customerLabel || ev.note || '—'}
-          {ev.location ? (
-            <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{ev.location}</div>
-          ) : null}
           {ev.evidenceUrl ? (
             <div style={{ marginTop: 4 }}>
               <a href={ev.evidenceUrl} target="_blank" rel="noreferrer">
@@ -392,7 +453,7 @@ export default function TrackingPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
+    <div>
         <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>
           Consignment Tracking
         </Title>
@@ -446,15 +507,15 @@ export default function TrackingPage() {
                 <Button type="primary" htmlType="submit" icon={<PlusOutlined />} style={{ background: BRAND_GREEN, borderColor: BRAND_GREEN }}>
                   {list.length ? 'Add to tabs' : 'Track'}
                 </Button>
-                {list.length ? (
+              {list.length ? (
                   <Button icon={<ClearOutlined />} onClick={clearAll}>
-                    Clear all
+                  Clear all
                   </Button>
-                ) : null}
+              ) : null}
               </Space>
             </Col>
           </Row>
-        </form>
+          </form>
       </Card>
 
       {list.length === 0 ? (
@@ -488,7 +549,7 @@ export default function TrackingPage() {
             <div style={{ padding: 24, textAlign: 'center' }}>
               <Spin tip="Looking up…" />
             </div>
-          ) : null}
+                  ) : null}
 
           {panel?.error ? (
             <Alert type="error" showIcon message="Tracking query failed" description={panel.error} />
@@ -517,18 +578,6 @@ export default function TrackingPage() {
                       </Text>
                       <StatusTag status={data.statusCode} text={data.scanningType || data.shortLabel} />
                     </Space>
-                  }
-                  extra={
-                    <Link to={`/ops/consignments/${encodeURIComponent(data.cnNo || active)}`}>
-                      <Button
-                        type="primary"
-                        size="small"
-                        icon={<FileSearchOutlined />}
-                        style={{ background: BRAND_GREEN, borderColor: BRAND_GREEN }}
-                      >
-                        Open full dossier
-                      </Button>
-                    </Link>
                   }
                 >
                   <Row gutter={[16, 16]}>
@@ -573,7 +622,12 @@ export default function TrackingPage() {
                           </div>
                         </Descriptions.Item>
                         <Descriptions.Item label="Recipient">{data.recipientName || '—'}</Descriptions.Item>
-                        <Descriptions.Item label="Location">{data.location || '—'}</Descriptions.Item>
+                        <Descriptions.Item label="Location">
+                          {data.locationLabel || data.location || data.originDropLabel || '—'}
+                        </Descriptions.Item>
+                        {data.originDropLabel ? (
+                          <Descriptions.Item label="Dropped at">{data.originDropLabel}</Descriptions.Item>
+                        ) : null}
                       </Descriptions>
                     </Col>
                     <Col xs={24} md={12}>
@@ -621,6 +675,242 @@ export default function TrackingPage() {
                     </Col>
                   </Row>
                 </Card>
+
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} lg={8}>
+                    <Card
+                      title={
+                        <Space>
+                          <UserOutlined style={{ color: BRAND_GREEN }} />
+                          <span>Sender Details</span>
+                        </Space>
+                      }
+                      size="small"
+                      style={{ height: '100%', borderRadius: 8 }}
+                    >
+                      <Descriptions column={1} size="small" bordered>
+                        <Descriptions.Item label="Sender Name">
+                          <strong>
+                            {cnRow.senderName || cnRow.consigner || data.consigner || cnRow.cust_name || '—'}
+                          </strong>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Contact Phone">
+                          {cnRow.senderPhone || cnRow.sender_phone || cnRow.phone || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Sender Address">
+                          {cnRow.senderAddress || cnRow.sender_address || cnRow.origin_addr || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Customer Account">
+                          <Tag color="geekblue">{cnRow.cust_ac_no || 'WALK-IN'}</Tag>
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={8}>
+                    <Card
+                      title={
+                        <Space>
+                          <CarOutlined style={{ color: BRAND_GREEN }} />
+                          <span>Shipping & Cargo</span>
+                        </Space>
+                      }
+                      size="small"
+                      style={{ height: '100%', borderRadius: 8 }}
+                    >
+                      <Descriptions column={1} size="small" bordered>
+                        <Descriptions.Item label="Route">
+                          <strong>{data.origin || cnRow.cn_origin || '—'}</strong> →{' '}
+                          <strong>{data.destination || cnRow.cn_dstn || '—'}</strong>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Zones">
+                          {data.originZone || cnRow.origin_zone || '—'} →{' '}
+                          {data.destinationZone || cnRow.destination_zone || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Cargo Specs">
+                          {cnRow.weight || cnRow.cn_wt || '0.00'} kg · {pieceCount(cnRow)} pcs
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Transport Mode">
+                          <Tag color="cyan" style={{ textTransform: 'uppercase' }}>
+                            {data.transportModeLabel || data.transportMode || cnRow.transport_mode || cnRow.srv_typ || 'ROAD'}
+                          </Tag>{' '}
+                          ({cnRow.srv_typ || 'STD'})
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Bag / Batch">
+                          {bagNo ? (
+                            <Tag color="purple">Bag: {bagNo}</Tag>
+                          ) : (
+                            <span style={{ color: '#9CA3AF' }}>Loose Parcel</span>
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Manifest (MFG)">
+                          {manifestNo ? (
+                            <a
+                              style={{ color: BRAND_GREEN, fontWeight: 600, cursor: 'pointer' }}
+                              onClick={() => navigate(`/ops/manifests/${encodeURIComponent(manifestNo)}`)}
+                            >
+                              {manifestNo}
+                            </a>
+                          ) : (
+                            <span style={{ color: '#9CA3AF' }}>Unmanifested</span>
+                          )}
+                        </Descriptions.Item>
+                      </Descriptions>
+                      {isMultimodalOrSea ? (
+                        <div style={{ marginTop: 10, padding: 8, background: '#F0F9FF', borderRadius: 6, fontSize: 11 }}>
+                          <div style={{ fontWeight: 600, color: '#0369A1' }}>Maritime Sea Cargo:</div>
+                          <div>Vessel: {data.vesselName || cnRow.vessel_name || '—'}</div>
+                          <div>Voyage: {data.voyageRef || cnRow.voyage_ref || '—'}</div>
+                        </div>
+                      ) : null}
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={8}>
+                    <Card
+                      title={
+                        <Space>
+                          <EnvironmentOutlined style={{ color: '#1668DC' }} />
+                          <span>Recipient Details</span>
+                        </Space>
+                      }
+                      size="small"
+                      style={{ height: '100%', borderRadius: 8 }}
+                    >
+                      <Descriptions column={1} size="small" bordered>
+                        <Descriptions.Item label="Recipient Name">
+                          <strong>
+                            {data.recipientName || cnRow.recp_name || cnRow.consignee || data.consignee || '—'}
+                          </strong>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Contact Phone">
+                          {cnRow.phone || cnRow.recp_phone || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Delivery Address">
+                          {cnRow.address || cnRow.destination_addr || cnRow.recp_addr || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Destination Hub">
+                          <Tag color="blue">{data.destination || cnRow.cn_dstn || '—'}</Tag>
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} md={12}>
+                    <Card
+                      title={
+                        <Space>
+                          <DollarCircleOutlined style={{ color: BRAND_GREEN }} />
+                          <span>Financial Charges & Payment</span>
+                        </Space>
+                      }
+                      size="small"
+                      style={{ height: '100%', borderRadius: 8 }}
+                    >
+                      <Row gutter={[16, 12]}>
+                        <Col span={12}>
+                          <Statistic
+                            title="Freight Total"
+                            value={freightTotal}
+                            precision={2}
+                            prefix="RM"
+                            valueStyle={{ color: BRAND_GREEN, fontSize: 18 }}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <Statistic
+                            title="Payment Mode"
+                            value={payMode}
+                            valueStyle={{ fontSize: 18, fontWeight: 700 }}
+                          />
+                        </Col>
+                      </Row>
+                      {codAmt > 0 || data.isCod ? (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            padding: '8px 12px',
+                            background: '#FFFBEB',
+                            borderRadius: 6,
+                            border: '1px solid #FDE68A',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>COD Amount:</span>
+                            <span style={{ marginLeft: 6, fontWeight: 700, color: '#92400E' }}>
+                              {money(codAmt || data.expectedAmt)}
+                            </span>
+                          </div>
+                          <Button
+                            size="small"
+                            type="link"
+                            onClick={() => navigate(`/ops/cod?cn=${encodeURIComponent(data.cnNo || active)}`)}
+                            style={{ padding: 0, height: 'auto', fontSize: 11 }}
+                          >
+                            COD Control →
+                          </Button>
+                        </div>
+                      ) : null}
+                    </Card>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Card
+                      title={
+                        <Space>
+                          <TeamOutlined style={{ color: '#1668DC' }} />
+                          <span>Operational Custody & Queue</span>
+                        </Space>
+                      }
+                      size="small"
+                      style={{ height: '100%', borderRadius: 8 }}
+                      extra={
+                        <Button size="small" type="link" onClick={() => navigate('/ops/pickups')}>
+                          Manage Pickups →
+                        </Button>
+                      }
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                        <div
+                          style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: '50%',
+                            background: agentName ? '#EBF5FF' : '#F3F4F6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: agentName ? '#1668DC' : '#9CA3AF',
+                            fontSize: 18,
+                          }}
+                        >
+                          <CarOutlined />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: '#0F1B2D' }}>
+                            {agentName || 'Pending Courier / Driver Assignment'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>{agentRole}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                        <Button size="small" onClick={() => navigate('/ops/pickups')}>
+                          Assign Courier
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            navigate(`/ops/cs/tickets?cn=${encodeURIComponent(data.cnNo || active)}`)
+                          }
+                        >
+                          Open CS Ticket
+                        </Button>
+                      </div>
+                    </Card>
+                  </Col>
+                </Row>
 
                 {route || assignment ? (
                   <Row gutter={[12, 12]}>
@@ -937,16 +1227,16 @@ export default function TrackingPage() {
                           <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Mother</div>
                           <div style={{ fontFamily: 'monospace', fontWeight: 700, color: BRAND_GREEN }}>
                             {sealChain.mother.sealNo}
-                          </div>
+                </div>
                           <Text type="secondary" style={{ fontSize: 12 }}>
                             {sealChain.mother.destDeliveryPoint || '—'} · {sealChain.mother.lifecycle}
                           </Text>
-                        </div>
+                    </div>
                       ) : null}
                       {sealChain.mother && sealChain.baby ? (
                         <span style={{ color: '#94A3B8', fontSize: 18 }} aria-hidden="true">
                           ⊃
-                        </span>
+                              </span>
                       ) : null}
                       {sealChain.baby ? (
                         <div
@@ -1044,7 +1334,7 @@ export default function TrackingPage() {
                   title="Tracking Info"
                   extra={
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {events.length} event{events.length === 1 ? '' : 's'}
+                  {events.length} event{events.length === 1 ? '' : 's'}
                     </Text>
                   }
                   bodyStyle={{ paddingTop: events.length === 0 ? 16 : 0 }}

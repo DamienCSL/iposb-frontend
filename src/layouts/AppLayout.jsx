@@ -105,6 +105,7 @@ const APP_PAGES = [
   { title: 'Master Data: Route Codes', path: '/ops/admin/route-codes', keywords: ['route-codes', 'sector', 'area'] },
   { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
   { title: 'Master Data: Staff Users', path: '/ops/admin/users', keywords: ['users', 'accounts', 'passwords', 'roles'] },
+  { title: 'Master Data: Storekeepers', path: '/ops/admin/storekeepers', keywords: ['storekeeper', 'store keepers', 'delivery point manager', 'dep'] },
   { title: 'System Activity & Audit Logs', path: '/ops/logs', keywords: ['logs', 'audit', 'activity', 'history', 'events', 'trail'] },
 ]
 
@@ -405,7 +406,8 @@ export default function AppLayout() {
 
     // 2. Consignment match
     if (targetType === 'consignment' || targetCn) {
-      navigate(`/ops/consignments/${encodeURIComponent(targetCn || value)}`)
+      const code = String(targetCn || value).trim().toUpperCase()
+      navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(code)}&tab=${encodeURIComponent(code)}`)
       setSearchText('')
       setSearchOptions([])
       return
@@ -419,8 +421,9 @@ export default function AppLayout() {
       return
     }
 
-    // 4. Fallback
-    navigate(`/ops/consignments/${encodeURIComponent(value)}`)
+    // 4. Fallback — CN lookup opens tracking workspace
+    const code = String(value).trim().toUpperCase()
+    navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(code)}&tab=${encodeURIComponent(code)}`)
     setSearchText('')
     setSearchOptions([])
   }
@@ -445,7 +448,8 @@ export default function AppLayout() {
       return
     }
 
-    navigate(`/ops/consignments/${encodeURIComponent(trimmed)}`)
+    const code = trimmed.toUpperCase()
+    navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(code)}&tab=${encodeURIComponent(code)}`)
     setSearchText('')
     setSearchOptions([])
   }
@@ -929,6 +933,11 @@ export default function AppLayout() {
               label: <Link to="/ops/admin/users" style={{ display: 'block', width: '100%' }}>Staff Users</Link>,
               visible: isAdmin,
             },
+            {
+              key: '/ops/admin/storekeepers',
+              label: <Link to="/ops/admin/storekeepers" style={{ display: 'block', width: '100%' }}>Storekeepers</Link>,
+              visible: isAdmin || can('admin'),
+            },
           ],
         },
         {
@@ -1181,7 +1190,7 @@ export default function AppLayout() {
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>
                   {user.username}
             </span>
-              </div>
+            </div>
             </Dropdown>
           </div>
         </Header>
@@ -1195,7 +1204,7 @@ export default function AppLayout() {
           }}
           className="content-fade-in"
         >
-          <Outlet />
+        <Outlet />
         </Content>
       </Layout>
     </Layout>

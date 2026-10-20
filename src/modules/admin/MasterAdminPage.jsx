@@ -64,7 +64,7 @@ import StatusTag from '../../components/StatusTag'
 
 // Removing these only deactivates the row (is_active = 0) so history keeps its codes.
 const SOFT_DELETE_RESOURCES = new Set([
-  'users', 'branches', 'hubs', 'drop-points', '3pl', 'dispatchers', 'routes', 'zones', 'delivery-points', 'areas', 'route-codes',
+  'users', 'storekeepers', 'branches', 'hubs', 'drop-points', '3pl', 'dispatchers', 'routes', 'zones', 'delivery-points', 'areas', 'route-codes',
 ])
 
 const isInactiveRow = (r) => r?.is_active != null && String(r.is_active) === '0'
@@ -193,6 +193,7 @@ export const MASTER_CATEGORIES = [
     resources: [
       { key: 'customers', label: 'Corporate Customers', icon: <TeamOutlined /> },
       { key: 'users', label: 'Staff Users', icon: <SafetyCertificateOutlined /> },
+      { key: 'storekeepers', label: 'Storekeepers', icon: <SafetyCertificateOutlined /> },
     ],
   },
 ]
@@ -263,17 +264,57 @@ export const MASTER_SCHEMAS = {
       { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code' },
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Type', dataIndex: 'drop_type', key: 'drop_type' },
+      {
+        title: 'Mobile App Login',
+        dataIndex: 'mobile_email',
+        key: 'mobile_email',
+        render: (v, r) =>
+          v ? (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <span>{v}</span>
+              <Tag color={String(r.mobile_is_active) === '0' ? 'default' : 'green'}>
+                {String(r.mobile_is_active) === '0' ? 'Login disabled' : 'Can sign in'}
+              </Tag>
+            </Space>
+          ) : (
+            <Tag color="orange">No login</Tag>
+          ),
+      },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
     fields: [
       { name: 'drop_code', label: 'Drop Point Code (5–6 chars, used in CN)', required: true, placeholder: 'e.g. INM01', generate: 'drop_code', useBranch: true },
       { name: 'drop_name', label: 'Drop Point Name', required: true },
-      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL', lookup: 'delivery-points' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DEP-KUL', lookup: 'delivery-points' },
       { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       { name: 'drop_type', label: 'Type', placeholder: 'STATION, PARTNER, or LOCKER' },
+      { name: 'phone', label: 'Phone' },
       { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
+      {
+        name: 'mobile_email',
+        label: 'Mobile App Login Email',
+        placeholder: 'droppoint@example.com',
+        help: 'Signs in to the IPOSB Drop Point app. Leave blank for no app access.',
+      },
+      {
+        name: 'mobile_password',
+        label: 'Mobile App Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required for a new login. When editing, leave blank to keep the current password, or type a new one to reset it.',
+      },
+      {
+        name: 'is_active',
+        label: 'Status',
+        type: 'select',
+        editOnly: true,
+        options: [
+          { label: 'Active', value: '1' },
+          { label: 'Inactive (also blocks app sign-in)', value: '0' },
+        ],
+      },
       { name: 'lat', label: 'Latitude', type: 'number', geo: true },
       { name: 'lng', label: 'Longitude', type: 'number', geo: true },
     ],
@@ -298,7 +339,7 @@ export const MASTER_SCHEMAS = {
     fields: [
       { name: 'area_code', label: 'Area Code', required: true, placeholder: 'e.g. KK-CBD', generate: 'coverage' },
       { name: 'area_name', label: 'Area Name', required: true, placeholder: 'e.g. Kota Kinabalu CBD' },
-      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DPT-KUL', lookup: 'delivery-points' },
+      { name: 'delivery_point_code', label: 'Delivery Point Code', required: true, placeholder: 'e.g. DEP-KUL', lookup: 'delivery-points' },
       {
         name: 'owner_type',
         label: 'Owner Type',
@@ -354,8 +395,23 @@ export const MASTER_SCHEMAS = {
           { label: 'Both', value: 'both' },
         ],
       },
-      { name: 'home_drop_point_id', label: 'Home Drop Point ID' },
-      { name: 'preferred_zones', label: 'Preferred Zones', placeholder: 'e.g. BKI, BKI-NORTH' },
+      {
+        name: 'home_drop_point_id',
+        label: 'Home Drop Point',
+        lookup: 'drop-points',
+        valueAsId: true,
+        placeholder: 'Search drop point code or name…',
+        help: 'Search and pick the driver’s home counter / drop point.',
+      },
+      {
+        name: 'preferred_zones',
+        label: 'Preferred Zones / Delivery Points',
+        lookup: 'delivery-points',
+        mode: 'tags',
+        allowCustom: true,
+        placeholder: 'Search delivery points — pick several or type a code…',
+        help: 'Searchable multi-select. Pick from delivery points, or type extra codes.',
+      },
       { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
       { name: 'mobile_password', label: 'Mobile Login Password', type: 'password', required: true },
       { name: 'base_lat', label: 'Base latitude', type: 'number', geo: true },
@@ -461,6 +517,40 @@ export const MASTER_SCHEMAS = {
       { title: 'Name', dataIndex: 'delivery_point_name', key: 'delivery_point_name', render: (v, r) => <strong>{v || r.zone_name}</strong> },
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
+      {
+        title: 'Storekeeper',
+        key: 'storekeeper',
+        render: (_, r) => {
+          const name = r.storekeeper_name || r.storekeeperName
+          const user = r.storekeeper_username || r.storekeeperUsername
+          const count = Number(r.storekeeper_count || r.storekeeperCount || 0)
+          if (!name && !user) return <Tag color="orange">No office login</Tag>
+          return (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <span style={{ fontWeight: 600 }}>{name || user}</span>
+              {user ? <span style={{ fontSize: 12, color: '#6B7280' }}>@{user}</span> : null}
+              {count > 1 ? <Tag color="blue">+{count - 1} more</Tag> : null}
+              {String(r.storekeeper_is_active) === '0' ? <Tag color="default">Inactive</Tag> : null}
+            </Space>
+          )
+        },
+      },
+      {
+        title: 'Mobile App Login',
+        dataIndex: 'mobile_email',
+        key: 'mobile_email',
+        render: (v, r) =>
+          v ? (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <span>{v}</span>
+              <Tag color={String(r.mobile_is_active) === '0' ? 'default' : 'green'}>
+                {String(r.mobile_is_active) === '0' ? 'Login disabled' : 'Can sign in'}
+              </Tag>
+            </Space>
+          ) : (
+            <Tag color="orange">No mobile login</Tag>
+          ),
+      },
       { title: 'Lat', dataIndex: 'lat', key: 'lat', width: 90, render: (v) => (v != null && v !== '' ? Number(v).toFixed(4) : '—') },
       { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
     ],
@@ -470,8 +560,127 @@ export const MASTER_SCHEMAS = {
       { name: 'hub_code', label: 'Hub Code', required: true, lookup: 'hubs' },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
+      {
+        name: 'storekeeper_username',
+        label: 'Storekeeper Office Username',
+        placeholder: 'e.g. sk.kks01',
+        help: 'Ops web login for the Storekeeper. Leave blank to skip office account setup.',
+      },
+      {
+        name: 'storekeeper_name',
+        label: 'Storekeeper Full Name',
+        placeholder: 'e.g. Ahmad Storekeeper',
+        help: 'Defaults to “{DEP name} Storekeeper” when blank.',
+      },
+      {
+        name: 'storekeeper_password',
+        label: 'Storekeeper Office Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required for a new office login. When editing, leave blank to keep the current password.',
+      },
+      {
+        name: 'mobile_email',
+        label: 'Mobile App Login Email',
+        placeholder: 'storekeeper@example.com',
+        help: 'Signs in to the IPOSB Delivery Point (station) app as Storekeeper. Leave blank for no app access.',
+      },
+      {
+        name: 'mobile_password',
+        label: 'Mobile App Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required for a new mobile login. When editing, leave blank to keep the current password.',
+      },
       { name: 'lat', label: 'Latitude', type: 'number', geo: true },
       { name: 'lng', label: 'Longitude', type: 'number', geo: true },
+    ],
+    pk: 'id',
+  },
+  storekeepers: {
+    title: 'Storekeeper Accounts',
+    singular: 'Storekeeper',
+    category: 'accounts',
+    icon: <SafetyCertificateOutlined />,
+    columns: [
+      { title: 'Username', dataIndex: 'username', key: 'username', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+      { title: 'Full Name', dataIndex: 'name', key: 'name', render: (v) => <strong>{v}</strong> },
+      {
+        title: 'Delivery Point',
+        key: 'home_delivery_point',
+        render: (_, r) => {
+          const code = r.home_delivery_point_code || r.delivery_point_code
+          const name = r.home_delivery_point_name
+          if (!code) return <Tag color="orange">Unassigned</Tag>
+          return (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <Tag color="green">{code}</Tag>
+              {name ? <span style={{ fontSize: 12, color: '#6B7280' }}>{name}</span> : null}
+            </Space>
+          )
+        },
+      },
+      {
+        title: 'Mobile App Login',
+        dataIndex: 'mobile_email',
+        key: 'mobile_email',
+        render: (v, r) =>
+          v ? (
+            <Space size={4} direction="vertical" style={{ lineHeight: 1.2 }}>
+              <span>{v}</span>
+              <Tag color={String(r.mobile_is_active) === '0' ? 'default' : 'green'}>
+                {String(r.mobile_is_active) === '0' ? 'Login disabled' : 'Can sign in'}
+              </Tag>
+            </Space>
+          ) : (
+            <Tag color="orange">No mobile login</Tag>
+          ),
+      },
+      { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code', render: (v) => v || '—' },
+      { title: 'Active', dataIndex: 'is_active', key: 'is_active', render: (v) => <StatusTag status={String(v) === '0' ? 'INACTIVE' : 'ACTIVE'} /> },
+    ],
+    fields: [
+      { name: 'username', label: 'Office Username', required: true, placeholder: 'e.g. sk.kks01' },
+      { name: 'name', label: 'Full Name', required: true },
+      {
+        name: 'home_delivery_point_code',
+        label: 'Home Delivery Point',
+        required: true,
+        lookup: 'delivery-points',
+        placeholder: 'DEP this Storekeeper manages',
+        help: 'Required — binds this account to one delivery point.',
+      },
+      { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
+      {
+        name: 'user_password',
+        label: 'Office Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required when creating. Leave blank when editing to keep the current password.',
+      },
+      {
+        name: 'mobile_email',
+        label: 'Mobile App Login Email',
+        placeholder: 'storekeeper@example.com',
+        help: 'Signs in to the Delivery Point station app. Leave blank for no app access.',
+      },
+      {
+        name: 'mobile_password',
+        label: 'Mobile App Password',
+        type: 'password',
+        placeholder: 'At least 6 characters',
+        help: 'Required for a new mobile login. Leave blank when editing to keep the current password.',
+      },
+      {
+        name: 'is_active',
+        label: 'Status',
+        type: 'select',
+        editOnly: true,
+        options: [
+          { label: 'Active', value: '1' },
+          { label: 'Inactive (also blocks mobile sign-in)', value: '0' },
+        ],
+      },
     ],
     pk: 'id',
   },
@@ -782,6 +991,17 @@ export default function MasterAdminPage() {
       ...record,
       delivery_point_code: record.delivery_point_code || record.zone_code || undefined,
       is_active: record.is_active != null ? String(record.is_active) : undefined,
+      home_drop_point_id:
+        record.home_drop_point_id != null && record.home_drop_point_id !== ''
+          ? String(record.home_drop_point_id)
+          : undefined,
+      preferred_zones: record.preferred_zones || undefined,
+      storekeeper_username: record.storekeeper_username || undefined,
+      storekeeper_name: record.storekeeper_name || undefined,
+      storekeeper_password: undefined,
+      home_delivery_point_code: record.home_delivery_point_code || undefined,
+      mobile_email: record.mobile_email || undefined,
+      mobile_password: undefined,
     })
     setDrawerOpen(true)
   }
@@ -1346,6 +1566,7 @@ export default function MasterAdminPage() {
                   branchCode={f.useBranch ? watchedBranchCode : undefined}
                   valueAsId={Boolean(f.valueAsId)}
                   uppercase={!f.valueAsId}
+                  mode={f.mode || null}
                   placeholder={f.placeholder || `Search ${f.label.toLowerCase()}…`}
                 />
               ) : f.type === 'password' ? (

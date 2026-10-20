@@ -134,13 +134,21 @@ export default function PickupsPage() {
   async function handleManualSubmit(values) {
     if (!selectedCn) return
     if (!values.driver_id && !values.dp_code) {
-      message.warning('Select a courier or a drop point station.')
+      message.warning(canAssignDropPoint(selectedPickup)
+        ? 'Select a courier or a drop point station.'
+        : 'Select a courier to collect this pickup / seal.')
       return
     }
     setAssigning(true)
     try {
-      await assignPickup(selectedCn, values)
-      message.success(`Pickup for ${selectedCn} assigned successfully`)
+      const res = await assignPickup(selectedCn, values)
+      const sealNo = res?.seal_no || res?.sealNo
+      const members = res?.member_cns || res?.memberCnNos
+      message.success(
+        sealNo
+          ? `Seal ${sealNo} assigned${Array.isArray(members) ? ` (${members.length} CN)` : ''}`
+          : `Pickup for ${selectedCn} assigned successfully`,
+      )
       setManualModalOpen(false)
       loadData()
     } catch (err) {
@@ -150,11 +158,64 @@ export default function PickupsPage() {
     }
   }
 
-  const compatibleDrivers = drivers.filter((driver) => {
-    const origin = String(selectedPickup?.origin_branch || selectedPickup?.from_branch || '').trim().toUpperCase()
-    const driverBranch = String(driver.locId || driver.loc_id || '').trim().toUpperCase()
-    return !origin || !driverBranch || origin === driverBranch
+  function pickupTokens(record) {
+    return [
+      record?.origin_zone,
+      record?.agent_cd,
+      record?.origin_drop_code,
+      record?.origin_delivery_point,
+      record?.origin_branch,
+      record?.from_branch,
+    ]
+      .map((v) => String(v || '').trim().toUpperCase())
+      .filter(Boolean)
+  }
+
+  function driverPreferredTokens(driver) {
+    const prefs = driver.preferredZones || driver.preferred_zones || []
+    const list = Array.isArray(prefs)
+      ? prefs
+      : String(prefs || '').split(/[,|;]+/)
+    return [
+      ...list.map((v) => String(v || '').trim().toUpperCase()),
+      String(driver.locId || driver.loc_id || '').trim().toUpperCase(),
+      String(driver.routeCd || driver.route_cd || '').trim().toUpperCase(),
+    ].filter(Boolean)
+  }
+
+  function alreadyAtDropPoint(record) {
+    if (!record) return false
+    if (record.already_at_drop_point === true || record.alreadyAtDropPoint === true) return true
+    const svc = String(record.origin_service || record.originService || '').toUpperCase()
+    const dropId = Number(record.origin_drop_point_id || record.originDropPointId || 0)
+    return dropId > 0 || svc === 'DROP_COUNTER'
+  }
+
+  function canAssignDropPoint(record) {
+    if (!record) return true
+    if (record.can_assign_drop_point === false || record.canAssignDropPoint === false) return false
+    if (alreadyAtDropPoint(record)) return false
+    const svc = String(record.origin_service || record.originService || '').toUpperCase()
+    return svc !== 'DROP_COUNTER'
+  }
+
+  const matchedDrivers = drivers.filter((driver) => {
+    if (!selectedPickup) return true
+    const homeDp = Number(driver.homeDropPointId || driver.home_drop_point_id || 0)
+    const originDp = Number(selectedPickup.origin_drop_point_id || selectedPickup.originDropPointId || 0)
+    if (homeDp > 0 && originDp > 0 && homeDp === originDp) return true
+
+    const tokens = pickupTokens(selectedPickup)
+    const prefs = driverPreferredTokens(driver)
+    if (tokens.length === 0 || prefs.length === 0) {
+      const origin = String(selectedPickup.origin_branch || selectedPickup.from_branch || '').trim().toUpperCase()
+      const driverBranch = String(driver.locId || driver.loc_id || '').trim().toUpperCase()
+      return !origin || !driverBranch || origin === driverBranch
+    }
+    return tokens.some((t) => prefs.includes(t))
   })
+  // If zone metadata is incomplete, still let ops pick any available courier rather than an empty list.
+  const compatibleDrivers = matchedDrivers.length > 0 ? matchedDrivers : drivers
 
   // Auto-Assign Submit
   async function handleAutoAssignSubmit(values) {
@@ -184,7 +245,7 @@ export default function PickupsPage() {
       render: (val, r) => (
         <span
           style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer' }}
-          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val || r.id)}`)}
+          onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(val || r.id)}&tab=${encodeURIComponent(val || r.id)}`)}
         >
           {val || r.id}
         </span>
@@ -204,10 +265,37 @@ export default function PickupsPage() {
       ),
     },
     {
-      title: 'Origin branch',
+      title: 'Origin',
       dataIndex: 'from_branch',
       key: 'from_branch',
-      render: (v, r) => <Tag color="blue">{v || r.origin_branch || r.origin_zone || '—'}</Tag>,
+      render: (v, r) => (
+        <div>
+          <Tag color="blue">{v || r.origin_branch || r.origin_zone || '—'}</Tag>
+          {r.origin_drop_code || r.origin_drop_name ? (
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+              Drop {r.origin_drop_code || ''}{r.origin_drop_name ? ` · ${r.origin_drop_name}` : ''}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      title: 'Collect as',
+      key: 'collect_unit',
+      render: (_, r) => {
+        const sealed = r.is_sealed || (r.seal_no && ['sealed', 'in_transit', 'arrived'].includes(String(r.seal_lifecycle || '').toLowerCase()))
+        if (sealed) {
+          return (
+            <Tag color="purple">
+              Seal {r.seal_no}{r.seal_cn_count ? ` · ${r.seal_cn_count} CN` : ''}
+            </Tag>
+          )
+        }
+        if (alreadyAtDropPoint(r)) {
+          return <Tag color="cyan">At drop point</Tag>
+        }
+        return <Tag>CN pickup</Tag>
+      },
     },
     {
       title: 'Status',
@@ -252,7 +340,7 @@ export default function PickupsPage() {
       render: (val, r) => (
         <span
           style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer' }}
-          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val || r.id)}`)}
+          onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(val || r.id)}&tab=${encodeURIComponent(val || r.id)}`)}
         >
           {val || r.id}
         </span>
@@ -446,32 +534,58 @@ export default function PickupsPage() {
       >
         <Form form={assignForm} layout="vertical" onFinish={handleManualSubmit}>
           <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
-            Select either an available courier or a local station drop point to handle the pickup:
+            {selectedPickup?.seal_no && (selectedPickup?.is_sealed || ['sealed', 'in_transit', 'arrived'].includes(String(selectedPickup?.seal_lifecycle || '').toLowerCase())) ? (
+              <>
+                This consignment is in sealed bag <Tag color="purple">{selectedPickup.seal_no}</Tag>
+                {selectedPickup.seal_cn_count ? ` (${selectedPickup.seal_cn_count} CN)` : ''}.
+                Assigning a courier offers the <strong>seal</strong> as one collect job.
+              </>
+            ) : alreadyAtDropPoint(selectedPickup) ? (
+              <>
+                Parcel is already at drop point
+                {selectedPickup?.origin_drop_code ? ` ${selectedPickup.origin_drop_code}` : ''}.
+                Assign a courier to collect it — do not re-assign to another drop point.
+              </>
+            ) : (
+              <>Select an available courier{canAssignDropPoint(selectedPickup) ? ', or hand the pickup to a drop point station' : ''}.</>
+            )}
           </div>
 
-          <Form.Item label="Assign Courier Driver" name="driver_id">
+          <Form.Item
+            label="Assign Courier Driver"
+            name="driver_id"
+            extra={compatibleDrivers.length === 0 ? 'No courier matches this origin / preferred zone / home drop point.' : undefined}
+          >
             <Select
-              placeholder="Choose a courier driver"
+              placeholder={compatibleDrivers.length ? 'Search courier…' : 'No matching couriers'}
               allowClear
+              showSearch
+              optionFilterProp="label"
               options={compatibleDrivers.map((d) => ({
-                label: `${d.full_name || d.fullName || d.name || `Driver ${d.driver_id || d.driverId || d.id}`} (${d.route_cd || d.routeCd || 'Floating'}${d.locId || d.loc_id ? ` · ${d.locId || d.loc_id}` : ''})`,
+                label: `${d.full_name || d.fullName || d.name || `Driver ${d.driver_id || d.driverId || d.id}`} (${d.route_cd || d.routeCd || 'Floating'}${d.locId || d.loc_id ? ` · ${d.locId || d.loc_id}` : ''}${d.homeDropPointId || d.home_drop_point_id ? ` · home DP #${d.homeDropPointId || d.home_drop_point_id}` : ''})`,
                 value: d.driver_id || d.driverId || d.id,
               }))}
             />
           </Form.Item>
 
-          <Divider plain style={{ margin: '8px 0 16px 0', fontSize: 12, color: '#9CA3AF' }}>OR</Divider>
+          {canAssignDropPoint(selectedPickup) ? (
+            <>
+              <Divider plain style={{ margin: '8px 0 16px 0', fontSize: 12, color: '#9CA3AF' }}>OR</Divider>
 
-          <Form.Item label="Assign Drop Point Station" name="dp_code">
-            <Select
-              placeholder="Choose a drop point station"
-              allowClear
-              options={dropPoints.map((dp) => ({
-                label: `${dp.drop_name} (${dp.drop_code})`,
-                value: dp.drop_code,
-              }))}
-            />
-          </Form.Item>
+              <Form.Item label="Assign Drop Point Station" name="dp_code">
+                <Select
+                  placeholder="Choose a drop point station"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={dropPoints.map((dp) => ({
+                    label: `${dp.drop_name} (${dp.drop_code})`,
+                    value: dp.drop_code,
+                  }))}
+                />
+              </Form.Item>
+            </>
+          ) : null}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
             <Button onClick={() => setManualModalOpen(false)}>Cancel</Button>

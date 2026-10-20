@@ -175,7 +175,7 @@ export default function ReturnsPage() {
           <Space direction="vertical" size={2}>
             <span
               style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A', cursor: 'pointer' }}
-              onClick={() => navigate(`/ops/consignments/${encodeURIComponent(cn)}`)}
+              onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}&tab=${encodeURIComponent(cn)}`)}
             >
               {cn}
             </span>
@@ -275,7 +275,7 @@ export default function ReturnsPage() {
               size="small"
               type="primary"
               style={{ background: '#1B8A5A', borderColor: '#1B8A5A' }}
-              onClick={() => navigate(`/ops/consignments/${encodeURIComponent(cn)}`)}
+              onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}&tab=${encodeURIComponent(cn)}`)}
             >
               Consignment
             </Button>

@@ -187,11 +187,11 @@ export default function DispatchJobsPage() {
                   <div>{cn.cnStatus || cn.status || '—'}</div>
                 </div>
                 <div className="col-md-3">
-                  <div className="text-muted">Origin DP</div>
+                  <div className="text-muted">Origin DEP</div>
                   <div>{cn.originZone || cn.origin_zone || '—'}</div>
                 </div>
                 <div className="col-md-3">
-                  <div className="text-muted">Dest DP</div>
+                  <div className="text-muted">Dest DEP</div>
                   <div>{cn.destinationZone || cn.destination_zone || '—'}</div>
                 </div>
                 <div className="col-md-3">

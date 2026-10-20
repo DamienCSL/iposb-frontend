@@ -164,10 +164,6 @@ export default function ConsignmentsListPage() {
       message.warning('Select at least one consignment.')
       return
     }
-    if (codes.length === 1) {
-      navigate(`/ops/consignments/${encodeURIComponent(codes[0])}`)
-      return
-    }
     const first = codes[0]
     navigate(
       `/ops/consignments/tracking?cn=${encodeURIComponent(codes.join(','))}&tab=${encodeURIComponent(first)}`,
@@ -314,7 +310,7 @@ export default function ConsignmentsListPage() {
             color: '#1B8A5A',
             cursor: 'pointer',
           }}
-          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val || r.id)}`)}
+          onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(val || r.id)}&tab=${encodeURIComponent(val || r.id)}`)}
         >
           {val || r.id}
         </span>
@@ -444,7 +440,7 @@ export default function ConsignmentsListPage() {
             <Button
               size="small"
               icon={<EyeOutlined />}
-              onClick={() => navigate(`/ops/consignments/${encodeURIComponent(cn)}`)}
+              onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(cn)}&tab=${encodeURIComponent(cn)}`)}
             >
               View detail
             </Button>

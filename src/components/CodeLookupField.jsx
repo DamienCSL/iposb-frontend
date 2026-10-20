@@ -136,25 +136,31 @@ function normalizeOptions(rows, meta, valueAsId = false) {
   return out.sort((a, b) => String(a.label).localeCompare(String(b.label)))
 }
 
+function parseMultiValue(value, forceUpper) {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => {
+        let s = String(v ?? '').trim()
+        if (forceUpper) s = s.toUpperCase()
+        return s
+      })
+      .filter(Boolean)
+  }
+  const raw = value == null ? '' : String(value).trim()
+  if (!raw) return []
+  return raw
+    .split(/[,;\s]+/)
+    .map((p) => {
+      let s = p.trim()
+      if (forceUpper) s = s.toUpperCase()
+      return s
+    })
+    .filter(Boolean)
+}
+
 /**
  * Searchable master-code picker with optional Generate + Manage link.
- *
- * @param {{
- *   kind?: keyof typeof CODE_LOOKUP_KINDS | string | null,
- *   generateKind?: string | null,
- *   value?: string | null,
- *   onChange?: (value: string) => void,
- *   placeholder?: string,
- *   size?: 'small' | 'middle' | 'large',
- *   disabled?: boolean,
- *   allowClear?: boolean,
- *   allowCustom?: boolean,
- *   showGenerate?: boolean,
- *   showManageLink?: boolean,
- *   branchCode?: string,
- *   uppercase?: boolean,
- *   style?: object,
- * }} props
+ * Supports single select, AutoComplete (allowCustom), or multi/tags (mode="multiple"|"tags").
  */
 export default function CodeLookupField({
   kind = null,
@@ -171,6 +177,7 @@ export default function CodeLookupField({
   branchCode,
   uppercase = true,
   valueAsId = false,
+  mode = null,
   style,
 }) {
   const meta = (kind && CODE_LOOKUP_KINDS[kind])
@@ -179,6 +186,7 @@ export default function CodeLookupField({
   const resolvedGenerateKind = generateKind || meta?.generateKind || null
   const canSearch = Boolean(kind && CODE_LOOKUP_KINDS[kind])
   const forceUpper = uppercase && !valueAsId
+  const isMulti = mode === 'multiple' || mode === 'tags'
 
   const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
@@ -204,14 +212,33 @@ export default function CodeLookupField({
     load()
   }, [load])
 
+  const multiValues = useMemo(
+    () => (isMulti ? parseMultiValue(value, forceUpper) : []),
+    [isMulti, value, forceUpper],
+  )
+
   const mergedOptions = useMemo(() => {
+    if (isMulti) {
+      const extras = []
+      for (const v of multiValues) {
+        if (!options.some((o) => String(o.value).toUpperCase() === String(v).toUpperCase())) {
+          extras.push({ value: v, label: `${v} (current)`, name: '' })
+        }
+      }
+      return extras.length ? [...extras, ...options] : options
+    }
     const v = value != null && String(value).trim() !== '' ? String(value).trim() : ''
     if (!v) return options
-    if (options.some((o) => o.value.toUpperCase() === v.toUpperCase())) return options
+    if (options.some((o) => String(o.value).toUpperCase() === v.toUpperCase())) return options
     return [{ value: v, label: `${v} (current)`, name: '' }, ...options]
-  }, [options, value])
+  }, [options, value, isMulti, multiValues])
 
   function emit(next) {
+    if (isMulti) {
+      const list = parseMultiValue(next, forceUpper)
+      onChange?.(list.join(','))
+      return
+    }
     let v = next == null ? '' : String(next)
     if (forceUpper) v = v.toUpperCase()
     onChange?.(v)
@@ -225,7 +252,13 @@ export default function CodeLookupField({
         branchCode: branchCode || undefined,
         resource: meta?.resource,
       })
-      emit(r.code || '')
+      if (isMulti) {
+        const next = [...multiValues, forceUpper ? String(r.code || '').toUpperCase() : String(r.code || '')]
+          .filter(Boolean)
+        emit(next)
+      } else {
+        emit(r.code || '')
+      }
       message.success(`Generated code ${r.code}`)
       if (canSearch) load()
     } catch (e) {
@@ -236,7 +269,7 @@ export default function CodeLookupField({
   }
 
   const filterOption = (input, option) => {
-    const hay = `${option?.value || ''} ${option?.label || ''}`.toLowerCase()
+    const hay = `${option?.value || ''} ${option?.label || ''} ${option?.code || ''} ${option?.name || ''}`.toLowerCase()
     return hay.includes(String(input || '').toLowerCase())
   }
 
@@ -244,7 +277,28 @@ export default function CodeLookupField({
   const ph = placeholder || (meta ? `Search ${meta.label}…` : 'Enter code…')
 
   let control
-  if (canSearch && allowCustom) {
+  if (canSearch && isMulti) {
+    control = (
+      <Select
+        mode={allowCustom || mode === 'tags' ? 'tags' : 'multiple'}
+        size={size}
+        style={controlStyle}
+        disabled={disabled}
+        allowClear={allowClear}
+        showSearch
+        loading={loading}
+        options={mergedOptions}
+        value={multiValues}
+        placeholder={ph}
+        optionFilterProp="label"
+        filterOption={filterOption}
+        tokenSeparators={[',', ';', ' ']}
+        onChange={(vals) => emit(vals || [])}
+        notFoundContent={loading ? 'Loading…' : 'No matches — type to add'}
+        maxTagCount="responsive"
+      />
+    )
+  } else if (canSearch && allowCustom) {
     control = (
       <AutoComplete
         size={size}

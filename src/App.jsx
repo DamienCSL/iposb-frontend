@@ -8,7 +8,6 @@ import LoginPage from './pages/LoginPage'
 import SetupHubPage from './modules/onboarding/SetupHubPage'
 import DashboardPage from './modules/dashboard/DashboardPage'
 import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
-import ConsignmentDetailPage from './modules/consignments/ConsignmentDetailPage'
 import ConsignmentEntryPage from './modules/consignments/ConsignmentEntryPage'
 import PickupsPage from './modules/pickups/PickupsPage'
 import OvernightRequestsPage from './modules/overnight/OvernightRequestsPage'
@@ -87,6 +86,19 @@ function LegacyReportRedirect() {
   return <Navigate to={map[kind] || '/ops/reports/cn'} replace />
 }
 
+/** Old dossier URL → CN Tracking (single workspace for detail + tracking info). */
+function ConsignmentDossierRedirect() {
+  const { cn } = useParams()
+  const code = String(cn || '').trim().toUpperCase()
+  if (!code) return <Navigate to="/ops/consignments/tracking" replace />
+  return (
+    <Navigate
+      to={`/ops/consignments/tracking?cn=${encodeURIComponent(code)}&tab=${encodeURIComponent(code)}`}
+      replace
+    />
+  )
+}
+
 export default function App() {
   return (
     <ConfigProvider theme={iposbTheme}>
@@ -108,8 +120,8 @@ export default function App() {
                 <Route path="/ops/consignments/import-log" element={<ImportLogPage />} />
                 <Route path="/ops/consignments/tracking" element={<TrackingPage />} />
                 <Route path="/ops/consignments/cancellations" element={<CancellationLogPage />} />
-                <Route path="/ops/consignments/:cn" element={<ConsignmentDetailPage />} />
-                <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDetailPage />} />
+                <Route path="/ops/consignments/:cn" element={<ConsignmentDossierRedirect />} />
+                <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDossierRedirect />} />
 
                 <Route path="/ops/pickups" element={<PickupsPage />} />
                 <Route path="/ops/overnight-requests" element={<OvernightRequestsPage />} />

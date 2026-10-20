@@ -153,7 +153,7 @@ export default function DashboardPage() {
             color: '#1B8A5A',
             cursor: 'pointer',
           }}
-          onClick={() => navigate(`/ops/consignments/${encodeURIComponent(val)}`)}
+          onClick={() => navigate(`/ops/consignments/tracking?cn=${encodeURIComponent(val)}&tab=${encodeURIComponent(val)}`)}
         >
           {val}
         </span>
