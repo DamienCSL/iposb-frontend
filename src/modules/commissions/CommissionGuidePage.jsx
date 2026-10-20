@@ -142,8 +142,8 @@ export default function CommissionGuidePage() {
       <Title level={2} style={{ marginTop: 0 }}>Commission &amp; delivery fee guide</Title>
       <Paragraph type="secondary" style={{ maxWidth: 900 }}>
         How the Commission Rates page works: first the <Text strong>delivery fee</Text> the customer pays is
-        calculated using one of five formulas, then that fee is <Text strong>split into commission</Text> using
-        one of two engines, with an optional <Text strong>Collect SLA</Text> bonus for self-collect parcels.
+        calculated using one of the delivery-fee formulas, then that fee is <Text strong>split into commission</Text>{' '}
+        using one of two engines, with an optional <Text strong>Collect SLA</Text> bonus for self-collect parcels.
       </Paragraph>
       <Alert
         type="info"
@@ -156,9 +156,9 @@ export default function CommissionGuidePage() {
         <Col xs={24} lg={18}>
           <Title level={3}>Part 1 — Delivery fee formulas</Title>
           <Paragraph type="secondary">
-            On <Text strong>Customer pricing</Text>, each transport mode uses one of these three formulas, for the
-            public price, for a specific customer, or for a lane override. Customer and lane settings win over the
-            public price.
+            On <Text strong>Customer pricing</Text>, each transport mode uses one formula (weight-based or m³-based), for
+            the public price, for a specific customer, or for a lane override. Customer and lane settings win over the
+            public price. Sea / bulky cargo usually uses the m³ formulas below.
           </Paragraph>
 
           <Section id="base_pcs_kg" tag="base_pcs_kg" title="1. Base + pieces + kg (default)">
@@ -205,6 +205,34 @@ export default function CommissionGuidePage() {
               <Text strong>Use for:</Text> simple size-based price lists. The size is picked automatically from the
               chargeable weight. With <Text strong>Weight per piece</Text>, each piece is sized on its own share of the
               weight and the size price is charged per piece.
+            </Paragraph>
+          </Section>
+
+          <Section id="base_pcs_cbm" tag="base_pcs_cbm" title="4. Base + pieces + m³ (sea / bulky)">
+            <FormulaBox>Fee = Base + (Pieces × RM/pc) + (Volume m³ × RM/m³)</FormulaBox>
+            <ExampleBox>
+              Base RM 20, RM 5/pc, RM 100/m³ — 2 pcs, 0.5 m³
+              <FormulaBox>20 + (2 × 5) + (0.5 × 100) = RM 80.00</FormulaBox>
+            </ExampleBox>
+            <Paragraph>
+              <Text strong>Use for:</Text> sea and bulky cargo priced linearly by cubic metres. Volume comes from piece
+              L×W×H (cm): m³ = (L × W × H) / 1,000,000.
+            </Paragraph>
+          </Section>
+
+          <Section id="size_cbm" tag="size_cbm" title="5. Size tiers (by m³)">
+            <FormulaBox>
+              {'Size = first size whose max m³ fits the parcel\nFee = size price + max(0, m³ − flat covers up to) × RM/m³'}
+            </FormulaBox>
+            <ExampleBox>
+              S ≤0.5 m³ = RM 50 · M ≤1.0 m³ = RM 100 · L ≤1.5 m³ = RM 150 · XL above 1.5 m³ = RM 150 + RM 100/m³
+              <FormulaBox>
+                {'0.4 m³ → S = RM 50.00\n0.8 m³ → M = RM 100.00\n2.0 m³ → XL: 150 + (2.0 − 1.5) × 100 = RM 200.00'}
+              </FormulaBox>
+            </ExampleBox>
+            <Paragraph>
+              <Text strong>Use for:</Text> zone / band pricing by volume (common for sea). Starter sizes on Customer
+              pricing match this 0.5 / 1.0 / 1.5 m³ table.
             </Paragraph>
           </Section>
 
@@ -308,6 +336,8 @@ export default function CommissionGuidePage() {
                     { key: 'f1', href: '#base_pcs_kg', title: 'Base + pcs + kg' },
                     { key: 'f2', href: '#step_linear', title: 'Step / linear' },
                     { key: 'f3', href: '#size_weight', title: 'Size tiers (by weight)' },
+                    { key: 'f4', href: '#base_pcs_cbm', title: 'Base + pcs + m³' },
+                    { key: 'f5', href: '#size_cbm', title: 'Size tiers (by m³)' },
                   ],
                 },
                 {

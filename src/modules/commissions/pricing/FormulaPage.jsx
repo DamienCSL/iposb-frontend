@@ -64,7 +64,7 @@ function FormulaPageInner({ formula }) {
   const [draft, setDraftState] = useState(() => editor.fromRows({}))
   const [dirty, setDirty] = useState(false)
   const [focusMode, setFocusMode] = useState(() => new URLSearchParams(location.search).get('mode') || 'air')
-  const [test, setTest] = useState({ mode: 'road', weight: 3, pcs: 1 })
+  const [test, setTest] = useState({ mode: 'road', weight: 3, pcs: 1, cbm: 0.5 })
   const [testResult, setTestResult] = useState(null)
   const [testBusy, setTestBusy] = useState(false)
 
@@ -175,6 +175,7 @@ function FormulaPageInner({ formula }) {
         transportMode: test.mode,
         cn_wt: Number(test.weight) || 0,
         cn_pcs: Number(test.pcs) || 1,
+        cbm: Number(test.cbm) || 0,
         custAcNo: target.custAcNo || undefined,
         origin: target.origin || undefined,
         destination: target.destination || undefined,
@@ -375,13 +376,22 @@ function FormulaPageInner({ formula }) {
               addonAfter="pcs"
               onChange={(v) => setTest((s) => ({ ...s, pcs: v ?? 1 }))}
             />
+            <InputNumber
+              min={0}
+              step={0.1}
+              precision={4}
+              value={test.cbm}
+              addonAfter="m³"
+              onChange={(v) => setTest((s) => ({ ...s, cbm: v ?? 0 }))}
+            />
             <Button type="primary" ghost onClick={runTest} loading={testBusy} style={{ borderColor: BRAND, color: BRAND }}>
               Calculate
             </Button>
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Runs the real quoting rules on the server with your unsaved prices, for {scopeLabel(target.custAcNo)} ·{' '}
-            {laneLabel(target)}. SST is added using the rate set on Customer pricing.
+            {laneLabel(target)}. Use m³ for sea / CBM formulas (also computed from piece L×W×H on a real CN). SST uses the
+            Customer pricing rate.
           </Text>
           {testResult ? <TestResult result={testResult} /> : null}
         </Space>

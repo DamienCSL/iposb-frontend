@@ -26,6 +26,20 @@ export const FORMULAS = [
     title: 'Size tiers (by weight)',
     summary: 'Your own sizes by weight, a price per size, and an unlimited top size.',
   },
+  {
+    type: 'base_pcs_cbm',
+    slug: 'cbm',
+    prefix: 'CBM',
+    title: 'Base + pieces + m³',
+    summary: 'Fee = Base + (pieces × RM/pc) + (m³ × RM/m³). Typical for sea / bulky cargo.',
+  },
+  {
+    type: 'size_cbm',
+    slug: 'cbm-sizes',
+    prefix: 'CBMSZ',
+    title: 'Size tiers (by m³)',
+    summary: 'Your own sizes by cubic metres (m³), a price per size, and an unlimited top size — e.g. 0.5 / 1.0 / 1.5 m³ for sea.',
+  },
 ]
 
 const PREFIXES = FORMULAS.map((f) => f.prefix).sort((a, b) => b.length - a.length)
