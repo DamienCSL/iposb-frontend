@@ -1198,7 +1198,7 @@ export default function AppLayout() {
           }}
           className="content-fade-in"
         >
-        <Outlet />
+          <Outlet />
         </Content>
       </Layout>
     </Layout>

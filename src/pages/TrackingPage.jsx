@@ -40,6 +40,41 @@ const SESSION_KEY = 'fms.ops.cn_tracking'
 const MAX_TABS = 50
 const BRAND_GREEN = '#1B8A5A'
 
+const TRACKING_RECORD_CSS = `
+.trk-record { line-height: 1.55; font-size: 13px; color: #334155; }
+.trk-hl {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 1px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+.trk-hl-system { color: #475569; background: #F1F5F9; }
+.trk-hl-actor { color: #1E3A8A; background: #DBEAFE; }
+.trk-hl-courier { color: #1D4ED8; background: #BFDBFE; }
+.trk-hl-cn { color: #0F766E; background: #CCFBF1; }
+.trk-hl-place { color: #B45309; background: #FEF3C7; }
+.trk-hl-sender { color: #15803D; background: #DCFCE7; }
+.trk-hl-time { color: #0E7490; background: #CFFAFE; }
+.trk-hl-seal { color: #BE123C; background: #FFE4E6; }
+.trk-hl-reason { color: #9A3412; background: #FFEDD5; }
+.trk-hl-default { color: #334155; background: #F1F5F9; }
+.trk-muted { color: #94A3B8; font-size: 12px; }
+`
+
+function TrackingRecordCell({ html, text, fallback }) {
+  const content = html || null
+  const plain = text || fallback || '—'
+  if (content) {
+    return <div className="trk-record" dangerouslySetInnerHTML={{ __html: content }} />
+  }
+  return <div className="trk-record">{plain}</div>
+}
+
 function parseCnCodes(raw) {
   const parts = String(raw || '')
     .split(/[\s,;|]+/)
@@ -345,7 +380,11 @@ export default function TrackingPage() {
       key: 'record',
       render: (_, ev) => (
         <div>
-          {ev.trackingRecord || ev.customerLabel || ev.note || '—'}
+          <TrackingRecordCell
+            html={ev.trackingRecordHtml}
+            text={ev.trackingRecord}
+            fallback={ev.customerLabel || ev.note || '—'}
+          />
           {ev.evidenceUrl ? (
             <div style={{ marginTop: 4 }}>
               <a href={ev.evidenceUrl} target="_blank" rel="noreferrer">
@@ -411,6 +450,7 @@ export default function TrackingPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <style>{TRACKING_RECORD_CSS}</style>
     <div>
         <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>
           Consignment Tracking
@@ -434,8 +474,8 @@ export default function TrackingPage() {
                 </Text>
               </div>
               <Input
-                value={cn}
-                onChange={(e) => setCn(e.target.value)}
+          value={cn}
+          onChange={(e) => setCn(e.target.value)}
                 placeholder="e.g. BBB0810000001"
                 autoFocus
                 allowClear
@@ -876,7 +916,7 @@ export default function TrackingPage() {
                                           <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                                             {g.placeName}
                                           </Text>
-                                        ) : null}
+            ) : null}
                                       </div>
                                     ) : (
                                       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -884,11 +924,11 @@ export default function TrackingPage() {
                                       </Text>
                                     )}
                                   </div>
-                                </li>
+                </li>
                               )
                             })}
-                          </ol>
-                        )}
+            </ol>
+          )}
                       </Card>
                     </Col>
                     <Col xs={24} lg={12}>
@@ -1209,7 +1249,7 @@ export default function TrackingPage() {
                     />
                   </Card>
                 ) : null}
-              </div>
+        </div>
             </Spin>
           ) : null}
         </>
