@@ -221,7 +221,7 @@ const SPECS = {
     columns: [
       ['dispatcher_code', 'Code'],
       ['full_name', 'Name'],
-      ['area_code', 'Area'],
+      ['preferred_zones', 'Network areas'],
       ['delivery_point_code', 'Delivery point'],
       ['mobile_email', 'Mobile login'],
       ['is_active', 'Active'],
@@ -229,8 +229,8 @@ const SPECS = {
     fields: [
       { name: 'dispatcher_code', label: 'Code', generate: 'dispatcher_code' },
       { name: 'full_name', label: 'Name' },
-      { name: 'area_code', label: 'Assigned area', lookup: 'areas' },
-      { name: 'delivery_point_code', label: 'Delivery point (from area)', lookup: 'delivery-points' },
+      { name: 'preferred_zones', label: 'Network areas (comma-separated area codes)' },
+      { name: 'delivery_point_code', label: 'Delivery point', lookup: 'delivery-points' },
       { name: 'phone', label: 'Phone' },
       { name: 'email', label: 'Contact email' },
       { name: 'mobile_email', label: 'Mobile app login email' },
@@ -240,15 +240,14 @@ const SPECS = {
   },
   drivers: {
     title: 'Driver Management',
-    columns: [['driver_id', 'ID'], ['full_name', 'Name'], ['loc_id', 'Loc'], ['route_cd', 'Network area'], ['mobile_email', 'Mobile login'], ['base_lat', 'Lat'], ['base_lng', 'Lng'], ['is_available', 'Available']],
+    columns: [['driver_id', 'ID'], ['full_name', 'Name'], ['loc_id', 'Loc'], ['preferred_zones', 'Network areas'], ['mobile_email', 'Mobile login'], ['base_lat', 'Lat'], ['base_lng', 'Lng'], ['is_available', 'Available']],
     fields: [
       { name: 'firebase_uid', label: 'Firebase UID', generate: 'firebase_uid' },
       { name: 'full_name', label: 'Name' },
       { name: 'phone', label: 'Phone' },
       { name: 'loc_id', label: 'Location / hub', lookup: 'hubs' },
-      { name: 'route_cd', label: 'Network area', lookup: 'areas' },
+      { name: 'preferred_zones', label: 'Network areas (comma-separated area codes)' },
       { name: 'home_drop_point_id', label: 'Home drop point', lookup: 'drop-points' },
-      { name: 'preferred_zones', label: 'Preferred zones / delivery points', lookup: 'delivery-points' },
       {
         name: 'driver_type',
         label: 'Driver type',

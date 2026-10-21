@@ -361,7 +361,28 @@ export const MASTER_SCHEMAS = {
       { title: 'Driver ID', dataIndex: 'driver_id', key: 'driver_id', render: (v) => <Tag>{v}</Tag> },
       { title: 'Full Name', dataIndex: 'full_name', key: 'full_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-      { title: 'Network Area', dataIndex: 'route_cd', key: 'route_cd' },
+      {
+        title: 'Network Areas',
+        dataIndex: 'preferred_zones',
+        key: 'preferred_zones',
+        render: (v, r) => {
+          const raw = v || r.route_cd || ''
+          const codes = String(raw)
+            .split(/[,;\s]+/)
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean)
+          if (!codes.length) return '—'
+          return (
+            <Space size={[4, 4]} wrap>
+              {codes.map((c) => (
+                <Tag key={c} color="blue">
+                  {c}
+                </Tag>
+              ))}
+            </Space>
+          )
+        },
+      },
       {
         title: 'Type',
         dataIndex: 'driver_type',
@@ -382,7 +403,14 @@ export const MASTER_SCHEMAS = {
       { name: 'full_name', label: 'Full Name', required: true },
       { name: 'phone', label: 'Phone', required: true },
       { name: 'loc_id', label: 'Branch / Location / Hub', required: true, placeholder: 'e.g. BKI', lookup: 'hubs', allowCustom: true },
-      { name: 'route_cd', label: 'Network Area', lookup: 'areas' },
+      {
+        name: 'preferred_zones',
+        label: 'Network Areas',
+        lookup: 'areas',
+        mode: 'multiple',
+        placeholder: 'Select one or more network areas…',
+        help: 'Courier can cover multiple network areas. First selected is used as the primary area.',
+      },
       {
         name: 'driver_type',
         label: 'Driver Type',
@@ -401,15 +429,6 @@ export const MASTER_SCHEMAS = {
         placeholder: 'Search drop point code or name…',
         help: 'Search and pick the driver’s home counter / drop point.',
       },
-      {
-        name: 'preferred_zones',
-        label: 'Preferred Zones / Delivery Points',
-        lookup: 'delivery-points',
-        mode: 'tags',
-        allowCustom: true,
-        placeholder: 'Search delivery points — pick several or type a code…',
-        help: 'Searchable multi-select. Pick from delivery points, or type extra codes.',
-      },
       { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
       { name: 'mobile_password', label: 'Mobile Login Password', type: 'password', required: true },
       { name: 'base_lat', label: 'Base latitude', type: 'number', geo: true },
@@ -426,7 +445,28 @@ export const MASTER_SCHEMAS = {
       { title: 'Code', dataIndex: 'dispatcher_code', key: 'dispatcher_code', render: (v) => <Tag>{v}</Tag> },
       { title: 'Name', dataIndex: 'full_name', key: 'full_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-      { title: 'Area', dataIndex: 'area_code', key: 'area_code' },
+      {
+        title: 'Network Areas',
+        dataIndex: 'preferred_zones',
+        key: 'preferred_zones',
+        render: (v, r) => {
+          const raw = v || r.area_code || ''
+          const codes = String(raw)
+            .split(/[,;\s]+/)
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean)
+          if (!codes.length) return '—'
+          return (
+            <Space size={[4, 4]} wrap>
+              {codes.map((c) => (
+                <Tag key={c} color="blue">
+                  {c}
+                </Tag>
+              ))}
+            </Space>
+          )
+        },
+      },
       { title: 'Delivery Point', dataIndex: 'delivery_point_code', key: 'delivery_point_code', render: (v, r) => v || r.zone_code || '—' },
       {
         title: 'Mobile App Login',
@@ -456,7 +496,14 @@ export const MASTER_SCHEMAS = {
         lookup: 'delivery-points',
         help: 'The station this dispatcher works at — the Delivery Point app opens on it.',
       },
-      { name: 'area_code', label: 'Assigned Area Code', lookup: 'areas' },
+      {
+        name: 'preferred_zones',
+        label: 'Network Areas',
+        lookup: 'areas',
+        mode: 'multiple',
+        placeholder: 'Select one or more network areas…',
+        help: 'Dispatcher can cover multiple network areas. First selected is the primary area.',
+      },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
       { name: 'phone', label: 'Phone' },
       { name: 'email', label: 'Contact Email' },
@@ -980,7 +1027,7 @@ export default function MasterAdminPage() {
         record.home_drop_point_id != null && record.home_drop_point_id !== ''
           ? String(record.home_drop_point_id)
           : undefined,
-      preferred_zones: record.preferred_zones || undefined,
+      preferred_zones: record.preferred_zones || record.route_cd || record.area_code || undefined,
       storekeeper_username: record.storekeeper_username || undefined,
       storekeeper_name: record.storekeeper_name || undefined,
       storekeeper_password: undefined,

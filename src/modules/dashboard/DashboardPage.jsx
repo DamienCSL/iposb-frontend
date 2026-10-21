@@ -515,7 +515,7 @@ export default function DashboardPage() {
                     path: '/ops/admin/drivers',
                     icon: <CarOutlined />,
                     title: 'Driver Management',
-                    desc: 'Mobile drivers & route pools',
+                    desc: 'Mobile drivers & network areas',
                   },
                   {
                     key: 'areas',
