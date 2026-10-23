@@ -22,7 +22,7 @@ import {
   listOvernightRequests,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import { consignmentsNewPath, isDroppointManager } from '../../auth/rbac'
+import { consignmentsNewPath, isCargoTeam, isDroppointManager, isHubManager, isStorekeeper } from '../../auth/rbac'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
 
@@ -65,8 +65,21 @@ export default function DashboardPage() {
   const { user, can, isAdmin } = useAuth()
   const newCnPath = consignmentsNewPath(user?.role)
   const isDpManager = isDroppointManager(user?.role)
+  const isHubMgr = isHubManager(user?.role)
+  const isStationMgr = isStorekeeper(user?.role)
+  const isCargo = isCargoTeam(user?.role)
   const navigate = useNavigate()
+  const towerTitle = isDpManager
+    ? 'Drop Point Control Tower'
+    : isHubMgr
+      ? 'Hub Control Tower'
+      : isStationMgr
+        ? 'Delivery Point Control Tower'
+        : isCargo
+          ? 'Cargo Control Tower'
+          : 'Operational Control Tower'
   const [stats, setStats] = useState(EMPTY_STATS)
+  const [dashScope, setDashScope] = useState(null)
   const [queueCounts, setQueueCounts] = useState({ overnightPending: 0, atsOpen: 0, atsOverdue: 0 })
   const [recentCns, setRecentCns] = useState([])
   const [loading, setLoading] = useState(true)
@@ -97,6 +110,7 @@ export default function DashboardPage() {
     }
 
     if (dashRes) {
+      setDashScope(dashRes.scope || null)
       const next = dashRes.stats || dashRes.data || {}
       setStats({ ...EMPTY_STATS, ...next })
     }
@@ -214,11 +228,12 @@ export default function DashboardPage() {
       >
         <div>
           <Title level={3} style={{ margin: 0, color: '#0F1B2D', fontWeight: 600 }}>
-            Operational Control Tower
+            {towerTitle}
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
             Logged in as <strong>{user?.name}</strong> · {user?.role}{' '}
             {user?.branchCode ? `(${user?.branchCode})` : ''}
+            {dashScope?.label ? ` · ${dashScope.label}` : ''}
           </Text>
         </div>
 
@@ -236,6 +251,24 @@ export default function DashboardPage() {
           </Button>
         </Space>
       </div>
+
+      {dashScope?.restricted ? (
+        <Alert
+          type="info"
+          showIcon
+          message={dashScope?.label || 'Scoped workspace'}
+          description={
+            dashScope?.message
+            || (isDpManager
+              ? 'KPIs and consignments are limited to your home drop point. Hub linehaul menus stay hidden.'
+              : isHubMgr
+                ? 'KPIs and consignments are limited to your home hub.'
+                : isStationMgr
+                  ? 'KPIs and consignments are limited to your home delivery point.'
+                  : 'KPIs and consignments follow your assigned branch / node.')
+          }
+        />
+      ) : null}
 
       {loadError ? (
         <Alert
@@ -408,12 +441,44 @@ export default function DashboardPage() {
                     desc: 'Look up status history',
                   },
                   {
+                    key: 'node-flow',
+                    show: can('consignments') || can('seals') || can('manifests') || can('dispatch') || isAdmin,
+                    path: '/ops/node-flow',
+                    icon: <InboxOutlined />,
+                    title: 'Inbound / Outbound Desk',
+                    desc: 'Expected list by system — confirm arrival & departure by scan only',
+                  },
+                  {
+                    key: 'seals',
+                    show: can('seals') || isAdmin,
+                    path: '/ops/seals',
+                    icon: <SafetyCertificateOutlined />,
+                    title: 'Seal Station (Baby / Mother)',
+                    desc: isDpManager
+                      ? 'Baby-seal CNs, then local outbound manifest'
+                      : isStationMgr
+                        ? 'Mother-seal baby bags before dest DEP handoff'
+                        : 'Pack Baby / Mother bags; hub Father for East↔West',
+                  },
+                  {
+                    key: 'manifests',
+                    show: can('manifests') || isAdmin,
+                    path: '/ops/station/manifests',
+                    icon: <SafetyCertificateOutlined />,
+                    title: isDpManager || isStationMgr ? 'Local Manifest Station' : 'Manifest Station',
+                    desc: isDpManager || isStationMgr
+                      ? 'Outbound manifest after sealing (local East MY)'
+                      : 'Local outbound + East↔West linehaul manifests',
+                  },
+                  {
                     key: 'pickups',
-                    show: can('dispatch') || can('consignments') || isAdmin,
+                    show: can('dispatch') || can('pickups') || isAdmin,
                     path: '/ops/pickups',
                     icon: <CarOutlined />,
-                    title: 'Pickup Queue & Auto-Assign',
-                    desc: 'Dispatch fleet couriers and load balance',
+                    title: isDpManager ? 'Outbound Auto-Batch' : 'Pickup Queue & Auto-Assign',
+                    desc: isDpManager
+                      ? 'Assign couriers for your drop point outbound CNs / seals'
+                      : 'Dispatch couriers; auto-batch sealed outbound bags',
                   },
                   {
                     key: 'overnight',
@@ -438,8 +503,16 @@ export default function DashboardPage() {
                         : 'Lost, damage & reject claims',
                   },
                   {
+                    key: 'dp-money',
+                    show: isDpManager && (can('billing') || can('dropPoints') || isAdmin),
+                    path: '/ops/billing/agent-in',
+                    icon: <DollarCircleOutlined />,
+                    title: 'Drop Point Money',
+                    desc: 'Money in / out for your counter',
+                  },
+                  {
                     key: 'invoice',
-                    show: can('billing') || isAdmin,
+                    show: !isDpManager && (can('billing') || isAdmin),
                     path: '/ops/billing/invoices?mode=entry',
                     icon: <DollarCircleOutlined />,
                     title: 'Generate Invoice',
@@ -447,7 +520,7 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'billing',
-                    show: can('billing') || isAdmin,
+                    show: !isDpManager && (can('billing') || isAdmin),
                     path: '/ops/billing/invoices',
                     icon: <DollarCircleOutlined />,
                     title: 'Finance & Invoicing',
@@ -455,7 +528,7 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'commissions',
-                    show: can('commissions') || can('billing') || isAdmin,
+                    show: !isDpManager && (can('commissions') || can('billing') || isAdmin),
                     path: '/ops/commissions/rates',
                     icon: <TeamOutlined />,
                     title: 'Commissions & Wallets',
@@ -479,7 +552,7 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'hubs',
-                    show: can('hubs') || can('admin') || isAdmin,
+                    show: !isDpManager && (can('hubs') || can('admin') || isAdmin),
                     path: '/ops/admin/hubs',
                     icon: <SafetyCertificateOutlined />,
                     title: 'Hub Management',
@@ -487,31 +560,23 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'zones',
-                    show: can('routing') || can('admin') || isAdmin,
+                    show: !isDpManager && (can('routing') || can('admin') || isAdmin),
                     path: '/ops/admin/zones',
                     icon: <SafetyCertificateOutlined />,
                     title: 'Delivery Points',
                     desc: 'Service areas under each hub',
                   },
                   {
-                    key: 'areas',
-                    show: can('routing') || can('admin') || isAdmin,
-                    path: '/ops/admin/areas',
-                    icon: <SafetyCertificateOutlined />,
-                    title: 'Areas',
-                    desc: 'Last-mile territories & keywords',
-                  },
-                  {
                     key: 'drops',
                     show: can('dropPoints') || can('admin') || isAdmin,
                     path: '/ops/admin/drop-points',
                     icon: <SafetyCertificateOutlined />,
-                    title: 'Drop Points',
-                    desc: 'Counter stations under a DP',
+                    title: isDpManager ? 'My Drop Point' : 'Drop Points',
+                    desc: isDpManager ? 'Your counter station profile' : 'Counter stations under a DP',
                   },
                   {
                     key: 'drivers',
-                    show: can('staff') || isAdmin,
+                    show: !isDpManager && (can('staff') || isAdmin),
                     path: '/ops/admin/drivers',
                     icon: <CarOutlined />,
                     title: 'Driver Management',
@@ -519,7 +584,7 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'areas',
-                    show: can('routing') || can('admin') || isAdmin,
+                    show: !isDpManager && (can('routing') || can('admin') || isAdmin),
                     path: '/ops/admin/areas',
                     icon: <SafetyCertificateOutlined />,
                     title: 'Network Areas',
@@ -527,7 +592,7 @@ export default function DashboardPage() {
                   },
                   {
                     key: 'staff',
-                    show: can('staff') || isAdmin,
+                    show: !isDpManager && (can('staff') || isAdmin),
                     path: '/ops/staff',
                     icon: <SafetyCertificateOutlined />,
                     title: 'Staff Verification Queue',

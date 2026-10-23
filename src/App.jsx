@@ -24,6 +24,7 @@ import MasterAdminPage from './modules/admin/MasterAdminPage'
 import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
 import SystemLogsPage from './modules/audit/SystemLogsPage'
 import SealStationPage from './pages/SealStationPage'
+import NodeFlowPage from './pages/NodeFlowPage'
 import ManifestStationPage from './pages/ManifestStationPage'
 import CommissionPage from './pages/CommissionPage'
 import CommissionGuidePage from './modules/commissions/CommissionGuidePage'
@@ -129,6 +130,7 @@ export default function App() {
                 <Route path="/ops/cargo" element={<CargoPage />} />
                 <Route path="/ops/dispatch" element={<DispatchPage />} />
                 <Route path="/ops/seals" element={<SealStationPage />} />
+                <Route path="/ops/node-flow" element={<NodeFlowPage />} />
                 <Route path="/ops/station/manifests" element={<ManifestStationPage />} />
                 <Route path="/ops/manifests" element={<ManifestsPage />} />
                 <Route path="/ops/manifests/:mfg" element={<ManifestsPage />} />

@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   Descriptions,
   Input,
   Modal,
@@ -805,49 +806,53 @@ export default function TrackingPage() {
                 {route || assignment ? (
                   <Row gutter={[12, 12]}>
                     <Col xs={24} lg={12}>
-                      <Card
-                        size="small"
-                        style={{ borderRadius: 8, height: '100%' }}
-                        title={
-                          <Space wrap>
-                            <span>Order route</span>
-                            {data.transportModeLabel || data.transportMode ? (
-                              <Tag>{data.transportModeLabel || data.transportMode}</Tag>
-                            ) : null}
-                            {(route?.networkArea ||
-                              route?.destinationArea ||
-                              assignment?.networkArea ||
-                              assignment?.destinationAreaCode) ? (
-                              <Tag
-                                color="blue"
-                                title={
-                                  route?.networkAreaName ||
-                                  route?.destinationAreaName ||
-                                  assignment?.networkAreaName ||
-                                  assignment?.destinationAreaName ||
-                                  ''
-                                }
-                              >
-                                {route?.networkArea ||
+                      <Collapse
+                        defaultActiveKey={[]}
+                        style={{ borderRadius: 8, background: '#fff' }}
+                        items={[
+                          {
+                            key: 'order-route',
+                            label: (
+                              <Space wrap>
+                                <span>Order route</span>
+                                {data.transportModeLabel || data.transportMode ? (
+                                  <Tag>{data.transportModeLabel || data.transportMode}</Tag>
+                                ) : null}
+                                {(route?.networkArea ||
                                   route?.destinationArea ||
                                   assignment?.networkArea ||
-                                  assignment?.destinationAreaCode}
-                                {(route?.networkAreaName ||
-                                  route?.destinationAreaName ||
-                                  assignment?.networkAreaName ||
-                                  assignment?.destinationAreaName)
-                                  ? ` — ${
+                                  assignment?.destinationAreaCode) ? (
+                                  <Tag
+                                    color="blue"
+                                    title={
                                       route?.networkAreaName ||
                                       route?.destinationAreaName ||
                                       assignment?.networkAreaName ||
-                                      assignment?.destinationAreaName
-                                    }`
-                                  : ''}
-                              </Tag>
-                            ) : null}
-                          </Space>
-                        }
-                      >
+                                      assignment?.destinationAreaName ||
+                                      ''
+                                    }
+                                  >
+                                    {route?.networkArea ||
+                                      route?.destinationArea ||
+                                      assignment?.networkArea ||
+                                      assignment?.destinationAreaCode}
+                                    {(route?.networkAreaName ||
+                                      route?.destinationAreaName ||
+                                      assignment?.networkAreaName ||
+                                      assignment?.destinationAreaName)
+                                      ? ` — ${
+                                          route?.networkAreaName ||
+                                          route?.destinationAreaName ||
+                                          assignment?.networkAreaName ||
+                                          assignment?.destinationAreaName
+                                        }`
+                                      : ''}
+                                  </Tag>
+                                ) : null}
+                              </Space>
+                            ),
+                            children: (
+                              <>
                         {route?.error ? (
                           <Alert
                             type="warning"
@@ -916,7 +921,7 @@ export default function TrackingPage() {
                                           <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                                             {g.placeName}
                                           </Text>
-            ) : null}
+                                        ) : null}
                                       </div>
                                     ) : (
                                       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -924,32 +929,112 @@ export default function TrackingPage() {
                                       </Text>
                                     )}
                                   </div>
-                </li>
+                                </li>
                               )
                             })}
-            </ol>
-          )}
-                      </Card>
+                          </ol>
+                        )}
+                              </>
+                            ),
+                          },
+                        ]}
+                      />
                     </Col>
                     <Col xs={24} lg={12}>
-                      <Card
-                        size="small"
-                        style={{ borderRadius: 8, height: '100%' }}
-                        title={
-                          <Space wrap>
-                            <span>Assigned details</span>
-                            {(assignment?.gapsCount || assignment?.gaps?.length) > 0 ? (
-                              <Tag color="orange">
-                                {assignment.gapsCount || assignment.gaps.length} open
-                              </Tag>
-                            ) : null}
-                          </Space>
-                        }
-                      >
+                      <Collapse
+                        defaultActiveKey={[]}
+                        style={{ borderRadius: 8, background: '#fff' }}
+                        items={[
+                          {
+                            key: 'assigned-details',
+                            label: (
+                              <Space wrap>
+                                <span>Assigned details</span>
+                                {(assignment?.gapsCount || assignment?.gaps?.length) > 0 ? (
+                                  <Tag color="orange">
+                                    {assignment.gapsCount || assignment.gaps.length} open
+                                  </Tag>
+                                ) : null}
+                              </Space>
+                            ),
+                            children: (
+                              <>
                         <Descriptions column={1} size="small" bordered>
-                          <Descriptions.Item label="Assigned driver">
+                          <Descriptions.Item label="Service mode">
                             <div>
-                              {assignment?.assignedDriverName ||
+                              <div>
+                                <Text strong style={{ fontSize: 12 }}>
+                                  Pickup:{' '}
+                                </Text>
+                                {dash(assignment?.originServiceLabel || assignment?.originService)}
+                              </div>
+                              <div>
+                                <Text strong style={{ fontSize: 12 }}>
+                                  Delivery:{' '}
+                                </Text>
+                                {dash(assignment?.destinationServiceLabel || assignment?.destinationService)}
+                              </div>
+                              {assignment?.originServiceHint || assignment?.destinationServiceHint ? (
+                                <div style={{ marginTop: 4 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {[assignment?.originServiceHint, assignment?.destinationServiceHint]
+                                      .filter(Boolean)
+                                      .join(' · ')}
+                                  </Text>
+                                </div>
+                              ) : null}
+                            </div>
+                          </Descriptions.Item>
+
+                          <Descriptions.Item label="What is assigned">
+                            <div>
+                              <Space wrap size={[6, 6]} style={{ marginBottom: 4 }}>
+                                <Tag color="blue">{assignment?.jobTypeLabel || 'Courier job'}</Tag>
+                                <Tag
+                                  color={
+                                    assignment?.offerStatusTone === 'success'
+                                      ? 'success'
+                                      : assignment?.offerStatusTone === 'warning'
+                                        ? 'warning'
+                                        : 'default'
+                                  }
+                                >
+                                  {assignment?.offerStatusLabel ||
+                                    assignment?.assignmentAcceptedLabel ||
+                                    'Not assigned yet'}
+                                </Tag>
+                              </Space>
+                              <div style={{ fontWeight: 600 }}>
+                                {dash(assignment?.assignmentRole || 'Courier job')}
+                              </div>
+                              {assignment?.assignmentTask ? (
+                                <div>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {assignment.assignmentTask}
+                                  </Text>
+                                </div>
+                              ) : null}
+                              {assignment?.offerStatusHint ? (
+                                <div style={{ marginTop: 4 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {assignment.offerStatusHint}
+                                  </Text>
+                                </div>
+                              ) : null}
+                              {assignment?.assignedAt ? (
+                                <div style={{ marginTop: 4 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Offered at {formatWhen(assignment.assignedAt)}
+                                  </Text>
+                                </div>
+                              ) : null}
+                            </div>
+                          </Descriptions.Item>
+
+                          <Descriptions.Item label="Assigned courier">
+                            <div>
+                              {assignment?.assignedDriverLabel ||
+                                assignment?.assignedDriverName ||
                                 (assignment?.assignedDriverId
                                   ? `Driver #${assignment.assignedDriverId}`
                                   : '—')}
@@ -960,20 +1045,17 @@ export default function TrackingPage() {
                                   </Text>
                                 </div>
                               ) : null}
-                            </div>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Assignment">
-                            <div>
-                              {assignment?.assignmentAcceptedLabel || '—'}
-                              {assignment?.assignedAt ? (
+                              {assignment?.assignedDriverZones || assignment?.assignedDriverRoute ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
-                                    {formatWhen(assignment.assignedAt)}
+                                    Network areas:{' '}
+                                    {assignment.assignedDriverZones || assignment.assignedDriverRoute}
                                   </Text>
                                 </div>
                               ) : null}
                             </div>
                           </Descriptions.Item>
+
                           <Descriptions.Item label="Last-mile dispatcher">
                             <div>
                               {assignment?.deliveryDispatcherName ||
@@ -985,20 +1067,21 @@ export default function TrackingPage() {
                               {assignment?.dispatcherAreaCode ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Area {assignment.dispatcherAreaCode}
+                                    Territory area {assignment.dispatcherAreaCode}
                                   </Text>
                                 </div>
                               ) : null}
                               {assignment?.dispatcherDeliveryPoint ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
-                                    DP {assignment.dispatcherDeliveryPoint}
+                                    Station DP {assignment.dispatcherDeliveryPoint}
                                   </Text>
                                 </div>
                               ) : null}
                             </div>
                           </Descriptions.Item>
-                          <Descriptions.Item label="Network area">
+
+                          <Descriptions.Item label="Network area (last mile)">
                             {assignment?.networkArea || assignment?.destinationAreaCode
                               ? `${assignment?.networkArea || assignment.destinationAreaCode}${
                                   assignment?.networkAreaName || assignment?.destinationAreaName
@@ -1007,6 +1090,7 @@ export default function TrackingPage() {
                                 }`
                               : '—'}
                           </Descriptions.Item>
+
                           <Descriptions.Item label="Pickup coverage">
                             <div>
                               {assignment?.coverageTypeLabel ||
@@ -1020,6 +1104,7 @@ export default function TrackingPage() {
                               ) : null}
                             </div>
                           </Descriptions.Item>
+
                           <Descriptions.Item label="Origin drop">
                             {dash(assignment?.originDropLabel || data.originDropLabel)}
                           </Descriptions.Item>
@@ -1070,7 +1155,11 @@ export default function TrackingPage() {
                             description="Required personnel for this CN’s service mode are present or not needed yet."
                           />
                         )}
-                      </Card>
+                              </>
+                            ),
+                          },
+                        ]}
+                      />
                     </Col>
                   </Row>
                 ) : null}

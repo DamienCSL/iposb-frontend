@@ -15,31 +15,34 @@ import {
   sealArriveCn,
 } from '../api/client'
 import { printSealLabel, SealLabelNote } from '../components/SealLabelPrint'
+import { useAuth } from '../auth/AuthContext'
+import { isStorekeeper } from '../auth/rbac'
 
 const PHASES = [
   {
     id: 'origin_dp',
     step: 1,
-    title: 'Origin DEP',
-    summary: 'Pack CNs into Baby → close',
+    title: 'Local pack (DP / DEP)',
+    summary:
+      'Drop Point: pack CNs into Baby → close → local outbound manifest. Delivery Point: create Mother (baby seals) before handoff to dest DEP.',
   },
   {
     id: 'origin_hub',
     step: 2,
-    title: 'Origin Hub',
-    summary: 'Seal arrival → depart (Father = sea / East↔West only)',
+    title: 'Origin Hub (East↔West)',
+    summary: 'Only when leaving East MY (or oversea): seal arrival → Father / linehaul depart',
   },
   {
     id: 'dest_hub',
     step: 3,
-    title: 'Dest Hub',
-    summary: 'Seal arrival → open Father/Mother → depart to DEP',
+    title: 'Dest Hub (East↔West)',
+    summary: 'Only on East↔West / oversea lane: seal arrival → open Father/Mother → depart to DEP',
   },
   {
     id: 'dest_dp',
     step: 4,
     title: 'Dest DEP',
-    summary: 'Unseal Baby → scan each CN (SHB)',
+    summary: 'Unseal Baby → scan each CN (SHB) for last-mile / self-collect',
   },
 ]
 
@@ -86,9 +89,11 @@ function MemberTree({ members, depth = 0 }) {
 }
 
 export default function SealStationPage() {
+  const { user } = useAuth()
+  const preferMother = isStorekeeper(user?.role)
   const [phase, setPhase] = useState('origin_dp')
   const [sop, setSop] = useState(null)
-  const [tier, setTier] = useState('baby')
+  const [tier, setTier] = useState(() => (isStorekeeper(user?.role) ? 'mother' : 'baby'))
   const [destArea, setDestArea] = useState('')
   const [destDp, setDestDp] = useState('')
   const [destHub, setDestHub] = useState('')
@@ -150,9 +155,9 @@ export default function SealStationPage() {
   }, [refreshList])
 
   useEffect(() => {
-    // Default create tier + scan status per phase
+    // Default create tier + scan status per phase (DEP prefers Mother; Drop Point prefers Baby)
     if (phase === 'origin_dp') {
-      setTier('baby')
+      setTier(preferMother ? 'mother' : 'baby')
     } else if (phase === 'origin_hub') {
       setTier('father')
       setScanStatus('ARR')
@@ -160,7 +165,7 @@ export default function SealStationPage() {
       setScanStatus('HUB')
     }
     refreshSop().catch(() => {})
-  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, preferMother]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadSeal(sealNo) {
     const code = String(sealNo || '').trim().toUpperCase()
@@ -488,13 +493,13 @@ export default function SealStationPage() {
                     <select className="form-select" value={tier} onChange={(e) => setTier(e.target.value)}>
                       {phase === 'origin_dp' ? (
                         <>
-                          <option value="baby">Baby — dest area (CNs)</option>
-                          <option value="mother">Mother — dest DEP (baby seals)</option>
+                          <option value="baby">Baby — Drop Point packs CNs (dest area)</option>
+                          <option value="mother">Mother — Delivery Point groups babies → dest DEP</option>
                         </>
                       ) : (
                         <>
-                          <option value="father">Father — dest hub (sea / East↔West only)</option>
-                          <option value="mother">Mother — dest DEP (optional hub bag)</option>
+                          <option value="father">Father — dest hub (East↔West / oversea only)</option>
+                          <option value="mother">Mother — dest DEP (hub staging bag)</option>
                         </>
                       )}
                     </select>

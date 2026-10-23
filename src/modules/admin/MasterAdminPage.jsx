@@ -15,6 +15,7 @@ import {
   Select,
   Space,
   Statistic,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -56,10 +57,14 @@ import {
   saveMaster,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
+import { STAFF_ASSIGNABLE_ROLES, normalizeRole } from '../../auth/rbac'
 import GeoLocationPicker from '../../components/GeoLocationPicker'
 import CodeLookupField from '../../components/CodeLookupField'
 import ListPageLayout from '../../components/ListPageLayout'
 import StatusTag from '../../components/StatusTag'
+
+const USER_ROLE_TAB_ALL = 'all'
+const USER_ROLE_TAB_OTHER = 'Others'
 
 // Removing these only deactivates the row (is_active = 0) so history keeps its codes.
 const SOFT_DELETE_RESOURCES = new Set([
@@ -947,6 +952,7 @@ export default function MasterAdminPage() {
 
   const [rows, setRows] = useState([])
   const [search, setSearch] = useState('')
+  const [roleTab, setRoleTab] = useState(USER_ROLE_TAB_ALL)
   const [loading, setLoading] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -962,13 +968,89 @@ export default function MasterAdminPage() {
   const [rotateModal, setRotateModal] = useState({ open: false, partner: null })
   const [rotating, setRotating] = useState(false)
 
+  const userRoleCounts = useMemo(() => {
+    if (currentResource !== 'users') return {}
+    const counts = { [USER_ROLE_TAB_ALL]: rows.length, [USER_ROLE_TAB_OTHER]: 0 }
+    for (const role of STAFF_ASSIGNABLE_ROLES) counts[role] = 0
+    for (const r of rows) {
+      const role = normalizeRole(r.app_role || r.role || '')
+      if (Object.prototype.hasOwnProperty.call(counts, role)) {
+        counts[role] += 1
+      } else {
+        counts[USER_ROLE_TAB_OTHER] += 1
+      }
+    }
+    return counts
+  }, [rows, currentResource])
+
+  const userRoleTabs = useMemo(() => {
+    if (currentResource !== 'users') return []
+    const tabs = [
+      {
+        key: USER_ROLE_TAB_ALL,
+        label: (
+          <span>
+            All{' '}
+            <Badge
+              count={userRoleCounts[USER_ROLE_TAB_ALL] || 0}
+              showZero
+              overflowCount={999}
+              style={{ backgroundColor: '#94A3B8' }}
+            />
+          </span>
+        ),
+      },
+      ...STAFF_ASSIGNABLE_ROLES.map((role) => ({
+        key: role,
+        label: (
+          <span>
+            {role}{' '}
+            <Badge
+              count={userRoleCounts[role] || 0}
+              showZero
+              overflowCount={999}
+              style={{ backgroundColor: '#1B8A5A' }}
+            />
+          </span>
+        ),
+      })),
+    ]
+    if ((userRoleCounts[USER_ROLE_TAB_OTHER] || 0) > 0 || roleTab === USER_ROLE_TAB_OTHER) {
+      tabs.push({
+        key: USER_ROLE_TAB_OTHER,
+        label: (
+          <span>
+            Other / legacy{' '}
+            <Badge
+              count={userRoleCounts[USER_ROLE_TAB_OTHER] || 0}
+              showZero
+              overflowCount={999}
+              style={{ backgroundColor: '#D97706' }}
+            />
+          </span>
+        ),
+      })
+    }
+    return tabs
+  }, [currentResource, userRoleCounts, roleTab])
+
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return rows
+    let list = rows
+    if (currentResource === 'users' && roleTab !== USER_ROLE_TAB_ALL) {
+      list = list.filter((r) => {
+        const role = normalizeRole(r.app_role || r.role || '')
+        if (roleTab === USER_ROLE_TAB_OTHER) {
+          return !STAFF_ASSIGNABLE_ROLES.includes(role)
+        }
+        return role === roleTab
+      })
+    }
+    if (!search.trim()) return list
     const term = search.toLowerCase().trim()
-    return rows.filter((r) =>
+    return list.filter((r) =>
       Object.values(r).some((v) => v !== null && v !== undefined && String(v).toLowerCase().includes(term))
     )
-  }, [rows, search])
+  }, [rows, search, currentResource, roleTab])
 
   // Count active entities
   const activeCount = useMemo(() => {
@@ -992,6 +1074,7 @@ export default function MasterAdminPage() {
 
   useEffect(() => {
     setSearch('')
+    setRoleTab(USER_ROLE_TAB_ALL)
     setShowRemoved(false)
     loadData(false)
   }, [currentResource])
@@ -1009,6 +1092,13 @@ export default function MasterAdminPage() {
     }
     setEditingItem(null)
     form.resetFields()
+    if (
+      currentResource === 'users' &&
+      roleTab !== USER_ROLE_TAB_ALL &&
+      roleTab !== USER_ROLE_TAB_OTHER
+    ) {
+      form.setFieldsValue({ app_role: roleTab })
+    }
     setDrawerOpen(true)
   }
 
@@ -1486,8 +1576,16 @@ export default function MasterAdminPage() {
       {/* Main Table Layout */}
       <ListPageLayout
         title={`${schema.title}`}
-        subtitle={`System registry and configuration parameters for ${schema.title.toLowerCase()}. Phone numbers masked by default for privacy.`}
-        searchPlaceholder={`Search ${schema.title.toLowerCase()} across all fields...`}
+        subtitle={
+          currentResource === 'users'
+            ? 'Filter staff by role using the tabs below. Module access is configured on Role Access (RBAC).'
+            : `System registry and configuration parameters for ${schema.title.toLowerCase()}. Phone numbers masked by default for privacy.`
+        }
+        searchPlaceholder={
+          currentResource === 'users'
+            ? 'Search username, name, branch…'
+            : `Search ${schema.title.toLowerCase()} across all fields...`
+        }
         searchValue={search}
         onSearchChange={setSearch}
         actions={[
@@ -1526,7 +1624,28 @@ export default function MasterAdminPage() {
         loading={loading}
         rowKey={schema.pk || 'id'}
         pagination={{ pageSize: 15 }}
-        emptyText={`No ${schema.title.toLowerCase()} records found`}
+        emptyText={
+          currentResource === 'users' && roleTab !== USER_ROLE_TAB_ALL
+            ? `No ${roleTab} users found`
+            : `No ${schema.title.toLowerCase()} records found`
+        }
+        extraHeader={
+          currentResource === 'users' ? (
+            <Card
+              size="small"
+              bodyStyle={{ padding: '4px 12px 0' }}
+              style={{ borderRadius: 8, border: '1px solid #E5E7EB' }}
+            >
+              <Tabs
+                activeKey={roleTab}
+                onChange={setRoleTab}
+                items={userRoleTabs}
+                size="small"
+                tabBarStyle={{ marginBottom: 0 }}
+              />
+            </Card>
+          ) : null
+        }
       />
 
       {/* Dynamic Create/Edit Drawer */}

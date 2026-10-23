@@ -16,6 +16,7 @@ import {
   CustomerServiceOutlined,
   DashboardOutlined,
   DollarCircleOutlined,
+  EnvironmentOutlined,
   FileTextOutlined,
   HistoryOutlined,
   InboxOutlined,
@@ -39,7 +40,7 @@ import {
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { consignmentsNewPath, isDroppointManager } from '../auth/rbac'
+import { consignmentsNewPath, isDroppointManager, isHubManager, isStorekeeper } from '../auth/rbac'
 import { listConsignments } from '../api/client'
 
 const { Header, Sider, Content } = Layout
@@ -58,10 +59,11 @@ const APP_PAGES = [
   { title: 'ATS / Problematic Scans', path: '/ops/ats-claims', keywords: ['ats', 'n13', 'n12', 'damage', 'lost', 'd4', 'reject', 'problematic'] },
   { title: 'Dispatch Driver Assignment', path: '/ops/dispatch?tab=assign', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers', 'plan', 'auto-assign'] },
   { title: 'Remote / 3PL Pickup', path: '/ops/dispatch?tab=remote', keywords: ['3pl', 'remote', 'uncovered', 'partner'] },
-  { title: 'Seal Station', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan'] },
+  { title: 'Seal Station (Baby / Mother)', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan', 'baby', 'mother'] },
+  { title: 'Inbound / Outbound Desk', path: '/ops/node-flow', keywords: ['inbound', 'outbound', 'arrive', 'depart', 'scan confirm', 'node'] },
   { title: 'Airport / Port Cargo', path: '/ops/cargo', keywords: ['cargo', 'airport', 'port', 'lodge', 'collect', 'air', 'sea'] },
-  { title: 'Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'baby', 'mother', 'father', 'hub'] },
-  { title: 'Manifests & Linehaul Bags', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags'] },
+  { title: 'Local Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'outbound', 'local', 'baby', 'mother', 'father', 'hub'] },
+  { title: 'Manifests (local + East–West)', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags', 'east', 'west'] },
   { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
   { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network'] },
   { title: 'Status Summaries', path: '/ops/summaries', keywords: ['summary', 'status', 'counts'] },
@@ -275,6 +277,8 @@ function getSelectedKey(pathname, search = '') {
 export default function AppLayout() {
   const { user, logout, booting, can, isAdmin } = useAuth()
   const isDpManager = isDroppointManager(user?.role)
+  const isHubMgr = isHubManager(user?.role)
+  const isStationMgr = isStorekeeper(user?.role)
   const entryPath = consignmentsNewPath(user?.role)
   const location = useLocation()
   const navigate = useNavigate()
@@ -482,23 +486,23 @@ export default function AppLayout() {
   // Active menu root key calculation
   const selectedKey = getSelectedKey(location.pathname, location.search)
 
-  // Full Production Navigation: Operations · Finance · Customer Service · Administration
+  // Main sections are collapsible submenus (default closed). Dashboard stays top-level.
   const menuGroups = [
     {
-      key: 'grp-operations',
-      type: 'group',
-      label: 'OPERATIONS',
+      key: '/ops/dashboard',
+      icon: <DashboardOutlined />,
+      label: <Link to="/ops/dashboard" style={{ display: 'block', width: '100%' }}>Dashboard</Link>,
+      visible: true,
+    },
+    {
+      key: 'main-consignments',
+      icon: <InboxOutlined />,
+      label: 'Consignments',
+      visible: can('consignments') || isAdmin,
       children: [
         {
-          key: '/ops/dashboard',
-          icon: <DashboardOutlined />,
-          label: <Link to="/ops/dashboard" style={{ display: 'block', width: '100%' }}>Dashboard</Link>,
-          visible: true,
-        },
-        {
           key: '/ops/consignments',
-          icon: <InboxOutlined />,
-          label: <Link to="/ops/consignments" style={{ display: 'block', width: '100%' }}>Consignments</Link>,
+          label: <Link to="/ops/consignments" style={{ display: 'block', width: '100%' }}>Consignment List</Link>,
           visible: can('consignments'),
         },
         {
@@ -509,7 +513,6 @@ export default function AppLayout() {
         },
         {
           key: '/ops/consignments/new?mode=drop',
-          icon: <InboxOutlined />,
           label: (
             <Link to={entryPath} style={{ display: 'block', width: '100%' }}>
               DP Counter Booking
@@ -525,7 +528,6 @@ export default function AppLayout() {
         },
         {
           key: '/ops/consignments/import',
-          icon: <InboxOutlined />,
           label: <Link to="/ops/consignments/import" style={{ display: 'block', width: '100%' }}>Batch Import</Link>,
           visible: can('consignments'),
         },
@@ -542,8 +544,21 @@ export default function AppLayout() {
           visible: can('consignments') || isAdmin,
         },
         {
+          key: '/ops/admin/drop-points',
+          icon: <EnvironmentOutlined />,
+          label: <Link to="/ops/admin/drop-points" style={{ display: 'block', width: '100%' }}>My Drop Point</Link>,
+          visible: can('dropPoints') && isDpManager && !can('admin') && !isAdmin,
+        },
+      ],
+    },
+    {
+      key: 'main-dispatch',
+      icon: <CarOutlined />,
+      label: 'Dispatch & Pickup',
+      visible: can('pickups') || can('dispatch') || isAdmin,
+      children: [
+        {
           key: '/ops/pickups',
-          icon: <CarOutlined />,
           label: <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>Pickups Queue</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
@@ -554,58 +569,78 @@ export default function AppLayout() {
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
         {
-          key: '/ops/ats-claims',
-          icon: <WarningOutlined />,
-          label: <Link to="/ops/ats-claims" style={{ display: 'block', width: '100%' }}>ATS / Problematic</Link>,
-          visible: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
-        },
-        {
           key: '/ops/dispatch',
           icon: <GlobalOutlined />,
           label: <Link to="/ops/dispatch?tab=assign" style={{ display: 'block', width: '100%' }}>Dispatch & 3PL</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
         {
-          key: '/ops/seals',
-          icon: <SafetyCertificateOutlined />,
-          label: <Link to="/ops/seals" style={{ display: 'block', width: '100%' }}>Seal Station</Link>,
-          visible: can('manifests') || can('dispatch') || isAdmin,
+          key: '/ops/ats-claims',
+          icon: <WarningOutlined />,
+          label: <Link to="/ops/ats-claims" style={{ display: 'block', width: '100%' }}>ATS / Problematic</Link>,
+          visible: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
         },
+      ],
+    },
+    {
+      key: '/ops/seals',
+      icon: <SafetyCertificateOutlined />,
+      label: <Link to="/ops/seals" style={{ display: 'block', width: '100%' }}>Seal Station (Baby / Mother)</Link>,
+      visible: can('seals') || isAdmin,
+    },
+    {
+      key: '/ops/node-flow',
+      icon: <InboxOutlined />,
+      label: <Link to="/ops/node-flow" style={{ display: 'block', width: '100%' }}>Inbound / Outbound</Link>,
+      visible: can('consignments') || can('seals') || can('manifests') || can('dispatch') || isAdmin,
+    },
+    {
+      key: 'main-hub',
+      icon: <FileTextOutlined />,
+      label: 'Manifests & Linehaul',
+      visible: can('manifests') || isAdmin,
+      children: [
         {
           key: '/ops/station/manifests',
           icon: <FileTextOutlined />,
-          label: <Link to="/ops/station/manifests" style={{ display: 'block', width: '100%' }}>Manifest Station</Link>,
-          visible: can('manifests') || can('dispatch') || isAdmin,
+          label: <Link to="/ops/station/manifests" style={{ display: 'block', width: '100%' }}>Local Manifest Station</Link>,
+          visible: can('manifests') || isAdmin,
         },
         {
           key: '/ops/manifests',
           icon: <FileTextOutlined />,
-          label: <Link to="/ops/manifests" style={{ display: 'block', width: '100%' }}>Manifests & Bags</Link>,
-          visible: can('manifests') || can('consignments') || isAdmin,
+          label: <Link to="/ops/manifests" style={{ display: 'block', width: '100%' }}>Manifests (local + East–West)</Link>,
+          visible: can('manifests') || isAdmin,
         },
         {
           key: '/ops/cargo',
           icon: <RocketOutlined />,
           label: <Link to="/ops/cargo" style={{ display: 'block', width: '100%' }}>Airport / Port Cargo</Link>,
-          visible: can('manifests') || isAdmin,
+          visible: (can('manifests') || isAdmin) && !isDpManager && !isStationMgr,
         },
         {
           key: '/ops/returns',
           icon: <RollbackOutlined />,
           label: <Link to="/ops/returns" style={{ display: 'block', width: '100%' }}>RTS & Returns</Link>,
-          visible: can('returns') || can('consignments') || isAdmin,
+          visible: (can('manifests') || isAdmin) && !isDpManager,
         },
+      ],
+    },
+    {
+      key: 'main-reports',
+      icon: <BarChartOutlined />,
+      label: 'Reports & Analytics',
+      visible: can('reports') || can('summaries') || can('billing') || isAdmin,
+      children: [
         {
           key: '/network',
-          icon: <BarChartOutlined />,
           label: <Link to="/network" style={{ display: 'block', width: '100%' }}>Network Analytics</Link>,
-          visible: can('reports') || can('analytics') || isAdmin,
+          visible: (can('reports') || can('summaries') || isAdmin) && !isDpManager,
         },
         {
           key: 'sub-summaries',
-          icon: <BarChartOutlined />,
           label: 'Status Summaries',
-          visible: can('reports') || can('analytics') || isAdmin,
+          visible: can('summaries') || isAdmin,
           children: [
             {
               key: '/ops/summaries',
@@ -705,45 +740,45 @@ export default function AppLayout() {
       ],
     },
     {
-      key: 'grp-finance',
-      type: 'group',
-      label: 'FINANCE & BILLING',
+      key: 'main-finance',
+      icon: <DollarCircleOutlined />,
+      label: 'Finance & Billing',
+      visible: can('billing') || can('cod') || can('commissions') || can('dropPoints') || isAdmin,
       children: [
         {
           key: 'sub-billing',
-          icon: <DollarCircleOutlined />,
           label: 'Billing Documents',
-          visible: can('billing') || isAdmin,
+          visible: can('billing') || can('dropPoints') || isAdmin,
           children: [
             {
               key: '/ops/billing/invoices',
               label: <Link to="/ops/billing/invoices" style={{ display: 'block', width: '100%' }}>Invoices</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/invoices/tracking',
               label: <Link to="/ops/billing/invoices/tracking" style={{ display: 'block', width: '100%' }}>Invoice Tracking</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/do',
               label: <Link to="/ops/billing/do" style={{ display: 'block', width: '100%' }}>Delivery Orders (DO)</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/do/tracking',
               label: <Link to="/ops/billing/do/tracking" style={{ display: 'block', width: '100%' }}>DO Tracking</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/credit-notes',
               label: <Link to="/ops/billing/credit-notes" style={{ display: 'block', width: '100%' }}>Credit Notes</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/debit-notes',
               label: <Link to="/ops/billing/debit-notes" style={{ display: 'block', width: '100%' }}>Debit Notes</Link>,
-              visible: can('billing') || isAdmin,
+              visible: (can('billing') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/billing/agent-in',
@@ -777,13 +812,13 @@ export default function AppLayout() {
           key: '/ops/billing/customer-wallet',
           icon: <WalletOutlined />,
           label: <Link to="/ops/billing/customer-wallet" style={{ display: 'block', width: '100%' }}>Customer Wallet</Link>,
-          visible: can('billing') || isAdmin,
+          visible: (can('billing') || isAdmin) && !isDpManager,
         },
         {
           key: '/ops/billing/loyalty',
           icon: <CrownOutlined />,
           label: <Link to="/ops/billing/loyalty" style={{ display: 'block', width: '100%' }}>Loyalty Tiers</Link>,
-          visible: can('billing') || isAdmin,
+          visible: (can('billing') || isAdmin) && !isDpManager,
         },
         {
           key: '/ops/billing/cancellation-settings',
@@ -795,7 +830,7 @@ export default function AppLayout() {
           key: 'sub-commissions',
           icon: <TeamOutlined />,
           label: 'Commissions & Wallets',
-          visible: can('commissions') || can('billing') || isAdmin,
+          visible: (can('commissions') || can('billing') || isAdmin) && !isDpManager,
           children: [
             {
               key: '/ops/commissions/rates',
@@ -832,22 +867,31 @@ export default function AppLayout() {
       ],
     },
     {
-      key: 'grp-support',
-      type: 'group',
-      label: 'CUSTOMER SERVICE',
+      key: 'main-cs',
+      icon: <CustomerServiceOutlined />,
+      label: 'Customer Service',
+      visible: can('customerService') || isAdmin,
       children: [
         {
           key: '/ops/cs/tickets',
-          icon: <CustomerServiceOutlined />,
           label: <Link to="/ops/cs/tickets" style={{ display: 'block', width: '100%' }}>CS Support Tickets</Link>,
           visible: can('customerService') || isAdmin,
         },
       ],
     },
     {
-      key: 'grp-system',
-      type: 'group',
-      label: 'ADMINISTRATION',
+      key: 'main-admin',
+      icon: <SettingOutlined />,
+      label: 'Administration',
+      visible:
+        can('admin')
+        || can('staff')
+        || can('branches')
+        || can('hubs')
+        || can('dropPoints')
+        || can('routing')
+        || can('roleAccess')
+        || isAdmin,
       children: [
         {
           key: '/ops/staff',
@@ -863,9 +907,15 @@ export default function AppLayout() {
         },
         {
           key: 'sub-master-data',
-          icon: <SettingOutlined />,
           label: 'Master Data',
-          visible: can('admin') || can('branches') || isAdmin,
+          visible:
+            can('admin')
+            || can('branches')
+            || can('hubs')
+            || can('dropPoints')
+            || can('routing')
+            || can('staff')
+            || isAdmin,
           children: [
             {
               key: '/ops/admin/branches',
@@ -874,43 +924,43 @@ export default function AppLayout() {
             },
             {
               key: '/ops/admin/hubs',
-              label: <Link to="/ops/admin/hubs" style={{ display: 'block', width: '100%' }}>Hubs & Transit</Link>,
-              visible: can('admin') || can('branches') || isAdmin,
+              label: <Link to="/ops/admin/hubs" style={{ display: 'block', width: '100%' }}>Hubs (East↔West / oversea)</Link>,
+              visible: can('admin') || can('branches') || can('hubs') || isAdmin,
             },
             {
               key: '/ops/admin/drop-points',
               label: <Link to="/ops/admin/drop-points" style={{ display: 'block', width: '100%' }}>Drop Points & Counters</Link>,
-              visible: can('admin') || can('branches') || isAdmin,
+              visible: (can('admin') || can('branches') || can('dropPoints') || isAdmin) && !isDpManager,
             },
             {
               key: '/ops/admin/drivers',
               label: <Link to="/ops/admin/drivers" style={{ display: 'block', width: '100%' }}>Drivers & Couriers</Link>,
-              visible: can('admin') || can('drivers') || isAdmin,
+              visible: can('admin') || can('staff') || isAdmin,
             },
             {
               key: '/ops/admin/dispatchers',
               label: <Link to="/ops/admin/dispatchers" style={{ display: 'block', width: '100%' }}>Dispatchers</Link>,
-              visible: can('admin') || can('dispatch') || isAdmin,
+              visible: can('admin') || can('staff') || isAdmin,
             },
             {
               key: '/ops/admin/3pl',
               label: <Link to="/ops/admin/3pl" style={{ display: 'block', width: '100%' }}>3PL Partners</Link>,
-              visible: can('admin') || isAdmin,
+              visible: can('admin') || (can('dropPoints') && isHubMgr) || isAdmin,
             },
             {
               key: '/ops/admin/coverage',
               label: <Link to="/ops/admin/coverage" style={{ display: 'block', width: '100%' }}>Coverage Areas</Link>,
-              visible: can('admin') || isAdmin,
+              visible: can('admin') || (can('dropPoints') && isHubMgr) || isAdmin,
             },
             {
               key: '/ops/admin/routes',
               label: <Link to="/ops/admin/routes" style={{ display: 'block', width: '100%' }}>Routing Rules</Link>,
-              visible: can('admin') || isAdmin,
+              visible: can('admin') || can('routing') || isAdmin,
             },
             {
               key: '/ops/admin/zones',
               label: <Link to="/ops/admin/zones" style={{ display: 'block', width: '100%' }}>Delivery Points</Link>,
-              visible: can('admin') || can('routing') || isAdmin,
+              visible: (can('admin') || can('routing') || isAdmin) && !isStationMgr,
             },
             {
               key: '/ops/admin/areas',
@@ -920,12 +970,15 @@ export default function AppLayout() {
             {
               key: '/ops/admin/customers',
               label: <Link to="/ops/admin/customers" style={{ display: 'block', width: '100%' }}>Corporate Customers</Link>,
-              visible: can('admin') || can('customers') || isAdmin,
+              visible:
+                can('admin')
+                || isAdmin
+                || (can('consignments') && (can('billing') || can('dispatch') || can('pickups') || can('manifests'))),
             },
             {
               key: '/ops/admin/users',
               label: <Link to="/ops/admin/users" style={{ display: 'block', width: '100%' }}>Staff Users</Link>,
-              visible: isAdmin,
+              visible: can('users') || isAdmin,
             },
             {
               key: '/ops/admin/storekeepers',
@@ -938,7 +991,7 @@ export default function AppLayout() {
           key: '/ops/logs',
           icon: <HistoryOutlined />,
           label: <Link to="/ops/logs" style={{ display: 'block', width: '100%' }}>Activity & System Logs</Link>,
-          visible: true,
+          visible: can('admin') || can('staff') || isAdmin,
         },
       ],
     },
@@ -1048,15 +1101,20 @@ export default function AppLayout() {
           )}
         </div>
 
-        {/* Full Nav with Always-Visible Grouped Sections & Expandable Submenus */}
-        <div style={{ padding: '6px 0 60px' }}>
+        {/* Full Nav — user profile lives in the top header only */}
+        <div style={{ padding: '6px 0 16px' }}>
           <Menu
             theme="light"
             mode="inline"
             selectedKeys={[selectedKey]}
-            defaultOpenKeys={['sub-billing', 'sub-commissions', 'sub-master-data']}
+            defaultOpenKeys={[]}
             onClick={({ key }) => {
-              if (key && !key.startsWith('grp-') && !key.startsWith('sub-')) {
+              if (
+                key &&
+                !key.startsWith('main-') &&
+                !key.startsWith('sub-') &&
+                !key.startsWith('grp-')
+              ) {
                 navigate(key)
               }
             }}
@@ -1068,47 +1126,6 @@ export default function AppLayout() {
             }}
           />
         </div>
-
-        {/* User Badge in Light Container */}
-        {!collapsed && (
-          <div
-            style={{
-              position: 'sticky',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              padding: '12px 16px',
-              borderTop: '1px solid #E5E7EB',
-              background: '#F9FAFB',
-              zIndex: 10,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Avatar
-                size="small"
-                style={{ backgroundColor: '#1B8A5A' }}
-                icon={<UserOutlined />}
-              />
-              <div style={{ overflow: 'hidden', lineHeight: 1.2 }}>
-                <div
-                  style={{
-                    color: '#1F2937',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {user.name}
-                </div>
-                <div style={{ color: '#6B7280', fontSize: 11 }}>
-                  {user.role} {user.branchCode ? `(${user.branchCode})` : ''}
-                </div>
-              </div>
-          </div>
-          </div>
-        )}
       </Sider>
 
       {/* Main Content Layout */}

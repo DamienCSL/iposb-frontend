@@ -51,15 +51,18 @@ const LOCKED_ROLES = new Set(['Super Admin'])
 /** Plain-language hints for each job role */
 const ROLE_HINTS = {
   'Super Admin': 'Full access to everything. This role is protected and cannot be changed.',
-  Admin: 'Head office staff who oversee most daily work, billing, and user setup.',
-  'Hub Manager': 'Runs hub scanning, consignments, and dispatch at a hub.',
-  'Droppoint Manager': 'Manages drop-point collections, bilyet, and local stock.',
-  Operation: 'Operations desk — consignments, dispatch, and status reports.',
-  Invoice: 'Billing team — invoices (paid/unpaid), credit notes, and COD.',
-  CSL: 'Customer service — tickets and consignment lookup.',
-  Storekeeper: 'Delivery point manager — runs the Station app at their home delivery point: inbound/outbound, courier dispatch, plus manager-only returns, unassign, self-collect transfer, COD cash-in and the day summary.',
-  'Cargo Team': 'Airport / seaport cargo staff — scan air & sea manifests, bags and CNs as lodged (origin) or collected (destination). Earns the cargo-team commission.',
-  Others: 'Limited or custom access — configure modules below.',
+  Admin: 'Head office: ops, finance, master data, and staff users (not Role Access).',
+  'Hub Manager':
+    'East↔West / oversea gateway (and franchisees who also run a DEP): seals, manifests/linehaul, pickups, dispatch. Optional when work stays local in East MY.',
+  'Droppoint Manager':
+    'Local counter: book CNs, baby-seal, generate outbound manifest, first-mile courier — home drop point only.',
+  Storekeeper:
+    'Delivery Point manager (local hub of sorts): mother-seal baby bags before dest DEP handoff, local manifests, last-mile dispatch & COD.',
+  Operation: 'Network ops desk: consignments, pickups, seals, manifests, dispatch, summaries, and CS tickets.',
+  Invoice: 'Finance: consignments lookup, invoices/DO/credit notes, COD, commissions, and print reports.',
+  CSL: 'Customer service: tickets, consignment tracking, summaries, and customer reports.',
+  'Cargo Team': 'Airport / seaport: cargo manifests & bags, consignment lookup, summaries (lands on Cargo).',
+  Others: 'Minimal track/report access — widen modules below if needed.',
 }
 
 /** Icons + friendly descriptions (non-technical) */
@@ -70,15 +73,19 @@ const MODULE_META = {
   },
   pickups: {
     icon: CarOutlined,
-    hint: 'First-mile waiting queue and courier / DP assignment',
+    hint: 'First-mile waiting queue and courier / drop-point assignment',
+  },
+  seals: {
+    icon: SafetyCertificateOutlined,
+    hint: 'Baby bags (Drop Point packs CNs) and Mother bags (Delivery Point groups babies for dest DEP)',
   },
   manifests: {
     icon: FileTextOutlined,
-    hint: 'Manifests, bags, and seal station',
+    hint: 'Local outbound manifests after sealing, plus East↔West / oversea linehaul when a hub is used',
   },
   dispatch: {
     icon: CarOutlined,
-    hint: 'Driver assignment, 3PL, overnight hold requests, and remote coverage',
+    hint: 'Courier / dispatcher assign, 3PL, overnight holds — local last-mile',
   },
   summaries: {
     icon: BarChartOutlined,
@@ -102,7 +109,7 @@ const MODULE_META = {
   },
   dropPoints: {
     icon: EnvironmentOutlined,
-    hint: 'Drop points, stock, and drop-point money ledgers',
+    hint: 'Drop-point counters, stock, and drop-point money ledgers',
   },
   customerReports: {
     icon: RiseOutlined,
@@ -122,7 +129,7 @@ const MODULE_META = {
   },
   hubs: {
     icon: ClusterOutlined,
-    hint: 'Scan hubs and hub configuration',
+    hint: 'East↔West / oversea gateways (skip for pure East-MY local if unused)',
   },
   staff: {
     icon: IdcardOutlined,
@@ -130,7 +137,7 @@ const MODULE_META = {
   },
   routing: {
     icon: BranchesOutlined,
-    hint: 'Zones, network areas, and routing rules for planning',
+    hint: 'Delivery points (DEP), network areas, and local territory routing',
   },
   admin: {
     icon: SettingOutlined,

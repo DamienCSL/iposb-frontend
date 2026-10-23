@@ -145,6 +145,23 @@ export async function getOpsDashboard() {
   return data
 }
 
+/** Expected inbound/outbound list for a delivery node (hub / DEP / drop point / cargo). */
+export async function getNodeFlowMeta() {
+  const { data } = await api.get('/ops/node-flow/meta')
+  return data
+}
+
+export async function getNodeFlow(params = {}) {
+  const { data } = await api.get('/ops/node-flow', { params })
+  return data
+}
+
+/** Confirm arrival/departure by barcode only (no manual tick-off). */
+export async function scanNodeFlow(body) {
+  const { data } = await api.post('/ops/node-flow/scan', body)
+  return data
+}
+
 export async function getCnLookups() {
   const { data } = await api.get('/ops/consignments/lookups')
   return data

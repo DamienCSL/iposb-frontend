@@ -49,6 +49,7 @@ import {
   listMaster,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
+import { isDroppointManager } from '../../auth/rbac'
 import DataTable from '../../components/DataTable'
 import StatusTag from '../../components/StatusTag'
 
@@ -58,7 +59,11 @@ export default function PickupsPage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const { can, isAdmin, user } = useAuth()
-  const canAssign = isAdmin || ['Operation', 'Super Admin', 'Admin', 'Droppoint Manager', 'Hub Manager'].includes(user?.role)
+  const isDpManager = isDroppointManager(user?.role)
+  const canAssign = isAdmin
+    || ['Operation', 'Super Admin', 'Admin', 'Droppoint Manager', 'Hub Manager', 'Storekeeper'].includes(user?.role)
+    || can('pickups')
+    || can('dispatch')
 
   const tabFromUrl = params.get('tab') || 'waiting'
   const activeTab = ['waiting', 'queue'].includes(tabFromUrl) ? tabFromUrl : 'waiting'
@@ -422,11 +427,20 @@ export default function PickupsPage() {
               onClick={() => {
                 autoForm.resetFields()
                 setAutoResult(null)
+                const homeDp = dropPoints.find(
+                  (dp) => Number(dp.id) === Number(user?.homeDropPointId || 0)
+                )
+                if (isDpManager && homeDp?.drop_code) {
+                  autoForm.setFieldsValue({
+                    dp_code: homeDp.drop_code,
+                    max_per_courier: 15,
+                  })
+                }
                 setAutoModalOpen(true)
               }}
               style={{ background: '#1668DC', borderColor: '#1668DC' }}
             >
-              Batch Auto-Assign
+              {isDpManager ? 'Auto-Batch Outbound' : 'Batch Auto-Assign'}
             </Button>
           )}
         </Space>
@@ -611,57 +625,74 @@ export default function PickupsPage() {
       >
         <Form form={autoForm} layout="vertical" onFinish={handleAutoAssignSubmit}>
           <Paragraph style={{ fontSize: 13, color: '#5B6B7C' }}>
-            Auto-assign unassigned consignments to available couriers in the specified zone.
-            The system applies equalized round-robin load distribution.
+            {isDpManager
+              ? 'Auto-batch outbound consignments from your drop point to matching couriers. Sealed baby bags are assigned as one pickup job.'
+              : 'Auto-assign unassigned consignments to available couriers in the specified zone. The system applies equalized round-robin load distribution.'}
           </Paragraph>
 
-          <Row gutter={12}>
-            <Col span={10}>
-              <Form.Item label="Target Branch / Hub" name="branch_code">
-                <Select
-                  placeholder="All locations"
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  options={locations.map((location) => {
-                    const code = location.branch_code || location.hub_code || location.loc_id || location.code
-                    const name = location.branch_name || location.hub_name || location.loc_name || location.name || code
-                    return { label: `${name} (${code})`, value: code }
-                  }).filter((option) => option.value)}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Target Zone" name="zone_code">
-                <Select
-                  placeholder="Select zone (optional)"
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  options={zones.map((z) => {
-                    const code = z.zone_code || z.delivery_point_code || z.area_code
-                    const name = z.zone_name || z.delivery_point_name || z.area_name || code
-                    return { label: `${name} (${code})`, value: code }
-                  }).filter((option) => option.value)}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={10}>
-              <Form.Item
-                label="Max per Courier"
-                name="max_per_courier"
-                initialValue={15}
-                rules={[{ required: true }]}
-              >
-                <InputNumber min={1} max={100} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
+          {!isDpManager ? (
+            <Row gutter={12}>
+              <Col span={10}>
+                <Form.Item label="Target Branch / Hub" name="branch_code">
+                  <Select
+                    placeholder="All locations"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    options={locations.map((location) => {
+                      const code = location.branch_code || location.hub_code || location.loc_id || location.code
+                      const name = location.branch_name || location.hub_name || location.loc_name || location.name || code
+                      return { label: `${name} (${code})`, value: code }
+                    }).filter((option) => option.value)}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item label="Target Zone" name="zone_code">
+                  <Select
+                    placeholder="Select zone (optional)"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    options={zones.map((z) => {
+                      const code = z.zone_code || z.delivery_point_code || z.area_code
+                      const name = z.zone_name || z.delivery_point_name || z.area_name || code
+                      return { label: `${name} (${code})`, value: code }
+                    }).filter((option) => option.value)}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={10}>
+                <Form.Item
+                  label="Max per Courier"
+                  name="max_per_courier"
+                  initialValue={15}
+                  rules={[{ required: true }]}
+                >
+                  <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+          ) : (
+            <Form.Item
+              label="Max per Courier"
+              name="max_per_courier"
+              initialValue={15}
+              rules={[{ required: true }]}
+            >
+              <InputNumber min={1} max={100} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
 
-          <Form.Item label="Restricted to Drop Point (Optional)" name="dp_code">
+          <Form.Item
+            label={isDpManager ? 'Your Drop Point' : 'Restricted to Drop Point (Optional)'}
+            name="dp_code"
+            rules={isDpManager ? [{ required: true, message: 'Home drop point required' }] : undefined}
+          >
             <Select
-              placeholder="All Drop Points"
-              allowClear
+              placeholder={isDpManager ? 'Home drop point' : 'All Drop Points'}
+              allowClear={!isDpManager}
+              disabled={isDpManager}
               options={dropPoints.map((dp) => ({
                 label: `${dp.drop_name} (${dp.drop_code})`,
                 value: dp.drop_code,

@@ -36,6 +36,7 @@ export const DEMO_USERS = [
 const EMPTY = {
   consignments: false,
   pickups: false,
+  seals: false,
   manifests: false,
   billing: false,
   cod: false,
@@ -96,6 +97,7 @@ export function capabilitiesFor(role) {
       ...EMPTY,
       consignments: true,
       pickups: true,
+      seals: true,
       manifests: true,
       billing: true,
       cod: true,
@@ -120,6 +122,7 @@ export function capabilitiesFor(role) {
       ...EMPTY,
       consignments: true,
       pickups: true,
+      seals: true,
       manifests: true,
       customerService: true,
       dispatch: true,
@@ -127,12 +130,16 @@ export function capabilitiesFor(role) {
       dropPoints: true,
       routing: true,
       summaries: true,
+      customerReports: true,
       reports: true,
     },
     [DROPPOINT_MANAGER]: {
       ...EMPTY,
       consignments: true,
       pickups: true,
+      seals: true,
+      manifests: true,
+      dispatch: true,
       billing: true,
       cod: true,
       dropPoints: true,
@@ -144,10 +151,12 @@ export function capabilitiesFor(role) {
       ...EMPTY,
       consignments: true,
       pickups: true,
+      seals: true,
       manifests: true,
       customerService: true,
       dispatch: true,
       summaries: true,
+      customerReports: true,
       reports: true,
     },
     Invoice: {
@@ -177,12 +186,32 @@ export function capabilitiesFor(role) {
     Storekeeper: {
       ...EMPTY,
       consignments: true,
+      pickups: true,
+      seals: true,
+      manifests: true,
+      dispatch: true,
       summaries: true,
       cod: true,
       reports: true,
+      customerService: true,
     },
   }
   return map[r] ?? { ...EMPTY, consignments: true, customerReports: true, reports: true }
+}
+
+/** Hub-scoped ops role. */
+export function isHubManager(role) {
+  return normalizeRole(role) === HUB_MANAGER
+}
+
+/** Delivery-point (station) manager. */
+export function isStorekeeper(role) {
+  return normalizeRole(role) === 'Storekeeper'
+}
+
+/** Airport / seaport cargo staff. */
+export function isCargoTeam(role) {
+  return normalizeRole(role) === 'Cargo Team'
 }
 
 export function can(caps, capability) {
