@@ -703,6 +703,22 @@ export async function saveCommissionConfig(body) {
   return data
 }
 
+// --- Four-fee (四费) split config + quote preview ---
+export async function getFourFeeConfig(params = {}) {
+  const { data } = await api.get('/ops/four-fees/config', { params })
+  return data
+}
+
+export async function updateFourFeeConfig(body) {
+  const { data } = await api.put('/ops/four-fees/config', body)
+  return data
+}
+
+export async function quoteFourFees(body) {
+  const { data } = await api.post('/ops/four-fees/quote', body)
+  return data
+}
+
 export async function updateCommissionConfig(body) {
   return saveCommissionConfig(body)
 }

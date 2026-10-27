@@ -89,6 +89,7 @@ const APP_PAGES = [
   { title: 'Partner Wallets & Withdrawals', path: '/ops/commissions/wallets', keywords: ['wallets', 'payouts', 'balance'] },
   { title: 'Commission Rate Rules', path: '/ops/commissions/rates', keywords: ['rate', 'config', 'percentage', 'rules', 'matrix', 'split', 'engine'] },
   { title: 'Commission Rates Calculator', path: '/ops/commissions/calculator', keywords: ['calculator', 'rates', 'matrix', 'what-if', 'walkthrough', 'split'] },
+  { title: 'Four Fees (Waybill / Transport / Handling / Delivery)', path: '/ops/commissions/four-fees', keywords: ['four fee', '四费', 'waybill', 'transport', 'handling', 'delivery', 'split', 'corridor', 'band'] },
   { title: 'Commission & Delivery Fee Formula Guide', path: '/ops/commissions/guide', keywords: ['guide', 'formula', 'help', 'explain', 'band', 'step', 'sla', 'commission'] },
   { title: 'Commission Withdrawals', path: '/ops/commissions/withdrawals', keywords: ['withdrawals', 'payout'] },
   { title: 'CS Support Tickets', path: '/ops/cs/tickets', keywords: ['cs', 'tickets', 'support', 'helpdesk', 'issues'] },
@@ -192,11 +193,12 @@ function getBreadcrumbs(pathname, search) {
     if (parts[3]) items.push({ label: parts[3].toUpperCase().replace(/-/g, ' '), path: `/ops/billing/${parts[3]}` })
   } else if (pathname.startsWith('/ops/cod')) {
     items.push({ label: 'COD Reconciliation', path: '/ops/cod' })
-  } else if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
+  } else if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions') || pathname.startsWith('/ops/four-fees')) {
     items.push({ label: 'Commissions', path: '/ops/commissions/rates' })
     const seg = pathname.split('/').filter(Boolean).pop()
     const tab = new URLSearchParams(search || '').get('tab') || seg
     if (tab === 'calculator') items.push({ label: 'Calculator', path: '/ops/commissions/calculator' })
+    else if (tab === 'four-fees') items.push({ label: 'Four fees', path: '/ops/commissions/four-fees' })
     else if (tab === 'guide') items.push({ label: 'Formula guide', path: '/ops/commissions/guide' })
     else if (tab === 'ledger') items.push({ label: 'Ledger', path: '/ops/commissions/ledger' })
     else if (tab === 'wallets') items.push({ label: 'Partner Wallets', path: '/ops/commissions/wallets' })
@@ -251,13 +253,14 @@ function getSelectedKey(pathname, search = '') {
   }
   if (pathname.startsWith('/ops/billing')) return '/ops/billing/invoices'
   if (pathname.startsWith('/ops/cod')) return '/ops/cod'
-  if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions')) {
+  if (pathname.startsWith('/ops/partner-wallets') || pathname.startsWith('/ops/commissions') || pathname.startsWith('/ops/four-fees')) {
     const seg = pathname.split('/').filter(Boolean).pop()
     const tab = new URLSearchParams(search).get('tab') || seg
     if (tab === 'ledger') return '/ops/commissions/ledger'
     if (tab === 'wallets') return '/ops/commissions/wallets'
     if (tab === 'withdrawals') return '/ops/commissions/withdrawals'
     if (tab === 'calculator') return '/ops/commissions/calculator'
+    if (tab === 'four-fees') return '/ops/commissions/four-fees'
     if (tab === 'guide') return '/ops/commissions/guide'
     return '/ops/commissions/rates'
   }
@@ -840,6 +843,11 @@ export default function AppLayout() {
             {
               key: '/ops/commissions/calculator',
               label: <Link to="/ops/commissions/calculator" style={{ display: 'block', width: '100%' }}>What-if calculator</Link>,
+              visible: can('commissions') || can('billing') || isAdmin,
+            },
+            {
+              key: '/ops/commissions/four-fees',
+              label: <Link to="/ops/commissions/four-fees" style={{ display: 'block', width: '100%' }}>Four fees (四费)</Link>,
               visible: can('commissions') || can('billing') || isAdmin,
             },
             {

@@ -21,6 +21,7 @@ const ROUTE_RULES = [
   ['/ops/admin', 'admin'],
   ['/ops/staff', 'staff'],
   ['/ops/commissions', 'commissions'],
+  ['/ops/four-fees', 'commissions'],
   ['/ops/partner-wallets', 'commissions'],
   ['/ops/cod', 'cod'],
   ['/ops/billing', 'billing'],

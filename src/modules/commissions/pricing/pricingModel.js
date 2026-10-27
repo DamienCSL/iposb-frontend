@@ -92,8 +92,8 @@ export function isAllLanes(t) {
 
 export function laneLabel(t) {
   const n = normTarget(t)
-  if (isAllLanes(n)) return 'All lanes'
-  const route = `${n.origin || 'Any'} → ${n.destination || 'Any'}`
+  if (isAllLanes(n)) return 'All lanes (fallback)'
+  const route = `${n.origin || 'Any city'} → ${n.destination || 'Any city'}`
   return n.serviceType ? `${route} · ${n.serviceType}` : route
 }
 

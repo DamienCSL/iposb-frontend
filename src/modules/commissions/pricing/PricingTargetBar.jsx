@@ -86,16 +86,16 @@ export default function PricingTargetBar({ rows, target, onChange, onCustomerPen
               setLaneOpen(true)
             }}
           >
-            Add lane override
+            Add city lane
           </Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            A lane override beats "All lanes" for parcels on that route or service type.
+            City lane (e.g. BKI → SDK) beats &quot;All lanes&quot;. Unmatched routes fall back to All lanes.
           </Text>
         </Space>
       ) : null}
 
       <Modal
-        title="Add lane override"
+        title="Add city / route lane"
         open={laneOpen}
         onCancel={() => setLaneOpen(false)}
         okText="Use this lane"
@@ -107,35 +107,38 @@ export default function PricingTargetBar({ rows, target, onChange, onCustomerPen
         destroyOnClose
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Text type="secondary">Leave a field blank to match any value. Set at least one.</Text>
+          <Text type="secondary">
+            Use hub codes as cities (BKI = Kota Kinabalu, SDK = Sandakan, TWU = Tawau).
+            Example: origin BKI + destination SDK for KK → Sandakan rates. Leave blank = any (fallback).
+          </Text>
           <div>
-            <div style={{ fontSize: 12, marginBottom: 4 }}>Origin hub</div>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>Origin city (hub)</div>
             <CodeLookupField
               kind="hubs"
               allowCustom
               allowClear
               showGenerate={false}
               showManageLink={false}
-              placeholder="Any origin"
+              placeholder="e.g. BKI (KK)"
               value={laneDraft.origin}
               onChange={(v) => setLaneDraft((d) => ({ ...d, origin: v || '' }))}
             />
           </div>
           <div>
-            <div style={{ fontSize: 12, marginBottom: 4 }}>Destination hub</div>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>Destination city (hub)</div>
             <CodeLookupField
               kind="hubs"
               allowCustom
               allowClear
               showGenerate={false}
               showManageLink={false}
-              placeholder="Any destination"
+              placeholder="e.g. SDK (Sandakan)"
               value={laneDraft.destination}
               onChange={(v) => setLaneDraft((d) => ({ ...d, destination: v || '' }))}
             />
           </div>
           <div>
-            <div style={{ fontSize: 12, marginBottom: 4 }}>Service type</div>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>Service type (optional)</div>
             <Input
               placeholder="Any service (e.g. STD, EXP)"
               value={laneDraft.serviceType}

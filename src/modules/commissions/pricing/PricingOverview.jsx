@@ -39,10 +39,7 @@ export default function PricingOverview({ embedded = false }) {
   const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(true)
   const [sst, setSst] = useState({ enabled: false, rate: 6 })
   const [sstDraft, setSstDraft] = useState({ enabled: false, rate: 6 })
-  const [target, setTarget] = useState(() => {
-    const t = targetFromSearch(embedded ? '' : location.search)
-    return { ...t, origin: '', destination: '', serviceType: '' }
-  })
+  const [target, setTarget] = useState(() => normTarget(targetFromSearch(embedded ? '' : location.search)))
 
   function applyConfig(cfg) {
     setRows([...(cfg?.deliveryFeeRates || []), ...(cfg?.customerDeliveryFeeRates || [])])
@@ -280,10 +277,24 @@ export default function PricingOverview({ embedded = false }) {
 
       <Card size="small" title="What's active" styles={{ body: { padding: 16 } }}>
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <PricingTargetBar rows={rows} target={target} onChange={(t) => setTarget({ ...t, origin: '', destination: '', serviceType: '' })} showLane={false} />
+          <Alert
+            type="info"
+            showIcon
+            message="Different delivery fees by city"
+            description="Add a city lane (origin hub → destination hub), e.g. BKI → SDK for KK to Sandakan, BKI → TWU for KK to Tawau. Exact city pairs beat All lanes; if no pair matches, the All lanes (fallback) rate is used. Admin only."
+          />
+          <PricingTargetBar
+            rows={rows}
+            target={target}
+            onChange={(t) => {
+              setTarget(normTarget({ ...t, custAcNo: t.custAcNo || '' }))
+              if (!embedded) navigate({ search: targetSearch(t) }, { replace: true })
+            }}
+            showLane
+          />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Quotes check, in order: the customer's lane override, the customer's All lanes, the public lane override, then
-            public All lanes. Click a formula to edit it.
+            Quote order: customer city lane → customer All lanes → public city lane → public All lanes.
+            Open a formula below (or via the cards) to set amounts for the selected lane.
           </Text>
           <Table
             size="small"

@@ -27,6 +27,7 @@ import SealStationPage from './pages/SealStationPage'
 import NodeFlowPage from './pages/NodeFlowPage'
 import ManifestStationPage from './pages/ManifestStationPage'
 import CommissionPage from './pages/CommissionPage'
+import FourFeePage from './pages/FourFeePage'
 import CommissionGuidePage from './modules/commissions/CommissionGuidePage'
 import PricingOverview from './modules/commissions/pricing/PricingOverview'
 import FormulaPage from './modules/commissions/pricing/FormulaPage'
@@ -172,6 +173,8 @@ export default function App() {
                 <Route path="/ops/commissions/config" element={<Navigate to="/ops/commissions/rates" replace />} />
                 <Route path="/ops/commissions/rates" element={<CommissionPage />} />
                 <Route path="/ops/commissions/calculator" element={<CommissionPage />} />
+                <Route path="/ops/commissions/four-fees" element={<FourFeePage />} />
+                <Route path="/ops/four-fees" element={<Navigate to="/ops/commissions/four-fees" replace />} />
                 <Route path="/ops/commissions/guide" element={<CommissionGuidePage />} />
                 <Route path="/ops/commissions/pricing" element={<PricingOverview />} />
                 <Route path="/ops/commissions/pricing/:slug" element={<FormulaPage />} />
