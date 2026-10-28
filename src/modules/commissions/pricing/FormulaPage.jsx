@@ -278,7 +278,16 @@ function FormulaPageInner({ formula }) {
       ) : null}
 
       <Card size="small" styles={{ body: { padding: 16 } }}>
-        <PricingTargetBar rows={rows} target={target} onChange={changeTarget} onCustomerPending={setCustomerMissing} />
+        <PricingTargetBar
+          rows={rows}
+          target={target}
+          onChange={changeTarget}
+          onCustomerPending={setCustomerMissing}
+          onRowsReload={async (cfg) => {
+            if (cfg) applyConfig(cfg, target)
+            else await load()
+          }}
+        />
         {customerMissing ? (
           <Alert type="info" showIcon style={{ marginTop: 12 }} message="Pick the customer account before editing their prices." />
         ) : null}

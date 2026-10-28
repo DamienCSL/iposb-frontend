@@ -94,6 +94,37 @@ export function normalizeCnLabel(row) {
     ).toUpperCase()
     || pick(row, 'cn_dstn', 'cnDstn').toUpperCase()
     || '—'
+  const nodeLine = (code, name) => {
+    const c = String(code || '').trim()
+    const n = String(name || '').trim()
+    if (!c && !n) return '—'
+    if (c && n) return `${c} — ${n}`
+    return c || n
+  }
+  const originHub = nodeLine(
+    pick(row, 'origin_hub_code', 'originHubCode', 'cn_origin', 'cnOrigin'),
+    pick(row, 'origin_hub_name', 'originHubName'),
+  )
+  const destHub = nodeLine(
+    pick(row, 'dest_hub_code', 'destHubCode', 'cn_dstn', 'cnDstn'),
+    pick(row, 'dest_hub_name', 'destHubName'),
+  )
+  const originDrop = nodeLine(
+    pick(row, 'origin_drop_code', 'originDropCode'),
+    pick(row, 'origin_drop_name', 'originDropName'),
+  )
+  const destDrop = nodeLine(
+    pick(row, 'dest_drop_code', 'destDropCode'),
+    pick(row, 'dest_drop_name', 'destDropName'),
+  )
+  const originDep = nodeLine(
+    pick(row, 'origin_delivery_point_code', 'originDeliveryPointCode', 'origin_zone', 'originZone'),
+    pick(row, 'origin_delivery_point_name', 'originDeliveryPointName'),
+  )
+  const destDep = nodeLine(
+    pick(row, 'dest_delivery_point_code', 'destDeliveryPointCode', 'destination_zone', 'destinationZone'),
+    pick(row, 'dest_delivery_point_name', 'destDeliveryPointName'),
+  )
   const destService = pick(row, 'destination_service', 'destinationService').toUpperCase()
   const payMode = pick(row, 'ppd_cct', 'pay_typ', 'payMode').toUpperCase()
   const isCod = row?.is_cod === true || row?.is_cod === 1 || row?.is_cod === '1' || payMode === 'COD'
@@ -109,6 +140,12 @@ export function normalizeCnLabel(row) {
     dest: pick(row, 'cn_dstn', 'cnDstn').toUpperCase() || '—',
     firstMile,
     lastMile,
+    originHub,
+    destHub,
+    originDrop,
+    destDrop,
+    originDep,
+    destDep,
     account: pick(row, 'cust_ac_no', 'custAcNo') || '—',
     accountName: pick(row, 'cust_name', 'custName'),
     senderName: pick(row, 'consigner', 'sender_name') || '—',
@@ -304,18 +341,21 @@ export function CnLabelNote({ row, compact = false, trackingBase }) {
       >
         <div style={{ ...cell, borderRight: '1.5px solid #fff' }}>
           <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>FROM NODE</div>
-          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(11, 13), wordBreak: 'break-all' }}>{label.firstMile}</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(10, 12), wordBreak: 'break-all', lineHeight: 1.15 }}>
+            {label.originDrop !== '—' ? label.originDrop : (label.originDep !== '—' ? label.originDep : label.firstMile)}
+          </div>
         </div>
         <div style={{ ...cell, borderRight: '1.5px solid #fff' }}>
           <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>HUB ROUTE</div>
-          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(11, 13) }}>
-            {label.origin} → {label.dest}
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: s(9, 11), lineHeight: 1.2 }}>
+            <div>{label.originHub}</div>
+            <div style={{ opacity: 0.8 }}>→ {label.destHub}</div>
           </div>
         </div>
         <div style={{ ...cell, textAlign: 'center' }}>
           <div style={{ fontSize: s(7, 8), opacity: 0.75, letterSpacing: 0.5 }}>DELIVER TO NODE</div>
-          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: s(18, 26), lineHeight: 1.05, wordBreak: 'break-all' }}>
-            {label.lastMile}
+          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: s(11, 14), lineHeight: 1.15, wordBreak: 'break-all' }}>
+            {label.destDrop !== '—' ? label.destDrop : (label.destDep !== '—' ? label.destDep : label.lastMile)}
           </div>
         </div>
       </div>
@@ -513,18 +553,21 @@ export function CnLabelThermal({ row, trackingBase }) {
       <div style={{ ...inverted, display: 'grid', gridTemplateColumns: '1fr 1.1fr 1.5fr', borderBottom: line, flex: '0 0 auto' }}>
         <div style={{ padding: '2px 4px', borderRight: '1.5px solid #fff' }}>
           <div style={caption}>From</div>
-          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 10, wordBreak: 'break-all' }}>{label.firstMile}</div>
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 9, wordBreak: 'break-all', lineHeight: 1.15 }}>
+            {label.originDrop !== '—' ? label.originDrop : (label.originDep !== '—' ? label.originDep : label.firstMile)}
+          </div>
         </div>
         <div style={{ padding: '2px 4px', borderRight: '1.5px solid #fff' }}>
           <div style={caption}>Hub route</div>
-          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 10 }}>
-            {label.origin} → {label.dest}
+          <div style={{ fontFamily: mono, fontWeight: 800, fontSize: 8.5, lineHeight: 1.2 }}>
+            <div>{label.originHub}</div>
+            <div style={{ opacity: 0.85 }}>→ {label.destHub}</div>
           </div>
         </div>
         <div style={{ padding: '2px 4px', textAlign: 'center' }}>
           <div style={caption}>Deliver to</div>
-          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 17, lineHeight: 1.05, wordBreak: 'break-all' }}>
-            {label.lastMile}
+          <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 11, lineHeight: 1.15, wordBreak: 'break-all' }}>
+            {label.destDrop !== '—' ? label.destDrop : (label.destDep !== '—' ? label.destDep : label.lastMile)}
           </div>
         </div>
       </div>

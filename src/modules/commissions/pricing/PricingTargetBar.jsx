@@ -1,27 +1,86 @@
 import { useMemo, useState } from 'react'
-import { Button, Input, Modal, Radio, Select, Space, Tag, Typography } from 'antd'
+import { Button, Input, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import CodeLookupField from '../../../components/CodeLookupField'
-import { customersWithRows, emptyTarget, laneKey, laneLabel, lanesForScope, normTarget } from './pricingModel'
+import {
+  customersWithRows,
+  emptyTarget,
+  laneExistsInRows,
+  laneKey,
+  laneLabel,
+  lanePlaceholderRow,
+  lanesForScope,
+  normTarget,
+  saveBody,
+} from './pricingModel'
+import { apiError, updateCommissionConfig } from '../../../api/client'
 
 const { Text } = Typography
 
-export default function PricingTargetBar({ rows, target, onChange, onCustomerPending, showLane = true }) {
+/**
+ * @param {{
+ *   rows: any[],
+ *   target: object,
+ *   onChange: (t: object) => void,
+ *   onCustomerPending?: (missing: boolean) => void,
+ *   showLane?: boolean,
+ *   onRowsReload?: (cfg?: object) => void | Promise<void>,
+ * }} props
+ */
+export default function PricingTargetBar({
+  rows,
+  target,
+  onChange,
+  onCustomerPending,
+  showLane = true,
+  onRowsReload,
+}) {
   const t = normTarget(target)
   const [isCustomer, setIsCustomer] = useState(Boolean(t.custAcNo))
   const [laneOpen, setLaneOpen] = useState(false)
   const [laneDraft, setLaneDraft] = useState(emptyTarget())
+  const [creating, setCreating] = useState(false)
 
   const customers = useMemo(() => customersWithRows(rows), [rows])
   const lanes = useMemo(() => {
     const list = lanesForScope(rows, t.custAcNo)
-    if (!list.some((l) => l.key === laneKey(t))) list.push({ key: laneKey(t), target: { ...t, custAcNo: '' } })
+    if (!list.some((l) => l.key === laneKey(t))) {
+      list.push({ key: laneKey(t), target: { ...t, custAcNo: '' } })
+    }
     return list
   }, [rows, t.custAcNo, t.origin, t.destination, t.serviceType])
 
   const setScope = (custAcNo, customerMode = isCustomer) => {
     onCustomerPending?.(customerMode && !custAcNo)
     onChange({ ...emptyTarget(), custAcNo })
+  }
+
+  const saveNewLane = async () => {
+    const next = { ...normTarget(laneDraft), custAcNo: t.custAcNo }
+    if (laneKey(next) === '||') {
+      message.warning('Set at least origin or destination for a city lane')
+      return
+    }
+    if (laneExistsInRows(rows, next)) {
+      onChange(next)
+      setLaneOpen(false)
+      message.info(`${laneLabel(next)} already exists — selected it`)
+      return
+    }
+
+    setCreating(true)
+    try {
+      const placeholder = lanePlaceholderRow(next)
+      const res = await updateCommissionConfig(saveBody([placeholder]))
+      message.success(`${laneLabel(next)} saved. Open a formula to set prices for this lane.`)
+      if (onRowsReload) await onRowsReload(res?.config)
+      onChange(next)
+      setLaneOpen(false)
+    } catch (e) {
+      message.error(apiError(e))
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -71,13 +130,16 @@ export default function PricingTargetBar({ rows, target, onChange, onCustomerPen
         <Space wrap align="center">
           <Text strong style={{ minWidth: 80 }}>Lane</Text>
           <Select
-            style={{ minWidth: 260 }}
+            style={{ minWidth: 280 }}
             value={laneKey(t)}
             onChange={(key) => {
               const lane = lanes.find((l) => l.key === key)
               onChange({ ...(lane?.target || emptyTarget()), custAcNo: t.custAcNo })
             }}
-            options={lanes.map((l) => ({ value: l.key, label: laneLabel(l.target) }))}
+            options={lanes.map((l) => ({
+              value: l.key,
+              label: laneLabel(l.target),
+            }))}
           />
           <Button
             icon={<PlusOutlined />}
@@ -89,7 +151,7 @@ export default function PricingTargetBar({ rows, target, onChange, onCustomerPen
             Add city lane
           </Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            City lane (e.g. BKI → SDK) beats &quot;All lanes&quot;. Unmatched routes fall back to All lanes.
+            Each city lane is saved separately (e.g. BKI→SDK and BKI→TWU). Then set a formula per lane.
           </Text>
         </Space>
       ) : null}
@@ -98,18 +160,16 @@ export default function PricingTargetBar({ rows, target, onChange, onCustomerPen
         title="Add city / route lane"
         open={laneOpen}
         onCancel={() => setLaneOpen(false)}
-        okText="Use this lane"
+        okText="Save lane"
+        confirmLoading={creating}
         okButtonProps={{ disabled: laneKey(laneDraft) === '||' }}
-        onOk={() => {
-          onChange({ ...normTarget(laneDraft), custAcNo: t.custAcNo })
-          setLaneOpen(false)
-        }}
+        onOk={saveNewLane}
         destroyOnClose
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Text type="secondary">
-            Use hub codes as cities (BKI = Kota Kinabalu, SDK = Sandakan, TWU = Tawau).
-            Example: origin BKI + destination SDK for KK → Sandakan rates. Leave blank = any (fallback).
+            This saves the lane so it stays in the list (you can add many). Prices are set afterward by opening a formula
+            for that lane. Hubs = cities (BKI = KK, SDK = Sandakan, TWU = Tawau).
           </Text>
           <div>
             <div style={{ fontSize: 12, marginBottom: 4 }}>Origin city (hub)</div>

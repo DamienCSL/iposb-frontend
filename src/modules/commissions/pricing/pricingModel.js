@@ -254,3 +254,36 @@ export function targetSearch(target, modeCode) {
   const s = q.toString()
   return s ? `?${s}` : ''
 }
+
+/** Persist a city lane so it stays in the dropdown / matrix before a formula is set. */
+export function lanePlaceholderRow(target) {
+  const t = normTarget(target)
+  const bits = [t.origin || 'ANY', t.destination || 'ANY']
+  if (t.serviceType) bits.push(t.serviceType)
+  return {
+    transportMode: 'road',
+    rateCode: `LANE-${bits.join('-')}`.slice(0, 30),
+    custAcNo: t.custAcNo,
+    origin: t.origin,
+    destination: t.destination,
+    serviceType: t.serviceType,
+    pcsMin: 0,
+    pcsMax: 999999,
+    weightMin: 0,
+    weightMax: MAX_WEIGHT,
+    baseAmount: 0,
+    perPiece: 0,
+    perKg: 0,
+    formulaType: 'base_pcs_kg',
+    formulaJson: {},
+    description: `City lane ${laneLabel(t)} — set a formula to price this route`,
+    isActive: false,
+    sortOrder: 0,
+  }
+}
+
+/** True if this exact lane already has any rate row (active or placeholder). */
+export function laneExistsInRows(rows, target) {
+  const t = normTarget(target)
+  return rows.some((r) => sameTarget(rowTarget(r), t))
+}

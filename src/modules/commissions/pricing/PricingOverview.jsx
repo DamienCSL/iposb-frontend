@@ -281,7 +281,7 @@ export default function PricingOverview({ embedded = false }) {
             type="info"
             showIcon
             message="Different delivery fees by city"
-            description="Add a city lane (origin hub → destination hub), e.g. BKI → SDK for KK to Sandakan, BKI → TWU for KK to Tawau. Exact city pairs beat All lanes; if no pair matches, the All lanes (fallback) rate is used. Admin only."
+            description="Click Add city lane and Save lane for each route (BKI→SDK, BKI→TWU, …). Each lane stays in the list. Then click Set a formula on that row to price it. Exact city pairs beat All lanes (fallback)."
           />
           <PricingTargetBar
             rows={rows}
@@ -291,6 +291,10 @@ export default function PricingOverview({ embedded = false }) {
               if (!embedded) navigate({ search: targetSearch(t) }, { replace: true })
             }}
             showLane
+            onRowsReload={async (cfg) => {
+              if (cfg) applyConfig(cfg)
+              else await load()
+            }}
           />
           <Text type="secondary" style={{ fontSize: 12 }}>
             Quote order: customer city lane → customer All lanes → public city lane → public All lanes.
