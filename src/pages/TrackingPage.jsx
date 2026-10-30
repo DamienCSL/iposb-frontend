@@ -23,6 +23,7 @@ import {
   ClearOutlined,
   DollarCircleOutlined,
   EnvironmentOutlined,
+  PictureOutlined,
   PlusOutlined,
   StopOutlined,
   TeamOutlined,
@@ -158,6 +159,46 @@ function stepGlance(step) {
     placeName: placeName || null,
     detail: raw,
   }
+}
+
+function ProofPhotoButton({ url, label = 'Proof photo' }) {
+  const [open, setOpen] = useState(false)
+  if (!url) return null
+  return (
+    <>
+      <Button
+        type="text"
+        size="small"
+        icon={<PictureOutlined style={{ color: BRAND_GREEN, fontSize: 16 }} />}
+        onClick={() => setOpen(true)}
+        title={label}
+        aria-label={label}
+        style={{ padding: '0 4px', height: 24 }}
+      />
+      <Modal
+        open={open}
+        title={label}
+        footer={null}
+        onCancel={() => setOpen(false)}
+        width={480}
+        centered
+        destroyOnClose
+      >
+        <div style={{ textAlign: 'center' }}>
+          <img
+            src={url}
+            alt={label}
+            style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 6, objectFit: 'contain' }}
+          />
+          <div style={{ marginTop: 10 }}>
+            <a href={url} target="_blank" rel="noreferrer">
+              Open full size
+            </a>
+          </div>
+        </div>
+      </Modal>
+    </>
+  )
 }
 
 function pieceCount(cn) {
@@ -381,18 +422,16 @@ export default function TrackingPage() {
       key: 'record',
       render: (_, ev) => (
         <div>
-          <TrackingRecordCell
-            html={ev.trackingRecordHtml}
-            text={ev.trackingRecord}
-            fallback={ev.customerLabel || ev.note || '—'}
-          />
-          {ev.evidenceUrl ? (
-            <div style={{ marginTop: 4 }}>
-              <a href={ev.evidenceUrl} target="_blank" rel="noreferrer">
-                View proof photo
-              </a>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <TrackingRecordCell
+                html={ev.trackingRecordHtml}
+                text={ev.trackingRecord}
+                fallback={ev.customerLabel || ev.note || '—'}
+              />
             </div>
-          ) : null}
+            <ProofPhotoButton url={ev.evidenceUrl} label="Status proof" />
+          </div>
         </div>
       ),
     },
@@ -414,15 +453,10 @@ export default function TrackingPage() {
     {
       title: 'Proof',
       key: 'proof',
-      width: 100,
+      width: 72,
+      align: 'center',
       render: (_, row) =>
-        row.evidenceUrl ? (
-          <a href={row.evidenceUrl} target="_blank" rel="noreferrer">
-            View photo
-          </a>
-        ) : (
-          '—'
-        ),
+        row.evidenceUrl ? <ProofPhotoButton url={row.evidenceUrl} label="Attempt proof" /> : '—',
     },
   ]
 

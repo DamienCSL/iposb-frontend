@@ -37,6 +37,7 @@ import {
   ExclamationCircleOutlined,
   FileTextOutlined,
   LinkOutlined,
+  PictureOutlined,
   PrinterOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
@@ -95,6 +96,7 @@ export default function ConsignmentDetailPage() {
   const [editDrawerOpen, setEditDrawerOpen] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
   const [form] = Form.useForm()
+  const [proofPreview, setProofPreview] = useState(null)
 
   async function loadDetails() {
     setLoading(true)
@@ -901,6 +903,17 @@ export default function ConsignmentDetailPage() {
                         <span style={{ fontWeight: 600, fontSize: 13, color: '#1F2937' }}>
                           {evt.cleanTitle}
                         </span>
+                        {evt.evidenceUrl ? (
+                          <Tooltip title="View proof photo">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<PictureOutlined style={{ color: '#1B8A5A', fontSize: 16 }} />}
+                              onClick={() => setProofPreview(evt.evidenceUrl)}
+                              style={{ padding: '0 4px', height: 22 }}
+                            />
+                          </Tooltip>
+                        ) : null}
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
                         Location: <strong>{evt.location || evt.hub || 'In Transit'}</strong>
@@ -930,6 +943,31 @@ export default function ConsignmentDetailPage() {
           </Col>
         </Row>
       </div>
+
+      <Modal
+        open={!!proofPreview}
+        title="Status proof"
+        footer={null}
+        onCancel={() => setProofPreview(null)}
+        width={480}
+        centered
+        destroyOnClose
+      >
+        {proofPreview ? (
+          <div style={{ textAlign: 'center' }}>
+            <img
+              src={proofPreview}
+              alt="Status proof"
+              style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 6, objectFit: 'contain' }}
+            />
+            <div style={{ marginTop: 10 }}>
+              <a href={proofPreview} target="_blank" rel="noreferrer">
+                Open full size
+              </a>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         title={

@@ -89,7 +89,7 @@ const MODULE_META = {
   },
   summaries: {
     icon: BarChartOutlined,
-    hint: 'View status summaries and operational reports',
+    hint: 'View Network Analytics and operational volume reports',
   },
   customerService: {
     icon: CustomerServiceOutlined,

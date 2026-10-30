@@ -22,6 +22,7 @@ import SupportPage from './modules/support/SupportPage'
 import StaffPage from './modules/staff/StaffPage'
 import MasterAdminPage from './modules/admin/MasterAdminPage'
 import NetworkAnalyticsPage from './modules/network/NetworkAnalyticsPage'
+import SalesReportPage from './modules/reports/SalesReportPage'
 import SystemLogsPage from './modules/audit/SystemLogsPage'
 import SealStationPage from './pages/SealStationPage'
 import NodeFlowPage from './pages/NodeFlowPage'
@@ -39,7 +40,6 @@ import CancellationPolicyPage from './pages/CancellationPolicyPage'
 import WalletPage from './pages/WalletPage'
 import LoyaltyTiersPage from './pages/LoyaltyTiersPage'
 import RoleAccessPage from './pages/RoleAccessPage'
-import SummaryPage from './pages/SummaryPage'
 import { ReportPage, PrintPage } from './pages/ReportPrintPages'
 import { TrackingLookupPage } from './pages/BillingPages'
 import { iposbTheme } from './theme'
@@ -69,11 +69,27 @@ function DocBillingRedirect({ mode }) {
   return <Navigate to={`/ops/billing/${key}`} replace />
 }
 
+/** Old Status Summaries pages → Network Analytics (same group-by filters). */
+function networkSummaryPath(kind) {
+  const map = {
+    overall: 'status',
+    status: 'status',
+    agent: 'drop-point',
+    'drop-point': 'drop-point',
+    consignee: 'consignee',
+    consigner: 'consigner',
+    shipper: 'shipper',
+    manifest: 'manifest',
+    date: 'date',
+    branch: 'branch',
+  }
+  const group = map[kind] || 'status'
+  return `/network?group=${encodeURIComponent(group)}`
+}
+
 function LegacySummaryRedirect() {
   const { kind } = useParams()
-  if (!kind) return <Navigate to="/ops/summaries" replace />
-  if (kind === 'agent') return <Navigate to="/ops/summaries/drop-point" replace />
-  return <Navigate to={`/ops/summaries/${kind}`} replace />
+  return <Navigate to={networkSummaryPath(kind || 'status')} replace />
 }
 
 function LegacyReportRedirect() {
@@ -137,22 +153,15 @@ export default function App() {
                 <Route path="/ops/manifests/:mfg" element={<ManifestsPage />} />
                 <Route path="/ops/returns" element={<ReturnsPage />} />
 
-                <Route path="/ops/summaries" element={<SummaryPage kind="overall" />} />
-                <Route path="/ops/summaries/status" element={<SummaryPage kind="status" />} />
-                <Route path="/ops/summaries/drop-point" element={<SummaryPage kind="drop-point" />} />
-                <Route path="/ops/summaries/agent" element={<Navigate to="/ops/summaries/drop-point" replace />} />
-                <Route path="/ops/summaries/consignee" element={<SummaryPage kind="consignee" />} />
-                <Route path="/ops/summaries/consigner" element={<SummaryPage kind="consigner" />} />
-                <Route path="/ops/summaries/shipper" element={<SummaryPage kind="shipper" />} />
-                <Route path="/ops/summaries/manifest" element={<SummaryPage kind="manifest" />} />
-                <Route path="/ops/summaries/date" element={<SummaryPage kind="date" />} />
-                <Route path="/ops/summaries/branch" element={<SummaryPage kind="branch" />} />
+                <Route path="/ops/summaries" element={<Navigate to="/network?group=status" replace />} />
+                <Route path="/ops/summaries/:kind" element={<LegacySummaryRedirect />} />
 
                 <Route path="/ops/reports/manifest" element={<PrintPage kind="manifest" title="Print Manifest" idLabel="Manifest number" />} />
                 <Route path="/ops/reports/cn" element={<PrintPage kind="cn" title="Print Consignment" idLabel="Consignment number" />} />
                 <Route path="/ops/reports/invoice" element={<PrintPage kind="invoice" title="Print Invoice" idLabel="Invoice number" />} />
                 <Route path="/ops/reports/do" element={<PrintPage kind="do" title="Print Delivery Order" idLabel="DN number" />} />
                 <Route path="/ops/reports/receipt" element={<Navigate to="/ops/reports/invoice" replace />} />
+                <Route path="/ops/reports/sales" element={<SalesReportPage />} />
                 <Route path="/ops/reports/drop-point-stock" element={<ReportPage kind="drop-point" title="Drop Point Stock Record" />} />
                 <Route path="/ops/reports/customer-stock" element={<ReportPage kind="customer" title="Customer Stock Record" />} />
                 <Route path="/ops/reports/customer-summary" element={<ReportPage kind="customer" title="Customer Summary Report" />} />
@@ -218,7 +227,7 @@ export default function App() {
                 <Route path="/dispatch/seals" element={<Navigate to="/ops/seals" replace />} />
                 <Route path="/dispatch/drivers" element={<Navigate to="/ops/admin/drivers" replace />} />
 
-                <Route path="/summaries" element={<Navigate to="/ops/summaries" replace />} />
+                <Route path="/summaries" element={<Navigate to="/network?group=status" replace />} />
                 <Route path="/summaries/:kind" element={<LegacySummaryRedirect />} />
                 <Route path="/reports/:kind" element={<LegacyReportRedirect />} />
                 <Route path="/drop-points/stock" element={<Navigate to="/ops/reports/drop-point-stock" replace />} />

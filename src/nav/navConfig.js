@@ -52,8 +52,8 @@ export const NAV_SECTIONS = [
         anyCaps: ['reports', 'summaries'],
         items: [
           { to: '/reports/manifest', label: 'Print Manifest', icon: 'bi-printer', cap: 'reports', live: true },
-          { to: '/summaries/manifest', label: 'Summary by Manifest', icon: 'bi-file-earmark-text', cap: 'summaries', live: true },
-          { to: '/summaries/branch', label: 'Summary by Branch', icon: 'bi-building', cap: 'summaries', live: true },
+          { to: '/network?group=manifest', label: 'Network by Manifest', icon: 'bi-file-earmark-text', cap: 'summaries', live: true },
+          { to: '/network?group=branch', label: 'Network by Branch', icon: 'bi-building', cap: 'summaries', live: true },
         ],
       },
     ],
@@ -146,7 +146,7 @@ export const NAV_SECTIONS = [
         title: 'Drop reports',
         anyCaps: ['summaries', 'customerReports'],
         items: [
-          { to: '/summaries/drop-point', label: 'Summary by Drop Point', icon: 'bi-geo-alt', cap: 'summaries', live: true },
+          { to: '/network?group=drop-point', label: 'Network by Drop Point', icon: 'bi-geo-alt', cap: 'summaries', live: true },
           { to: '/customer/drop-point-summary', label: 'Drop Point Summary Report', icon: 'bi-graph-up', cap: 'customerReports', live: true },
         ],
       },
@@ -225,17 +225,17 @@ export const NAV_SECTIONS = [
   },
   {
     id: 'summaries',
-    title: 'Network summaries',
+    title: 'Network analytics',
     anyCaps: ['summaries', 'reports', 'customerReports'],
     groups: [
       {
         id: 'summary-main',
         title: 'Overview',
-        cap: 'summaries',
+        anyCaps: ['summaries', 'reports'],
         items: [
-          { to: '/summaries', label: 'Overall Status', icon: 'bi-bar-chart', live: true },
-          { to: '/summaries/status', label: 'By Status', icon: 'bi-pie-chart', live: true },
-          { to: '/summaries/date', label: 'By Date', icon: 'bi-calendar', live: true },
+          { to: '/network', label: 'Network Analytics', icon: 'bi-bar-chart', live: true },
+          { to: '/network?group=status', label: 'By Status', icon: 'bi-pie-chart', live: true },
+          { to: '/network?group=date', label: 'By Date', icon: 'bi-calendar', live: true },
         ],
       },
       {
@@ -243,9 +243,9 @@ export const NAV_SECTIONS = [
         title: 'By party',
         anyCaps: ['summaries', 'customerReports'],
         items: [
-          { to: '/summaries/consignee', label: 'By Consignee', icon: 'bi-person', cap: 'summaries', live: true },
-          { to: '/summaries/consigner', label: 'By Consigner', icon: 'bi-person', cap: 'summaries', live: true },
-          { to: '/summaries/shipper', label: 'By Shipper', icon: 'bi-ship', cap: 'summaries', live: true },
+          { to: '/network?group=consignee', label: 'By Consignee', icon: 'bi-person', cap: 'summaries', live: true },
+          { to: '/network?group=consigner', label: 'By Consigner', icon: 'bi-person', cap: 'summaries', live: true },
+          { to: '/network?group=shipper', label: 'By Shipper', icon: 'bi-ship', cap: 'summaries', live: true },
           { to: '/customer/stock', label: 'Customer Stock Record', icon: 'bi-journal-text', cap: 'customerReports', live: true },
           { to: '/customer/summary', label: 'Customer Summary', icon: 'bi-graph-up', cap: 'customerReports', live: true },
         ],

@@ -65,12 +65,12 @@ const APP_PAGES = [
   { title: 'Local Manifest Station', path: '/ops/station/manifests', keywords: ['manifest', 'outbound', 'local', 'baby', 'mother', 'father', 'hub'] },
   { title: 'Manifests (local + East–West)', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags', 'east', 'west'] },
   { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
-  { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network'] },
-  { title: 'Status Summaries', path: '/ops/summaries', keywords: ['summary', 'status', 'counts'] },
+  { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network', 'summary', 'status', 'counts'] },
   { title: 'Print Manifest', path: '/ops/reports/manifest', keywords: ['print', 'manifest'] },
   { title: 'Print Consignment', path: '/ops/reports/cn', keywords: ['print', 'cn', 'awb'] },
   { title: 'Print Invoice', path: '/ops/reports/invoice', keywords: ['print', 'invoice'] },
   { title: 'Print DO', path: '/ops/reports/do', keywords: ['print', 'do', 'delivery'] },
+  { title: 'Sales Report', path: '/ops/reports/sales', keywords: ['sales', 'revenue', 'drop', 'node', 'counter'] },
   { title: 'Drop Point Stock', path: '/ops/reports/drop-point-stock', keywords: ['stock', 'drop', 'inventory'] },
   { title: 'Customer Stock', path: '/ops/reports/customer-stock', keywords: ['stock', 'customer', 'inventory'] },
   { title: 'Invoices', path: '/ops/billing/invoices', keywords: ['billing', 'finance', 'tax', 'invoice', 'paid', 'unpaid'] },
@@ -241,7 +241,6 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/ops/station/manifests')) return '/ops/station/manifests'
   if (pathname.startsWith('/ops/manifests')) return '/ops/manifests'
   if (pathname.startsWith('/ops/returns')) return '/ops/returns'
-  if (pathname.startsWith('/ops/summaries')) return pathname
   if (pathname.startsWith('/ops/reports/')) return pathname
   if (pathname.startsWith('/network')) return '/network'
   if (pathname.startsWith('/ops/billing/cancellation-settings')) return '/ops/billing/cancellation-settings'
@@ -641,58 +640,6 @@ export default function AppLayout() {
           visible: (can('reports') || can('summaries') || isAdmin) && !isDpManager,
         },
         {
-          key: 'sub-summaries',
-          label: 'Status Summaries',
-          visible: can('summaries') || isAdmin,
-          children: [
-            {
-              key: '/ops/summaries',
-              label: <Link to="/ops/summaries" style={{ display: 'block', width: '100%' }}>Overall</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/status',
-              label: <Link to="/ops/summaries/status" style={{ display: 'block', width: '100%' }}>By Status</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/drop-point',
-              label: <Link to="/ops/summaries/drop-point" style={{ display: 'block', width: '100%' }}>By Drop Point</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/branch',
-              label: <Link to="/ops/summaries/branch" style={{ display: 'block', width: '100%' }}>By Branch</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/date',
-              label: <Link to="/ops/summaries/date" style={{ display: 'block', width: '100%' }}>By Date</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/manifest',
-              label: <Link to="/ops/summaries/manifest" style={{ display: 'block', width: '100%' }}>By Manifest</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/consignee',
-              label: <Link to="/ops/summaries/consignee" style={{ display: 'block', width: '100%' }}>By Consignee</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/consigner',
-              label: <Link to="/ops/summaries/consigner" style={{ display: 'block', width: '100%' }}>By Consigner</Link>,
-              visible: true,
-            },
-            {
-              key: '/ops/summaries/shipper',
-              label: <Link to="/ops/summaries/shipper" style={{ display: 'block', width: '100%' }}>By Shipper</Link>,
-              visible: true,
-            },
-          ],
-        },
-        {
           key: 'sub-prints',
           icon: <PrinterOutlined />,
           label: 'Print & Stock Reports',
@@ -716,6 +663,11 @@ export default function AppLayout() {
             {
               key: '/ops/reports/do',
               label: <Link to="/ops/reports/do" style={{ display: 'block', width: '100%' }}>Print DO</Link>,
+              visible: true,
+            },
+            {
+              key: '/ops/reports/sales',
+              label: <Link to="/ops/reports/sales" style={{ display: 'block', width: '100%' }}>Sales Report</Link>,
               visible: true,
             },
             {

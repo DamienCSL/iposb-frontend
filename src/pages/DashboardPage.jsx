@@ -32,7 +32,7 @@ export default function DashboardPage() {
     { to: '/consignments/tracking', title: 'Track Consignment', desc: 'Look up status history', icon: 'bi-search', color: 'info', show: can(caps, 'consignments') },
     { to: '/dispatch/assign', title: 'Assign Driver', desc: 'Dispatch consignments to drivers', icon: 'bi-person-workspace', color: 'primary', show: can(caps, 'dispatch') },
     { to: '/cs/tickets', title: 'CS Tickets', desc: 'Pending / Processing / Processed customer inquiries', icon: 'bi-ticket-detailed', color: 'info', show: can(caps, 'customerService') },
-    { to: '/summaries', title: 'Status Summary', desc: 'Overall consignment status report', icon: 'bi-bar-chart', color: 'warning', show: can(caps, 'summaries') },
+    { to: '/network', title: 'Network Analytics', desc: 'Volume, status, and network KPIs', icon: 'bi-bar-chart', color: 'warning', show: can(caps, 'summaries') || can(caps, 'reports') },
     { to: '/billing/invoices/new', title: 'Generate Invoice', desc: 'Bill unbilled consignments', icon: 'bi-receipt', color: 'success', show: can(caps, 'billing') },
     { to: '/billing/invoices', title: 'Invoice List', desc: 'View and filter invoices', icon: 'bi-list-check', color: 'success', show: can(caps, 'billing') },
     { to: '/billing/credit-notes', title: 'Credit Note', desc: 'Create a customer credit note', icon: 'bi-file-earmark-minus', color: 'dark', show: can(caps, 'billing') },
@@ -91,7 +91,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="col-md-3">
-          <Link to="/summaries/status" className="text-decoration-none">
+          <Link to="/network?group=status" className="text-decoration-none">
             <div className="card text-bg-success">
               <div className="card-body">
                 <h6 className="card-title">Delivered Today</h6>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="col-md-3">
-          <Link to="/summaries/manifest" className="text-decoration-none">
+          <Link to="/network?group=manifest" className="text-decoration-none">
             <div className="card text-bg-info">
               <div className="card-body">
                 <h6 className="card-title">Manifested Today</h6>

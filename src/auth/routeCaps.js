@@ -37,13 +37,12 @@ const ROUTE_RULES = [
   ['/ops/overnight-requests', 'pickups'],
   ['/ops/consignments', 'consignments'],
   ['/ops/cs', 'customerService'],
-  ['/ops/summaries', 'summaries'],
   ['/ops/reports/customer-summary', 'customerReports'],
   ['/ops/reports/invoice', 'billing'],
   ['/ops/reports/do', 'billing'],
   ['/ops/reports/receipt', 'billing'],
   ['/ops/reports', 'reports'],
-  ['/network', 'reports'],
+  ['/network', ['reports', 'summaries']],
   ['/admin/role-access', 'roleAccess'],
   ['/admin/users', 'users'],
   ['/admin/customers', 'consignments'],
@@ -62,7 +61,6 @@ const ROUTE_RULES = [
   ['/consignments', 'consignments'],
   ['/dispatch', 'dispatch'],
   ['/cs/', 'customerService'],
-  ['/summaries', 'summaries'],
   ['/customer/', 'customerReports'],
   ['/reports/invoice', 'billing'],
   ['/reports/do', 'billing'],
@@ -81,7 +79,10 @@ export function routeRequiredCap(pathname) {
 }
 
 export function routeAllowed(pathname, caps) {
-  const cap = routeRequiredCap(pathname)
-  if (!cap) return true
-  return Boolean(caps?.[cap])
+  const required = routeRequiredCap(pathname)
+  if (!required) return true
+  if (Array.isArray(required)) {
+    return required.some((cap) => Boolean(caps?.[cap]))
+  }
+  return Boolean(caps?.[required])
 }
