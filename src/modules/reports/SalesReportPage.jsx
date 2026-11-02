@@ -8,6 +8,7 @@ import {
   Form,
   Row,
   Select,
+  Segmented,
   Space,
   Table,
   Typography,
@@ -23,6 +24,26 @@ const { Title, Text } = Typography
 const { RangePicker } = DatePicker
 
 const PRINT_CSS = `
+.sales-node-toggle.ant-segmented {
+  background: #EEF2F6;
+  padding: 3px;
+}
+.sales-node-toggle .ant-segmented-item {
+  color: #334155 !important;
+  font-weight: 600;
+}
+.sales-node-toggle .ant-segmented-item:hover,
+.sales-node-toggle .ant-segmented-item:hover .ant-segmented-item-label {
+  color: #0F1B2D !important;
+}
+.sales-node-toggle .ant-segmented-item-selected,
+.sales-node-toggle .ant-segmented-item-selected .ant-segmented-item-label {
+  color: #FFFFFF !important;
+  background: #1B8A5A !important;
+}
+.sales-node-toggle .ant-segmented-thumb {
+  background: #1B8A5A !important;
+}
 @media print {
   body * { visibility: hidden !important; }
   .sales-report-print, .sales-report-print * { visibility: visible !important; }
@@ -57,45 +78,77 @@ function fmtQty(v) {
 export default function SalesReportPage() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [nodeType, setNodeType] = useState('drop_point')
   const [data, setData] = useState({
     rows: [],
     lookups: [],
+    deliveryPointLookups: [],
+    allowedNodeTypes: ['drop_point', 'delivery_point'],
     totals: { amount: 0, count: 0 },
     area: null,
     scope: null,
     title: '',
     dateLabel: '',
     needDrop: false,
+    nodeLocked: false,
     dropLocked: false,
   })
 
-  async function load(values) {
+  const allowed = data.allowedNodeTypes?.length
+    ? data.allowedNodeTypes
+    : ['drop_point', 'delivery_point']
+  const effectiveNodeType = allowed.includes(nodeType) ? nodeType : allowed[0]
+  const isDelivery = effectiveNodeType === 'delivery_point'
+  const nodeSelectLocked = !!data.nodeLocked || !!data.dropLocked
+
+  async function load(values, typeOverride) {
     setLoading(true)
     try {
       const range = values?.range
+      const type = typeOverride || values?.node_type || effectiveNodeType
       const q = {
-        drop_code: values?.drop_code || '',
+        node_type: type,
+        drop_code: type === 'drop_point' ? values?.drop_code || '' : '',
+        delivery_point_code: type === 'delivery_point' ? values?.delivery_point_code || '' : '',
         date_from: range?.[0] ? range[0].format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
         date_to: range?.[1] ? range[1].format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
       }
       const res = await getReport('sales', q)
+      const nextAllowed = res.allowedNodeTypes?.length
+        ? res.allowedNodeTypes
+        : ['drop_point', 'delivery_point']
+      const nextType = nextAllowed.includes(res.nodeType) ? res.nodeType : nextAllowed[0]
+      setNodeType(nextType)
       setData({
         rows: res.rows || [],
         lookups: res.lookups || [],
+        deliveryPointLookups: res.deliveryPointLookups || [],
+        allowedNodeTypes: nextAllowed,
         totals: res.totals || { amount: 0, count: 0 },
         area: res.area || null,
         scope: res.scope || null,
         title: res.title || '',
         dateLabel: res.dateLabel || '',
         needDrop: !!res.needDrop,
+        nodeLocked: !!res.nodeLocked,
         dropLocked: !!res.dropLocked,
         message: res.message || '',
       })
-      if (res.dropLocked && res.area?.code) {
-        form.setFieldsValue({ drop_code: res.area.code })
-      } else if (!values?.drop_code && res.lookups?.length === 1) {
-        form.setFieldsValue({ drop_code: res.lookups[0].code })
+
+      const patch = { node_type: nextType }
+      if (res.nodeLocked && res.area?.code) {
+        if (nextType === 'delivery_point') patch.delivery_point_code = res.area.code
+        else patch.drop_code = res.area.code
+      } else if (nextType === 'drop_point' && !values?.drop_code && res.lookups?.length === 1) {
+        patch.drop_code = res.lookups[0].code
+      } else if (
+        nextType === 'delivery_point' &&
+        !values?.delivery_point_code &&
+        res.deliveryPointLookups?.length === 1
+      ) {
+        patch.delivery_point_code = res.deliveryPointLookups[0].code
       }
+      form.setFieldsValue(patch)
     } catch (err) {
       message.error(apiError(err))
     } finally {
@@ -104,10 +157,21 @@ export default function SalesReportPage() {
   }
 
   useEffect(() => {
-    form.setFieldsValue({ range: [dayjs(), dayjs()] })
-    load({ range: [dayjs(), dayjs()] })
+    form.setFieldsValue({ range: [dayjs(), dayjs()], node_type: 'drop_point' })
+    load({ range: [dayjs(), dayjs()], node_type: 'drop_point' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function onNodeTypeChange(next) {
+    if (next === nodeType) return
+    setNodeType(next)
+    form.setFieldsValue({
+      drop_code: undefined,
+      delivery_point_code: undefined,
+    })
+    const range = form.getFieldValue('range') || [dayjs(), dayjs()]
+    load({ range, node_type: next, drop_code: '', delivery_point_code: '' }, next)
+  }
 
   const columns = useMemo(
     () => [
@@ -160,6 +224,11 @@ export default function SalesReportPage() {
       return ''
     })()
 
+  const nodeOptions = [
+    { label: 'Drop Point', value: 'drop_point' },
+    { label: 'Delivery Point', value: 'delivery_point' },
+  ].filter((o) => allowed.includes(o.value))
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <style>{PRINT_CSS}</style>
@@ -169,7 +238,7 @@ export default function SalesReportPage() {
           Sales Report
         </Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          Node sales listing by drop point — print-ready format matching the counter sales report.
+          Sales listing by drop point or delivery point — print-ready counter report format.
         </Text>
       </div>
 
@@ -178,37 +247,72 @@ export default function SalesReportPage() {
       </div>
 
       <Card size="small" className="no-print">
-        <Form form={form} layout="vertical" onFinish={load}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={(vals) => load(vals, effectiveNodeType)}
+          onValuesChange={(changed) => {
+            if (Object.prototype.hasOwnProperty.call(changed, 'node_type') && changed.node_type) {
+              onNodeTypeChange(changed.node_type)
+            }
+          }}
+        >
           <Row gutter={12} align="bottom">
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="drop_code"
-                label="Drop point / area"
-                style={{ marginBottom: 0 }}
-                rules={
-                  data.dropLocked
-                    ? []
-                    : [{ required: true, message: 'Select a drop point' }]
-                }
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  disabled={data.dropLocked}
-                  placeholder="Select drop point"
-                  options={(data.lookups || []).map((l) => ({
-                    value: l.code,
-                    label: `${l.code}${l.name ? ` — ${l.name}` : ''}`,
-                  }))}
+            <Col xs={24} md={6}>
+              <Form.Item name="node_type" label="Report by" style={{ marginBottom: 0 }} initialValue="drop_point">
+                <Segmented
+                  className="sales-node-toggle"
+                  block
+                  options={nodeOptions}
+                  disabled={nodeSelectLocked && allowed.length <= 1}
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} md={10}>
+            <Col xs={24} md={7}>
+              {isDelivery ? (
+                <Form.Item
+                  name="delivery_point_code"
+                  label="Delivery point"
+                  style={{ marginBottom: 0 }}
+                  rules={nodeSelectLocked ? [] : [{ required: true, message: 'Select a delivery point' }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    disabled={nodeSelectLocked}
+                    placeholder="Select delivery point"
+                    options={(data.deliveryPointLookups || []).map((l) => ({
+                      value: l.code,
+                      label: `${l.code}${l.name ? ` — ${l.name}` : ''}`,
+                    }))}
+                  />
+                </Form.Item>
+              ) : (
+                <Form.Item
+                  name="drop_code"
+                  label="Drop point"
+                  style={{ marginBottom: 0 }}
+                  rules={nodeSelectLocked ? [] : [{ required: true, message: 'Select a drop point' }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    disabled={nodeSelectLocked}
+                    placeholder="Select drop point"
+                    options={(data.lookups || []).map((l) => ({
+                      value: l.code,
+                      label: `${l.code}${l.name ? ` — ${l.name}` : ''}`,
+                    }))}
+                  />
+                </Form.Item>
+              )}
+            </Col>
+            <Col xs={24} md={7}>
               <Form.Item name="range" label="Date range" style={{ marginBottom: 0 }}>
                 <RangePicker style={{ width: '100%' }} allowClear={false} />
               </Form.Item>
             </Col>
-            <Col xs={24} md={6}>
+            <Col xs={24} md={4}>
               <Space>
                 <Button type="primary" htmlType="submit" icon={<SearchOutlined />} loading={loading}>
                   Run
@@ -231,7 +335,12 @@ export default function SalesReportPage() {
           className="no-print"
           type="info"
           showIcon
-          message={data.message || 'Select a drop point to run the sales report.'}
+          message={
+            data.message ||
+            (isDelivery
+              ? 'Select a delivery point to run the sales report.'
+              : 'Select a drop point to run the sales report.')
+          }
         />
       ) : null}
 
@@ -247,7 +356,13 @@ export default function SalesReportPage() {
           dataSource={data.rows || []}
           loading={loading}
           pagination={false}
-          locale={{ emptyText: data.needDrop ? 'Select a drop point and run the report.' : 'No consignments in this range.' }}
+          locale={{
+            emptyText: data.needDrop
+              ? isDelivery
+                ? 'Select a delivery point and run the report.'
+                : 'Select a drop point and run the report.'
+              : 'No consignments in this range.',
+          }}
           summary={() =>
             (data.rows || []).length > 0 ? (
               <Table.Summary.Row>
@@ -263,7 +378,6 @@ export default function SalesReportPage() {
           }
         />
 
-        {/* Print-only HTML table for cleaner PDF layout */}
         <table className="sales-report-table" style={{ display: 'none' }}>
           <thead>
             <tr>

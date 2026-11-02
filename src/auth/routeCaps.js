@@ -31,6 +31,7 @@ const ROUTE_RULES = [
   ['/ops/seals', 'seals'],
   ['/ops/cargo', 'manifests'],
   ['/ops/station/manifests', 'manifests'],
+  ['/ops/dispatch/runsheets', 'runsheets'],
   ['/ops/dispatch', 'dispatch'],
   ['/ops/returns', 'consignments'],
   ['/ops/ats-claims', 'consignments'],

@@ -115,9 +115,35 @@ export async function getUncoveredJobs() {
   return data
 }
 
-export async function getDispatchDrivers() {
-  const { data } = await api.get('/ops/dispatch/drivers', { params: { available: 1 } })
+export async function getDispatchDrivers(opts = {}) {
+  const available = opts.available === 0 || opts.available === '0' ? '0' : '1'
+  const { data } = await api.get('/ops/dispatch/drivers', { params: { available } })
   return data.drivers || []
+}
+
+export async function listRunsheets(params = {}) {
+  const { data } = await api.get('/ops/runsheets', { params })
+  return data
+}
+
+export async function getRunsheet(id) {
+  const { data } = await api.get(`/ops/runsheets/${encodeURIComponent(id)}`)
+  return data
+}
+
+export async function createRunsheet(body) {
+  const { data } = await api.post('/ops/runsheets', body)
+  return data
+}
+
+export async function updateRunsheet(id, body) {
+  const { data } = await api.put(`/ops/runsheets/${encodeURIComponent(id)}`, body)
+  return data
+}
+
+export async function closeRunsheet(id) {
+  const { data } = await api.post(`/ops/runsheets/${encodeURIComponent(id)}/close`)
+  return data
 }
 
 export async function get3plPartners() {

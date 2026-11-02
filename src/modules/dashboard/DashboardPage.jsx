@@ -491,6 +491,14 @@ export default function DashboardPage() {
                       : 'Approve OVN overnight holds',
                   },
                   {
+                    key: 'runsheets',
+                    show: can('runsheets') || isAdmin,
+                    path: '/ops/dispatch/runsheets',
+                    icon: <TeamOutlined />,
+                    title: 'Delivery Runsheets',
+                    desc: 'Lead driver + helpers for shared delivery earnings',
+                  },
+                  {
                     key: 'ats',
                     show: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
                     path: '/ops/ats-claims',

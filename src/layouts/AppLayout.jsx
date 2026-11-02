@@ -59,6 +59,7 @@ const APP_PAGES = [
   { title: 'ATS / Problematic Scans', path: '/ops/ats-claims', keywords: ['ats', 'n13', 'n12', 'damage', 'lost', 'd4', 'reject', 'problematic'] },
   { title: 'Dispatch Driver Assignment', path: '/ops/dispatch?tab=assign', keywords: ['3pl', 'remote', 'assign', 'dispatch', 'drivers', 'plan', 'auto-assign'] },
   { title: 'Remote / 3PL Pickup', path: '/ops/dispatch?tab=remote', keywords: ['3pl', 'remote', 'uncovered', 'partner'] },
+  { title: 'Delivery Runsheets', path: '/ops/dispatch/runsheets', keywords: ['runsheet', 'helper', 'crew', 'commission', 'split', 'driver'] },
   { title: 'Seal Station (Baby / Mother)', path: '/ops/seals', keywords: ['seal', 'bag', 'pack', 'scan', 'baby', 'mother'] },
   { title: 'Inbound / Outbound Desk', path: '/ops/node-flow', keywords: ['inbound', 'outbound', 'arrive', 'depart', 'scan confirm', 'node'] },
   { title: 'Airport / Port Cargo', path: '/ops/cargo', keywords: ['cargo', 'airport', 'port', 'lodge', 'collect', 'air', 'sea'] },
@@ -173,6 +174,9 @@ function getBreadcrumbs(pathname, search) {
     items.push({ label: 'ATS / Problematic Scans', path: '/ops/ats-claims' })
   } else if (pathname.startsWith('/ops/cargo')) {
     items.push({ label: 'Airport / Port Cargo', path: '/ops/cargo' })
+  } else if (pathname.startsWith('/ops/dispatch/runsheets')) {
+    items.push({ label: 'Dispatch & 3PL', path: '/ops/dispatch?tab=assign' })
+    items.push({ label: 'Delivery Runsheets', path: '/ops/dispatch/runsheets' })
   } else if (pathname.startsWith('/ops/dispatch')) {
     items.push({ label: 'Dispatch & 3PL', path: '/ops/dispatch?tab=assign' })
     const tab = new URLSearchParams(search || '').get('tab')
@@ -236,6 +240,7 @@ function getSelectedKey(pathname, search = '') {
   if (pathname.startsWith('/ops/overnight-requests')) return '/ops/overnight-requests'
   if (pathname.startsWith('/ops/ats-claims')) return '/ops/ats-claims'
   if (pathname.startsWith('/ops/cargo')) return '/ops/cargo'
+  if (pathname.startsWith('/ops/dispatch/runsheets')) return '/ops/dispatch/runsheets'
   if (pathname.startsWith('/ops/dispatch')) return '/ops/dispatch'
   if (pathname.startsWith('/ops/seals')) return '/ops/seals'
   if (pathname.startsWith('/ops/station/manifests')) return '/ops/station/manifests'
@@ -557,7 +562,7 @@ export default function AppLayout() {
       key: 'main-dispatch',
       icon: <CarOutlined />,
       label: 'Dispatch & Pickup',
-      visible: can('pickups') || can('dispatch') || isAdmin,
+      visible: can('pickups') || can('dispatch') || can('runsheets') || isAdmin,
       children: [
         {
           key: '/ops/pickups',
@@ -575,6 +580,12 @@ export default function AppLayout() {
           icon: <GlobalOutlined />,
           label: <Link to="/ops/dispatch?tab=assign" style={{ display: 'block', width: '100%' }}>Dispatch & 3PL</Link>,
           visible: can('pickups') || can('dispatch') || isAdmin,
+        },
+        {
+          key: '/ops/dispatch/runsheets',
+          icon: <TeamOutlined />,
+          label: <Link to="/ops/dispatch/runsheets" style={{ display: 'block', width: '100%' }}>Delivery Runsheets</Link>,
+          visible: can('runsheets') || isAdmin,
         },
         {
           key: '/ops/ats-claims',

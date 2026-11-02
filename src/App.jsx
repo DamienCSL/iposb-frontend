@@ -14,6 +14,7 @@ import OvernightRequestsPage from './modules/overnight/OvernightRequestsPage'
 import AtsClaimsPage from './modules/ats/AtsClaimsPage'
 import CargoPage from './modules/cargo/CargoPage'
 import DispatchPage from './modules/dispatch/DispatchPage'
+import RunsheetsPage from './modules/dispatch/RunsheetsPage'
 import ManifestsPage from './modules/manifests/ManifestsPage'
 import ReturnsPage from './modules/returns/ReturnsPage'
 import FinanceBillingPage from './modules/billing/FinanceBillingPage'
@@ -146,6 +147,7 @@ export default function App() {
                 <Route path="/ops/ats-claims" element={<AtsClaimsPage />} />
                 <Route path="/ops/cargo" element={<CargoPage />} />
                 <Route path="/ops/dispatch" element={<DispatchPage />} />
+                <Route path="/ops/dispatch/runsheets" element={<RunsheetsPage />} />
                 <Route path="/ops/seals" element={<SealStationPage />} />
                 <Route path="/ops/node-flow" element={<NodeFlowPage />} />
                 <Route path="/ops/station/manifests" element={<ManifestStationPage />} />

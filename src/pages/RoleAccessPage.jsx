@@ -87,6 +87,10 @@ const MODULE_META = {
     icon: CarOutlined,
     hint: 'Courier / dispatcher assign, 3PL, overnight holds — local last-mile',
   },
+  runsheets: {
+    icon: TeamOutlined,
+    hint: 'Daily delivery runsheets: record helpers who ride with the lead driver and share delivery earnings',
+  },
   summaries: {
     icon: BarChartOutlined,
     hint: 'View Network Analytics and operational volume reports',
