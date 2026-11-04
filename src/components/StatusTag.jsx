@@ -1,53 +1,58 @@
 import React from 'react'
 
+/**
+ * Labels aligned with StatusMap::CUSTOMER / SOP so consignment list matches detail tracking.
+ */
 const STATUS_MAP = {
-  // SOP Chain
+  // SOP main path
   BDE: { label: 'Order Confirmed', color: '#D97706' },
   ACC: { label: 'Awaiting Pickup', color: '#D97706' },
-  PKU: { label: 'Picked Up', color: '#1668DC' },
-  ARR: { label: 'At Origin Hub', color: '#1668DC' },
-  SRT: { label: 'Sorting', color: '#1668DC' },
-  GWD: { label: 'Hub Departed', color: '#1668DC' },
+  PKU: { label: 'Shipment Picked Up', color: '#1668DC' },
+  ODP: { label: 'Arrived at Origin Delivery Point', color: '#1668DC' },
+  DTH: { label: 'Departure to Hub', color: '#1668DC' },
+  ARR: { label: 'Arrived at Origin Hub', color: '#1668DC' },
+  SRT: { label: 'Sorting in Progress', color: '#1668DC' },
+  GWD: { label: 'Departed Hub', color: '#1668DC' },
   INB: { label: 'In Transit', color: '#1668DC' },
-  HUB: { label: 'At Dest Hub', color: '#1668DC' },
-  SHB: { label: 'At Station', color: '#1668DC' },
-  MNF: { label: 'Manifested', color: '#1668DC' },
-  CGL: { label: 'In Transit (Lodged at Airport/Port)', color: '#1668DC' },
-  CGC: { label: 'In Transit (Collected from Airport/Port)', color: '#1668DC' },
+  HUB: { label: 'Arrived at Destination Hub', color: '#1668DC' },
+  SHB: { label: 'Arrived at Delivery Station', color: '#1668DC' },
+  MNF: { label: 'In Transit', color: '#1668DC' },
+  CGL: { label: 'In Transit', color: '#1668DC' },
+  CGC: { label: 'In Transit', color: '#1668DC' },
   OFD: { label: 'Out for Delivery', color: '#0891B2' },
-  DRS: { label: 'With Courier', color: '#0891B2' },
-  POD: { label: 'Delivered (POD)', color: '#1B8A5A' },
-  PCC: { label: 'Delivered (Consignee)', color: '#1B8A5A' },
-  PCB: { label: 'Delivered (Branch)', color: '#1B8A5A' },
-  PAE: { label: 'POD Entered', color: '#1B8A5A' },
-  DOD: { label: 'Delivered on Demand', color: '#1B8A5A' },
+  DRS: { label: 'Out for Delivery', color: '#0891B2' },
+  POD: { label: 'Delivered', color: '#1B8A5A' },
+  PCC: { label: 'Delivered', color: '#1B8A5A' },
+  PCB: { label: 'Delivered', color: '#1B8A5A' },
+  PAE: { label: 'Delivered', color: '#1B8A5A' },
+  PFP: { label: 'Delivered', color: '#1B8A5A' },
+  DOD: { label: 'Delivered', color: '#1B8A5A' },
   AWAITING_PAYMENT: { label: 'Awaiting Payment', color: '#D97706' },
 
   // Self-collect
-  SCF: { label: 'Awaiting Collection', color: '#0891B2' },
+  SCF: { label: 'Awaiting Collection at Station', color: '#0891B2' },
   CPA: { label: 'At Collection Point', color: '#0891B2' },
-  CPI: { label: 'Ready for Collection', color: '#0891B2' },
-  SCN: { label: 'Collect Notice Sent', color: '#0891B2' },
+  CPI: { label: 'Awaiting Collection at Station', color: '#0891B2' },
+  SCN: { label: 'Awaiting Collection at Station', color: '#0891B2' },
 
   // Exceptions / SOP
-  UND: { label: 'Undelivered', color: '#D4380D' },
+  UND: { label: 'Unsuccessful Delivery Attempt', color: '#D4380D' },
   OVN: { label: 'Awaiting Redelivery', color: '#D97706' },
   RDL: { label: 'Awaiting Redelivery', color: '#D97706' },
-  RSC: { label: 'Reschedule Requested', color: '#D97706' },
-  ADR: { label: 'Address Issue', color: '#D4380D' },
+  RSC: { label: 'Customer Request Reschedule Delivery', color: '#D97706' },
+  ADR: { label: 'Address Issue / Invalid Address', color: '#D4380D' },
   UTL: { label: 'Lost Shipment', color: '#D4380D' },
-  N13: { label: 'Lost (N13)', color: '#D4380D' },
-  N12: { label: 'Damaged (N12)', color: '#D4380D' },
-  N9: { label: 'Damaged (N9)', color: '#D4380D' },
-  D4: { label: 'Return Rejected (D4)', color: '#D4380D' },
-  HLD: { label: 'On Hold', color: '#D97706' },
-  DMG: { label: 'Damaged', color: '#D4380D' },
-  LOS: { label: 'Lost', color: '#D4380D' },
+  N13: { label: 'Lost Shipment', color: '#D4380D' },
+  N12: { label: 'Damaged Parcel', color: '#D4380D' },
+  N9: { label: 'Damaged Parcel', color: '#D4380D' },
+  D4: { label: 'Return Rejected', color: '#D4380D' },
+  HLD: { label: 'Shipment Held / On Hold', color: '#D97706' },
+  DMG: { label: 'Damaged Parcel', color: '#D4380D' },
+  LOS: { label: 'Lost Shipment', color: '#D4380D' },
   SHL: { label: 'Hold at Hub', color: '#D97706' },
   CAN: { label: 'Cancelled', color: '#64748B' },
   RTN: { label: 'Return to Sender', color: '#7C3AED' },
-  RTS: { label: 'Return to Shipper', color: '#7C3AED' },
-  PFP: { label: 'Delivered (POD Faxed)', color: '#1B8A5A' },
+  RTS: { label: 'Return to Sender', color: '#7C3AED' },
 
   // General & Billing & COD
   PAID: { label: 'Paid', color: '#1B8A5A' },
@@ -108,5 +113,3 @@ export default function StatusTag({ status, text, color: customColor }) {
     </span>
   )
 }
-
-

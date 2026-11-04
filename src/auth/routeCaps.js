@@ -36,6 +36,7 @@ const ROUTE_RULES = [
   ['/ops/returns', 'consignments'],
   ['/ops/ats-claims', 'consignments'],
   ['/ops/overnight-requests', 'pickups'],
+  ['/ops/consignments/app-orders', 'consignments'],
   ['/ops/consignments', 'consignments'],
   ['/ops/cs', 'customerService'],
   ['/ops/reports/customer-summary', 'customerReports'],

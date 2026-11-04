@@ -265,8 +265,8 @@ export default function RunsheetsPage() {
       <Alert
         type="info"
         showIcon
-        message="How splits work"
-        description="When a delivery earning accrues for the lead driver on the runsheet date, the amount is split equally across the lead + helpers. Partner commission is not affected."
+        message="How runsheets work"
+        description="Each runsheet is a daily schedule for one lead driver. Open a runsheet to review consignments assigned/delivered that day and audit whether helper delivery earnings were split correctly. Partner commission is not affected."
       />
 
       <Card size="small" bodyStyle={{ paddingTop: 0 }}>
@@ -330,7 +330,7 @@ export default function RunsheetsPage() {
             ? `Runsheet · ${detail.runDate} · ${detail.leadDriverName || `Driver #${detail.leadDriverId}`}`
             : 'Runsheet'
         }
-        width={560}
+        width={820}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         extra={
@@ -351,17 +351,47 @@ export default function RunsheetsPage() {
         {detail ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Row gutter={12}>
-              <Col span={12}>
+              <Col span={6}>
                 <Text type="secondary">Status</Text>
                 <div>
                   <Tag color={detail.status === 'CLOSED' ? 'default' : 'green'}>{detail.status}</Tag>
                 </div>
               </Col>
-              <Col span={12}>
-                <Text type="secondary">Crew size</Text>
+              <Col span={6}>
+                <Text type="secondary">Crew</Text>
                 <div style={{ fontWeight: 600 }}>{(detail.crew || []).length}</div>
               </Col>
+              <Col span={6}>
+                <Text type="secondary">CNs that day</Text>
+                <div style={{ fontWeight: 600 }}>{detail.auditSummary?.cnCount ?? 0}</div>
+              </Col>
+              <Col span={6}>
+                <Text type="secondary">Split OK / issues</Text>
+                <div style={{ fontWeight: 600 }}>
+                  {detail.auditSummary?.splitOkCount ?? 0}
+                  {' / '}
+                  <span style={{ color: (detail.auditSummary?.splitIssueCount || 0) > 0 ? '#D4380D' : undefined }}>
+                    {detail.auditSummary?.splitIssueCount ?? 0}
+                  </span>
+                </div>
+              </Col>
             </Row>
+
+            {(detail.auditSummary?.splitIssueCount || 0) > 0 || (detail.auditSummary?.splitPendingCount || 0) > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                message="Audit checklist"
+                description={`${detail.auditSummary?.splitPendingCount || 0} pending work · ${detail.auditSummary?.splitIssueCount || 0} split issue(s). Check consignments below before closing.`}
+              />
+            ) : (
+              <Alert
+                type="info"
+                showIcon
+                message="CN schedule"
+                description="Consignments assigned or delivered by this lead on the run date. Use split status to confirm helper earnings."
+              />
+            )}
 
             <Form form={editForm} layout="vertical" disabled={detail.status === 'CLOSED'}>
               <Form.Item name="helper_driver_ids" label="Helpers">
@@ -404,28 +434,98 @@ export default function RunsheetsPage() {
             </div>
 
             <div>
-              <Text strong>Delivery earnings that day</Text>
+              <Text strong>Consignment schedule & split audit</Text>
               <Table
                 size="small"
                 pagination={false}
-                rowKey="id"
-                dataSource={detail.earnings || []}
+                rowKey={(r) => r.iposbCnNo || r.cnNo}
+                dataSource={detail.consignments || []}
                 style={{ marginTop: 8 }}
-                locale={{ emptyText: 'No delivery earnings recorded yet.' }}
+                scroll={{ x: 720 }}
+                locale={{ emptyText: 'No consignments assigned/delivered for this lead on this date.' }}
+                expandable={{
+                  expandedRowRender: (r) =>
+                    (r.shares || []).length ? (
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey={(s) => `${s.driverId}-${s.amount}`}
+                        dataSource={r.shares}
+                        columns={[
+                          {
+                            title: 'Crew member',
+                            dataIndex: 'driverName',
+                            render: (v, s) => v || `#${s.driverId}`,
+                          },
+                          {
+                            title: 'Share',
+                            dataIndex: 'amount',
+                            align: 'right',
+                            render: (v) => money(v),
+                          },
+                          { title: 'Ledger', dataIndex: 'status', width: 100 },
+                        ]}
+                      />
+                    ) : (
+                      <Text type="secondary">No earning shares yet.</Text>
+                    ),
+                }}
                 columns={[
-                  { title: 'CN', dataIndex: 'cnNo', render: (v) => <Text code>{v}</Text> },
                   {
-                    title: 'Driver',
-                    dataIndex: 'driverName',
-                    render: (v, r) => v || `#${r.driverId}`,
+                    title: 'CN',
+                    dataIndex: 'cnNo',
+                    render: (v) => <Text style={{ fontFamily: 'monospace', fontWeight: 600 }}>{v}</Text>,
                   },
                   {
-                    title: 'Amount',
-                    dataIndex: 'amount',
+                    title: 'Recipient',
+                    dataIndex: 'recipientName',
+                    ellipsis: true,
+                    render: (v) => v || '—',
+                  },
+                  {
+                    title: 'Work',
+                    key: 'work',
+                    width: 100,
+                    render: (_, r) =>
+                      r.workDone ? <Tag color="green">Delivered</Tag> : <Tag color="orange">In progress</Tag>,
+                  },
+                  {
+                    title: 'Split',
+                    dataIndex: 'splitStatus',
+                    width: 130,
+                    render: (v, r) => {
+                      const map = {
+                        OK: { color: 'green', label: 'OK' },
+                        PENDING_WORK: { color: 'default', label: 'Pending' },
+                        MISSING_EARNING: { color: 'red', label: 'No earning' },
+                        NOT_SPLIT: { color: 'red', label: 'Not split' },
+                        MISMATCH: { color: 'volcano', label: 'Mismatch' },
+                        NONE: { color: 'default', label: '—' },
+                      }
+                      const m = map[v] || map.NONE
+                      return (
+                        <Tag color={m.color}>
+                          {m.label}
+                          {r.shareCount != null && r.expectedShares
+                            ? ` ${r.shareCount}/${r.expectedShares}`
+                            : ''}
+                        </Tag>
+                      )
+                    },
+                  },
+                  {
+                    title: 'Earning',
+                    dataIndex: 'earningTotal',
                     align: 'right',
-                    render: (v) => money(v),
+                    width: 100,
+                    render: (v) => (v ? money(v) : '—'),
                   },
-                  { title: 'Status', dataIndex: 'status', width: 90 },
+                  {
+                    title: 'POD',
+                    dataIndex: 'podDate',
+                    width: 110,
+                    render: (v) => v || '—',
+                  },
                 ]}
               />
             </div>

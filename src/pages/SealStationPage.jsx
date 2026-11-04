@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Modal } from 'antd'
 import {
   apiError,
   closeSeal,
+  createLocalManifestFromSeal,
   createSeal,
   getSealPack,
   getSealSop,
@@ -16,7 +18,6 @@ import {
 } from '../api/client'
 import { printSealLabel, SealLabelNote } from '../components/SealLabelPrint'
 import { useAuth } from '../auth/AuthContext'
-import { isStorekeeper } from '../auth/rbac'
 
 const PHASES = [
   {
@@ -24,7 +25,7 @@ const PHASES = [
     step: 1,
     title: 'Local pack (DP / DEP)',
     summary:
-      'Drop Point: pack CNs into Baby → close → local outbound manifest. Delivery Point: create Mother (baby seals) before handoff to dest DEP.',
+      'Drop Point / Delivery Point (storekeeper): pack CNs into Baby → close → local outbound manifest. Optional Mother: group baby seals and/or loose CNs before handoff to dest DEP.',
   },
   {
     id: 'origin_hub',
@@ -89,17 +90,27 @@ function MemberTree({ members, depth = 0 }) {
 }
 
 export default function SealStationPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
-  const preferMother = isStorekeeper(user?.role)
+  const homeDp = String(
+    user?.homeDeliveryPointCode ||
+      user?.home_delivery_point_code ||
+      user?.deliveryPointCode ||
+      user?.delivery_point_code ||
+      '',
+  )
+    .trim()
+    .toUpperCase()
   const [phase, setPhase] = useState('origin_dp')
   const [sop, setSop] = useState(null)
-  const [tier, setTier] = useState(() => (isStorekeeper(user?.role) ? 'mother' : 'baby'))
+  // Storekeepers (DEP) pack baby seals the same way Drop Point does; mother remains optional.
+  const [tier, setTier] = useState('baby')
   const [destArea, setDestArea] = useState('')
   const [destDp, setDestDp] = useState('')
   const [destHub, setDestHub] = useState('')
-  const [originDp, setOriginDp] = useState('')
+  const [originDp, setOriginDp] = useState(homeDp)
   const [originHub, setOriginHub] = useState('')
-  const [locId, setLocId] = useState('')
+  const [locId, setLocId] = useState(homeDp)
   const [seaLane, setSeaLane] = useState(true)
   const [activeSealNo, setActiveSealNo] = useState('')
   const [seal, setSeal] = useState(null)
@@ -116,6 +127,12 @@ export default function SealStationPage() {
   const [ok, setOk] = useState('')
   const [filterTier, setFilterTier] = useState('')
   const [labelPreviewOpen, setLabelPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    if (!homeDp) return
+    setOriginDp((prev) => prev || homeDp)
+    setLocId((prev) => prev || homeDp)
+  }, [homeDp])
 
   function applyPack(data) {
     setPack(data || null)
@@ -155,9 +172,9 @@ export default function SealStationPage() {
   }, [refreshList])
 
   useEffect(() => {
-    // Default create tier + scan status per phase (DEP prefers Mother; Drop Point prefers Baby)
+    // Origin DP/DEP: default Baby (storekeeper + drop point). Mother optional for grouping.
     if (phase === 'origin_dp') {
-      setTier(preferMother ? 'mother' : 'baby')
+      setTier('baby')
     } else if (phase === 'origin_hub') {
       setTier('father')
       setScanStatus('ARR')
@@ -165,7 +182,7 @@ export default function SealStationPage() {
       setScanStatus('HUB')
     }
     refreshSop().catch(() => {})
-  }, [phase, preferMother]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadSeal(sealNo) {
     const code = String(sealNo || '').trim().toUpperCase()
@@ -225,12 +242,18 @@ export default function SealStationPage() {
     if (!code) return
 
     let target = activeSealNo
-    if (!target && (code.startsWith('BS-') || code.startsWith('MS-') || code.startsWith('FS-'))) {
+    // Legacy BS-/MS-/FS- or dest-prefixed seal codes (AREA-XXXXXX).
+    const looksLikeSeal =
+      code.startsWith('BS-') ||
+      code.startsWith('MS-') ||
+      code.startsWith('FS-') ||
+      /^[A-Z0-9][A-Z0-9\-]*-[A-Z0-9]{4,}$/.test(code)
+    if (!target && looksLikeSeal) {
       target = code
       setActiveSealNo(code)
     }
     if (!target) {
-      setMessage('Scan a seal barcode first (BS-… / MS-… / FS-…), or load an open seal.')
+      setMessage('Scan a seal barcode first (e.g. KK-METRO-A-7K2M9Q), or load an open seal.')
       return
     }
 
@@ -275,9 +298,35 @@ export default function SealStationPage() {
     try {
       await closeSeal(activeSealNo)
       applyPack(await getSealPack(activeSealNo))
-      setOk(`Sealed ${activeSealNo} — hand off to origin hub or Manifest Station`)
+      setOk(`Sealed ${activeSealNo} — generate a local manifesto or hand off to Manifest Station`)
       await refreshList()
       await refreshSop(activeSealNo)
+    } catch (err) {
+      setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onGenerateManifest() {
+    if (!activeSealNo) return
+    setBusy(true)
+    setMessage('')
+    try {
+      // Keep a local consignment manifesto for truck handoff, but print the seal Manifest
+      // (full CN contents of this bag) — that is the operational packing list.
+      const data = await createLocalManifestFromSeal(activeSealNo, {
+        locId: locId || originDp || originHub || undefined,
+      })
+      const mfgNo = data?.mfgNo || data?.manifest?.manifest?.mfgNo || data?.manifest?.mfgNo
+      setOk(
+        mfgNo
+          ? data?.reused
+            ? `Manifest ready for ${activeSealNo} (consignment manifesto ${mfgNo})`
+            : `Manifest ready for ${activeSealNo} · consignment manifesto ${mfgNo} created`
+          : `Manifest ready for ${activeSealNo}`,
+      )
+      navigate(`/ops/reports/seal-manifest?id=${encodeURIComponent(activeSealNo)}`)
     } catch (err) {
       setMessage(apiError(err))
     } finally {
@@ -408,14 +457,19 @@ export default function SealStationPage() {
   const lifecycle = seal?.lifecycle || ''
   const canAdd = phase === 'origin_dp' && lifecycle === 'open'
   const canClose = phase === 'origin_dp' && lifecycle === 'open'
+  const canLocalManifest =
+    phase === 'origin_dp' && ['sealed', 'arrived'].includes(lifecycle)
   const canTransitScan =
     (phase === 'origin_hub' || phase === 'dest_hub') &&
     ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
   const canOpen =
     ((phase === 'dest_hub' && ['father', 'mother'].includes(seal?.tier)) ||
-      (phase === 'dest_dp' && seal?.tier === 'baby')) &&
+      (phase === 'dest_dp' && ['baby', 'mother'].includes(seal?.tier))) &&
     ['sealed', 'in_transit', 'arrived'].includes(lifecycle)
-  const canCnArrive = phase === 'dest_dp' && seal?.tier === 'baby' && lifecycle === 'opened'
+  const canCnArrive =
+    phase === 'dest_dp' &&
+    ['baby', 'mother'].includes(seal?.tier) &&
+    lifecycle === 'opened'
   const showCreate =
     phase === 'origin_dp' || (phase === 'origin_hub' && (tier === 'father' || tier === 'mother'))
   const scanOptions = PHASE_SCAN[phase] || []
@@ -493,8 +547,12 @@ export default function SealStationPage() {
                     <select className="form-select" value={tier} onChange={(e) => setTier(e.target.value)}>
                       {phase === 'origin_dp' ? (
                         <>
-                          <option value="baby">Baby — Drop Point packs CNs (dest area)</option>
-                          <option value="mother">Mother — Delivery Point groups babies → dest DEP</option>
+                          <option value="baby">
+                            Baby — pack CNs (Drop Point or Delivery Point / storekeeper)
+                          </option>
+                          <option value="mother">
+                            Mother — optional: baby seals and/or loose CNs → dest DEP
+                          </option>
                         </>
                       ) : (
                         <>
@@ -640,7 +698,7 @@ export default function SealStationPage() {
                 <input
                   className="form-control form-control-sm"
                   style={{ width: '11rem' }}
-                  placeholder="BS-… / MS-… / FS-…"
+                  placeholder="AREA-XXXXXX / BS-…"
                   value={activeSealNo}
                   onChange={(e) => setActiveSealNo(e.target.value.toUpperCase())}
                 />
@@ -673,7 +731,7 @@ export default function SealStationPage() {
                       <input
                         ref={packInputRef}
                         className="form-control form-control-lg"
-                        placeholder="Scan seal BS-… / MS-… / FS-…"
+                        placeholder="Scan seal AREA-XXXXXX…"
                         value={packBarcode}
                         onChange={(e) => setPackBarcode(e.target.value.toUpperCase())}
                         autoFocus
@@ -710,9 +768,21 @@ export default function SealStationPage() {
                           Close seal
                         </button>
                       ) : null}
+                      {canLocalManifest ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={busy}
+                          onClick={onGenerateManifest}
+                        >
+                          Generate Manifest
+                        </button>
+                      ) : null}
                       {canOpen ? (
                         <button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={onOpen}>
-                          {phase === 'dest_dp' ? 'Unseal Baby' : `Open ${tierLabel(seal.tier)}`}
+                          {phase === 'dest_dp'
+                            ? `Unseal ${tierLabel(seal.tier)}`
+                            : `Open ${tierLabel(seal.tier)}`}
                         </button>
                       ) : null}
                     </div>
@@ -741,8 +811,8 @@ export default function SealStationPage() {
                             seal.tier === 'baby'
                               ? 'Scan CN (or re-scan this seal)'
                               : seal.tier === 'mother'
-                                ? 'Scan baby seal BS-…'
-                                : 'Scan mother seal MS-…'
+                                ? 'Scan baby seal (AREA-XXXX) or loose CN'
+                                : 'Scan mother seal (DEP-XXXX)'
                           }
                           value={packBarcode}
                           onChange={(e) => setPackBarcode(e.target.value.toUpperCase())}

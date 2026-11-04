@@ -168,7 +168,52 @@ export function normalizeCnLabel(row) {
     codAmount: money(pick(row, 'cod_collect_amt', 'codCollectAmt', 'cash_amt', 'cashAmt') || 0),
     remark: remark || '',
     trackingUrl: pick(row, 'tracking_url', 'trackingUrl') || '',
+    pieceNo: Math.max(0, Number(row?.piece_no ?? row?.pieceNo) || 0),
+    pieceTotal: Math.max(
+      1,
+      Number(row?.piece_total ?? row?.pieceTotal ?? row?.cn_pcs ?? row?.cnPcs) || 1,
+    ),
+    pieceLabel:
+      pick(row, 'piece_label', 'pieceLabel')
+      || (
+        Number(row?.piece_no ?? row?.pieceNo) > 0
+          ? `${Number(row.piece_no ?? row.pieceNo)}/${Number(row?.piece_total ?? row?.pieceTotal ?? row?.cn_pcs ?? 1) || 1}`
+          : ''
+      ),
   }
+}
+
+/** Expand each CN into one printable note per physical piece (1/N … N/N). */
+export function expandCnLabelRows(rows) {
+  const out = []
+  for (const row of rows || []) {
+    if (!row) continue
+    if (Number(row.piece_no ?? row.pieceNo) > 0 && Number(row.piece_total ?? row.pieceTotal) > 0) {
+      out.push(row)
+      continue
+    }
+    let total = Math.max(1, Number(row.cn_pcs ?? row.cnPcs) || 1)
+    if (Array.isArray(row.pieces) && row.pieces.length) {
+      const sum = row.pieces.reduce(
+        (s, p) => s + (Number(p?.qty) > 0 ? Number(p.qty) : 1),
+        0,
+      )
+      if (sum > 0) total = Math.max(total, sum)
+    }
+    total = Math.min(99, total)
+    for (let i = 1; i <= total; i += 1) {
+      out.push({
+        ...row,
+        piece_no: i,
+        piece_total: total,
+        piece_label: `${i}/${total}`,
+        pieceNo: i,
+        pieceTotal: total,
+        pieceLabel: `${i}/${total}`,
+      })
+    }
+  }
+  return out
 }
 
 function BarcodeSvg({ value, height = 44 }) {
@@ -318,6 +363,23 @@ export function CnLabelNote({ row, compact = false, trackingBase }) {
         <div style={{ fontFamily: mono, fontWeight: 900, fontSize: s(15, 20), letterSpacing: 2, marginTop: s(3, 5) }}>
           {label.displayCn || label.cn || '—'}
         </div>
+        {label.pieceTotal > 1 && label.pieceLabel ? (
+          <div
+            style={{
+              display: 'inline-block',
+              marginTop: s(3, 5),
+              border: `2px solid ${INK}`,
+              borderRadius: 4,
+              padding: s('1px 8px', '2px 12px'),
+              fontFamily: mono,
+              fontWeight: 900,
+              fontSize: s(14, 18),
+              letterSpacing: 1,
+            }}
+          >
+            PIECE {label.pieceLabel}
+          </div>
+        ) : null}
         {label.partnerCn && label.cn && label.partnerCn !== label.cn ? (
           <div style={{ fontSize: s(8, 10), color: MUTED }}>
             IPOSB {label.cn}
@@ -415,7 +477,7 @@ export function CnLabelNote({ row, compact = false, trackingBase }) {
       {/* 6. Parcel info */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: line }}>
         {[
-          ['Pieces', label.pcs],
+          ['Pieces', label.pieceTotal > 1 && label.pieceLabel ? label.pieceLabel : label.pcs],
           ['Weight', `${label.weight} kg`],
           ['Type', label.pkg],
           ['Mode', label.transport],
@@ -541,6 +603,23 @@ export function CnLabelThermal({ row, trackingBase }) {
         <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 14, letterSpacing: 1.5, marginTop: 2 }}>
           {label.displayCn || label.cn || '—'}
         </div>
+        {label.pieceTotal > 1 && label.pieceLabel ? (
+          <div
+            style={{
+              display: 'inline-block',
+              marginTop: 2,
+              border: `2px solid ${INK}`,
+              borderRadius: 3,
+              padding: '0 8px',
+              fontFamily: mono,
+              fontWeight: 900,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            }}
+          >
+            PIECE {label.pieceLabel}
+          </div>
+        ) : null}
         {label.partnerCn && label.cn && label.partnerCn !== label.cn ? (
           <div style={{ fontSize: 7.5 }}>
             IPOSB {label.cn}
@@ -611,7 +690,7 @@ export function CnLabelThermal({ row, trackingBase }) {
         <div style={{ borderRight: line, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: '1 1 auto' }}>
             {[
-              ['Pieces', label.pcs],
+              ['Pieces', label.pieceTotal > 1 && label.pieceLabel ? label.pieceLabel : label.pcs],
               ['Weight', `${label.weight} kg`],
               ['Type', label.pkg],
               ['Mode', label.transport],
@@ -698,7 +777,7 @@ function PageSize({ format }) {
  * - a4-4: 2×2 cuttable grid (4 notes per A4 page)
  */
 export default function CnLabelPrint({ rows, format = 'thermal', trackingBase }) {
-  const notes = (rows || []).filter(Boolean)
+  const notes = expandCnLabelRows((rows || []).filter(Boolean))
 
   if (format === 'thermal') {
     if (!notes.length) return null
@@ -707,11 +786,18 @@ export default function CnLabelPrint({ rows, format = 'thermal', trackingBase })
     return (
       <div className="cn-label-print-root">
         <PageSize format={format} />
-        {notes.map((row, idx) => (
-          <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-thermal" style={sheet}>
-            <CnLabelThermal row={row} trackingBase={trackingBase} />
-          </div>
-        ))}
+        {notes.map((row, idx) => {
+          const n = normalizeCnLabel(row)
+          return (
+            <div
+              key={`${n.cn}-${n.pieceLabel || idx}-${idx}`}
+              className="cn-label-sheet cn-label-thermal"
+              style={sheet}
+            >
+              <CnLabelThermal row={row} trackingBase={trackingBase} />
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -726,18 +812,21 @@ export default function CnLabelPrint({ rows, format = 'thermal', trackingBase })
           return (
             <div key={`sheet-${sheetIdx}`} className="cn-label-sheet cn-label-a4">
               <div className="cn-label-grid">
-                {filled.map((row, idx) => (
-                  <div
-                    key={row ? `${normalizeCnLabel(row).cn}-${sheetIdx}-${idx}` : `empty-${sheetIdx}-${idx}`}
-                    className="cn-label-cell"
-                  >
-                    {row ? (
-                      <CnLabelNote row={row} compact trackingBase={trackingBase} />
-                    ) : (
-                      <div className="cn-label-empty">Empty slot</div>
-                    )}
-                  </div>
-                ))}
+                {filled.map((row, idx) => {
+                  const n = row ? normalizeCnLabel(row) : null
+                  return (
+                    <div
+                      key={n ? `${n.cn}-${n.pieceLabel || idx}-${sheetIdx}-${idx}` : `empty-${sheetIdx}-${idx}`}
+                      className="cn-label-cell"
+                    >
+                      {row ? (
+                        <CnLabelNote row={row} compact trackingBase={trackingBase} />
+                      ) : (
+                        <div className="cn-label-empty">Empty slot</div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
@@ -750,13 +839,16 @@ export default function CnLabelPrint({ rows, format = 'thermal', trackingBase })
   return (
     <div className="cn-label-print-root">
       <PageSize format={format} />
-      {notes.map((row, idx) => (
-        <div key={`${normalizeCnLabel(row).cn}-${idx}`} className="cn-label-sheet cn-label-a5">
-          <div className="cn-label-a5-frame">
-            <CnLabelNote row={row} trackingBase={trackingBase} />
+      {notes.map((row, idx) => {
+        const n = normalizeCnLabel(row)
+        return (
+          <div key={`${n.cn}-${n.pieceLabel || idx}-${idx}`} className="cn-label-sheet cn-label-a5">
+            <div className="cn-label-a5-frame">
+              <CnLabelNote row={row} trackingBase={trackingBase} />
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

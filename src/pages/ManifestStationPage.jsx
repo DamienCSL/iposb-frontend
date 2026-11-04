@@ -7,6 +7,7 @@ import {
   listManifests,
   listMaster,
   removeManifestMember,
+  revertManifest,
   saveManifest,
 } from '../api/client'
 import ManifestLinehaulPanel from '../components/ManifestLinehaulPanel'
@@ -224,6 +225,43 @@ export default function ManifestStationPage() {
     }
   }
 
+  async function onRevert() {
+    if (!activeMfg || !manifest) return
+    const st = String(manifest.mfgStatus || '').toUpperCase()
+    const next =
+      st === 'ARRIVED'
+        ? 'Undo receive → CLOSED'
+        : st === 'CLOSED'
+          ? 'Undo depart → OPEN (fix CN stages, then Close again)'
+          : null
+    if (!next) {
+      setMessage('Manifest is already open — nothing to revert.')
+      return
+    }
+    if (!window.confirm(`Revert manifesto ${activeMfg}?\n\n${next}`)) return
+
+    setBusy(true)
+    setMessage('')
+    try {
+      let data
+      try {
+        data = await revertManifest(activeMfg, { step: 'auto' })
+      } catch (err) {
+        const msg = apiError(err)
+        if (!/force=true|pickup\/handover/i.test(msg)) throw err
+        if (!window.confirm(`${msg}\n\nClear linehaul pickup/handover and reopen anyway?`)) throw err
+        data = await revertManifest(activeMfg, { step: 'auto', force: true })
+      }
+      setDetail(await getManifest(activeMfg))
+      setOk(data?.message || 'Reverted')
+      await refreshList()
+    } catch (err) {
+      setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
@@ -407,8 +445,15 @@ export default function ManifestStationPage() {
                       </button>
                     </form>
                   ) : (
-                    <div className="alert alert-secondary py-2 mb-0 small">
-                      Closed — members locked. Print via Reports → Print Manifest.
+                    <div className="alert alert-secondary py-2 mb-0 small d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                      <span>
+                        {String(manifest?.mfgStatus || '').toUpperCase() === 'ARRIVED'
+                          ? 'Arrived — use Revert to undo receive, or reopen fully if CN stages need fixing.'
+                          : 'Closed — members locked. Print via Reports → Print Consignment Manifest. Use Revert to reopen and fix CN stages.'}
+                      </span>
+                      <button type="button" className="btn btn-sm btn-outline-warning" disabled={busy} onClick={onRevert}>
+                        Revert last action
+                      </button>
                     </div>
                   )}
 
@@ -469,7 +514,11 @@ export default function ManifestStationPage() {
                     >
                       Close / Depart
                     </button>
-                  ) : null}
+                  ) : (
+                    <button type="button" className="btn btn-outline-warning" disabled={busy} onClick={onRevert}>
+                      Revert last manifesto action
+                    </button>
+                  )}
                 </>
               )}
             </div>

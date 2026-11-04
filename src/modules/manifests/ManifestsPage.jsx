@@ -303,6 +303,18 @@ export default function ManifestsPage() {
             <StatusTag status={detailData?.status || 'ACTIVE'} />
           </Space>
         }
+        extra={
+          activeMfg ? (
+            <Button
+              icon={<PrinterOutlined />}
+              onClick={() =>
+                navigate(`/ops/reports/manifest?id=${encodeURIComponent(activeMfg)}`)
+              }
+            >
+              Print Consignment Manifest
+            </Button>
+          ) : null
+        }
         open={Boolean(activeMfg)}
         onClose={() => setActiveMfg(null)}
         width={720}

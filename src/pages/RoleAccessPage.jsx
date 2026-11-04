@@ -57,7 +57,7 @@ const ROLE_HINTS = {
   'Droppoint Manager':
     'Local counter: book CNs, baby-seal, generate outbound manifest, first-mile courier — home drop point only.',
   Storekeeper:
-    'Delivery Point manager (local hub of sorts): mother-seal baby bags before dest DEP handoff, local manifests, last-mile dispatch & COD.',
+    'Delivery Point manager: baby-seal CNs (Mother optional), local manifests, last-mile dispatch & COD.',
   Operation: 'Network ops desk: consignments, pickups, seals, manifests, dispatch, summaries, and CS tickets.',
   Invoice: 'Finance: consignments lookup, invoices/DO/credit notes, COD, commissions, and print reports.',
   CSL: 'Customer service: tickets, consignment tracking, summaries, and customer reports.',
@@ -69,7 +69,7 @@ const ROLE_HINTS = {
 const MODULE_META = {
   consignments: {
     icon: InboxOutlined,
-    hint: 'Create, search, track shipments; ATS lost/damage/reject claims',
+    hint: 'Create, search, track shipments; confirm customer-app weight/dims; ATS claims',
   },
   pickups: {
     icon: CarOutlined,

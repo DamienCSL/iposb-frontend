@@ -268,8 +268,33 @@ export async function cancelConsignment(cn, body = {}) {
   return data
 }
 
+/** Batch cancel — returns { succeeded[], failed: [{ cnNo, error }] }. */
+export async function cancelConsignmentsBatch(body = {}) {
+  const { data } = await api.post('/ops/consignments/cancel/batch', body)
+  return data
+}
+
 export async function previewCancellation(cn) {
   const { data } = await api.get(`/ops/consignments/${encodeURIComponent(cn)}/cancel-preview`)
+  return data
+}
+
+/** Customer-app orders awaiting ops/DP weight+dim double-confirm */
+export async function listPendingAppOrders(params = {}) {
+  const { data } = await api.get('/ops/app-orders', { params })
+  return data
+}
+
+export async function previewAppOrderConfirm(cn, body = {}) {
+  const { data } = await api.post(
+    `/ops/app-orders/${encodeURIComponent(cn)}/preview-confirm`,
+    body,
+  )
+  return data
+}
+
+export async function confirmAppOrder(cn, body = {}) {
+  const { data } = await api.post(`/ops/app-orders/${encodeURIComponent(cn)}/confirm`, body)
   return data
 }
 
@@ -1004,6 +1029,14 @@ export async function closeSeal(sealNo) {
   return data
 }
 
+export async function createLocalManifestFromSeal(sealNo, body = {}) {
+  const { data } = await api.post(
+    `/ops/seals/${encodeURIComponent(sealNo)}/local-manifest`,
+    body,
+  )
+  return data
+}
+
 export async function openSeal(sealNo, body = {}) {
   const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/open`, body)
   return data
@@ -1051,6 +1084,12 @@ export async function closeManifest(mfgNo, extra = {}) {
 
 export async function arriveManifest(mfgNo, body = {}) {
   const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/arrive`, body)
+  return data
+}
+
+/** Undo arrive (→CLOSED) or undo depart (→OPEN). Pass force:true if linehaul already picked up. */
+export async function revertManifest(mfgNo, body = {}) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/revert`, body)
   return data
 }
 

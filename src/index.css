@@ -581,6 +581,13 @@ code, pre, .font-mono {
   border-radius: 8px;
 }
 
+.manifest-print-area {
+  overflow: auto;
+  padding: 8px 0 24px;
+  background: #E5E7EB;
+  border-radius: 8px;
+}
+
 @media print {
   @page {
     margin: 0;
@@ -607,11 +614,18 @@ code, pre, .font-mono {
     background: #fff !important;
   }
 
-  .cn-print-area {
+  .cn-print-area,
+  .manifest-print-area {
     overflow: visible !important;
     padding: 0 !important;
     background: #fff !important;
     border-radius: 0 !important;
+  }
+
+  .manifest-print-root,
+  .manifest-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
   }
 
   .cn-label-print-root {

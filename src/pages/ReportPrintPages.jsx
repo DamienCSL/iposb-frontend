@@ -24,6 +24,7 @@ import CnLabelPrint, {
   saveCnLabelFormat,
   savedCnLabelFormat,
 } from '../components/CnLabelPrint'
+import ManifestPrint from '../components/ManifestPrint'
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
 import { money } from '../ui/bits'
@@ -131,6 +132,7 @@ export function PrintPage({ kind, title, idLabel }) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState(null)
   const isCn = kind === 'cn'
+  const isManifest = kind === 'manifest' || kind === 'seal-manifest'
   const formatFromUrl = normalizeCnLabelFormat(searchParams.get('format')) || savedCnLabelFormat()
   const [cnFormat, setCnFormat] = useState(formatFromUrl)
 
@@ -140,10 +142,10 @@ export function PrintPage({ kind, title, idLabel }) {
     setLoading(true)
     try {
       setData(await getPrint(kind, id))
-      if (isCn) {
+      if (isCn || isManifest) {
         const next = new URLSearchParams(searchParams)
         next.set('id', id)
-        next.set('format', cnFormat)
+        if (isCn) next.set('format', cnFormat)
         setSearchParams(next, { replace: true })
       }
     } catch (err) {
@@ -155,11 +157,13 @@ export function PrintPage({ kind, title, idLabel }) {
   }
 
   useEffect(() => {
-    if (!isCn) return
     const id = String(searchParams.get('id') || '').trim()
     if (!id) return
+    if (!isCn && !isManifest) return
     form.setFieldsValue({ id })
-    setCnFormat(normalizeCnLabelFormat(searchParams.get('format')) || savedCnLabelFormat())
+    if (isCn) {
+      setCnFormat(normalizeCnLabelFormat(searchParams.get('format')) || savedCnLabelFormat())
+    }
     run({ id })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind])
@@ -194,8 +198,12 @@ export function PrintPage({ kind, title, idLabel }) {
         <Title level={4} style={{ margin: 0, color: '#0F1B2D' }}>{title}</Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
           {isCn
-            ? 'Print consignment notes with barcode and QR: thermal label printer, A5, or A4 · 4 per page.'
-            : 'Look up a document and print a preview.'}
+            ? 'Print consignment notes with barcode and QR: thermal / A5 / A4. Multi-piece CNs print one note per piece (1/5, 2/5, …).'
+            : kind === 'seal-manifest'
+              ? 'A4 landscape seal Manifest — lists every consignment packed inside the baby/mother seal.'
+              : isManifest
+                ? 'A4 landscape Consignment Manifest — sealed bags appear as seal numbers only; loose CNs listed separately.'
+                : 'Look up a document and print a preview.'}
         </Text>
       </div>
 
@@ -272,10 +280,10 @@ export function PrintPage({ kind, title, idLabel }) {
           >
             <Text type="secondary" style={{ fontSize: 12 }}>
               {cnFormat === 'thermal'
-                ? `One note per ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm label. In the print dialog pick "iDPRT SP410", paper size ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm, margins None, scale 100%.`
+                ? `One note per ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm label. Multi-piece CNs print one sticker per piece (PIECE 1/5 …). In the print dialog pick "iDPRT SP410", paper size ${THERMAL_LABEL.widthMm}×${THERMAL_LABEL.heightMm} mm, margins None, scale 100%.`
                 : cnFormat === 'a4-4'
-                  ? 'Cut along the dashed guides. Each slot is one consignment note with barcode + QR.'
-                  : 'One full consignment note per A5 page.'}
+                  ? 'Cut along the dashed guides. Each slot is one piece note (multi-piece CNs expand to 1/N, 2/N, …).'
+                  : 'One full consignment note per A5 page. Multi-piece CNs print one page per piece with PIECE n/N.'}
             </Text>
           </Card>
           <div className="cn-print-area">
@@ -284,7 +292,31 @@ export function PrintPage({ kind, title, idLabel }) {
         </>
       ) : null}
 
-      {!isCn && data?.row ? (
+      {isManifest && data?.row ? (
+        <>
+          <Card
+            size="small"
+            className="no-print"
+            title={`${data.title || title} · ${data.row.mfg_no || data.row.mfgNo || ''}`}
+            extra={
+              <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>
+                Print A4 landscape
+              </Button>
+            }
+          >
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {kind === 'seal-manifest'
+                ? 'Use A4 landscape. Seal barcode prints in the header; table lists every CN packed in the seal.'
+                : 'Use A4 landscape. Consignment manifesto barcode + vehicle plate print in the header; sealed bags show as one seal line (not expanded).'}
+            </Text>
+          </Card>
+          <div className="manifest-print-area">
+            <ManifestPrint data={data} />
+          </div>
+        </>
+      ) : null}
+
+      {!isCn && !isManifest && data?.row ? (
         <Card
           size="small"
           title={data.title || title}

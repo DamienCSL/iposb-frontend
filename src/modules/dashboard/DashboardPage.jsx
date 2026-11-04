@@ -454,11 +454,9 @@ export default function DashboardPage() {
                     path: '/ops/seals',
                     icon: <SafetyCertificateOutlined />,
                     title: 'Seal Station (Baby / Mother)',
-                    desc: isDpManager
-                      ? 'Baby-seal CNs, then local outbound manifest'
-                      : isStationMgr
-                        ? 'Mother-seal baby bags before dest DEP handoff'
-                        : 'Pack Baby / Mother bags; hub Father for East↔West',
+                    desc: isDpManager || isStationMgr
+                      ? 'Baby-seal CNs, then local outbound manifest (Mother optional)'
+                      : 'Pack Baby / Mother bags; hub Father for East↔West',
                   },
                   {
                     key: 'manifests',

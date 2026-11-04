@@ -9,6 +9,7 @@ import SetupHubPage from './modules/onboarding/SetupHubPage'
 import DashboardPage from './modules/dashboard/DashboardPage'
 import ConsignmentsListPage from './modules/consignments/ConsignmentsListPage'
 import ConsignmentEntryPage from './modules/consignments/ConsignmentEntryPage'
+import AppOrdersPage from './modules/consignments/AppOrdersPage'
 import PickupsPage from './modules/pickups/PickupsPage'
 import OvernightRequestsPage from './modules/overnight/OvernightRequestsPage'
 import AtsClaimsPage from './modules/ats/AtsClaimsPage'
@@ -97,6 +98,7 @@ function LegacyReportRedirect() {
   const { kind } = useParams()
   const map = {
     manifest: '/ops/reports/manifest',
+    'seal-manifest': '/ops/reports/seal-manifest',
     cn: '/ops/reports/cn',
     invoice: '/ops/reports/invoice',
     do: '/ops/reports/do',
@@ -138,6 +140,7 @@ export default function App() {
                 <Route path="/ops/consignments/import" element={<ConsignmentsListPage />} />
                 <Route path="/ops/consignments/import-log" element={<ImportLogPage />} />
                 <Route path="/ops/consignments/tracking" element={<TrackingPage />} />
+                <Route path="/ops/consignments/app-orders" element={<AppOrdersPage />} />
                 <Route path="/ops/consignments/cancellations" element={<CancellationLogPage />} />
                 <Route path="/ops/consignments/:cn" element={<ConsignmentDossierRedirect />} />
                 <Route path="/ops/consignments/:cn/tracking" element={<ConsignmentDossierRedirect />} />
@@ -158,7 +161,26 @@ export default function App() {
                 <Route path="/ops/summaries" element={<Navigate to="/network?group=status" replace />} />
                 <Route path="/ops/summaries/:kind" element={<LegacySummaryRedirect />} />
 
-                <Route path="/ops/reports/manifest" element={<PrintPage kind="manifest" title="Print Manifest" idLabel="Manifest number" />} />
+                <Route
+                  path="/ops/reports/manifest"
+                  element={
+                    <PrintPage
+                      kind="manifest"
+                      title="Print Consignment Manifest"
+                      idLabel="Manifesto number"
+                    />
+                  }
+                />
+                <Route
+                  path="/ops/reports/seal-manifest"
+                  element={
+                    <PrintPage
+                      kind="seal-manifest"
+                      title="Print Manifest"
+                      idLabel="Seal number"
+                    />
+                  }
+                />
                 <Route path="/ops/reports/cn" element={<PrintPage kind="cn" title="Print Consignment" idLabel="Consignment number" />} />
                 <Route path="/ops/reports/invoice" element={<PrintPage kind="invoice" title="Print Invoice" idLabel="Invoice number" />} />
                 <Route path="/ops/reports/do" element={<PrintPage kind="do" title="Print Delivery Order" idLabel="DN number" />} />

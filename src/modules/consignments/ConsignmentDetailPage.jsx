@@ -498,6 +498,11 @@ export default function ConsignmentDetailPage() {
             <div style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Weight / Pieces</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#0F1B2D' }}>
               {data.weight || data.cn_wt || '0.00'} kg · {pieceCount(data)} pcs
+              {pieceCount(data) > 1 ? (
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginTop: 2 }}>
+                  Print notes as PIECE 1/{pieceCount(data)} … {pieceCount(data)}/{pieceCount(data)}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -589,6 +594,9 @@ export default function ConsignmentDetailPage() {
                 </Descriptions.Item>
                 <Descriptions.Item label="Cargo Specs">
                   {data.weight || data.cn_wt || '0.00'} kg · {pieceCount(data)} pcs
+                  {pieceCount(data) > 1
+                    ? ` · labels 1/${pieceCount(data)}…${pieceCount(data)}/${pieceCount(data)}`
+                    : ''}
                 </Descriptions.Item>
                 <Descriptions.Item label="Transport Mode">
                   <Tag color="cyan" style={{ textTransform: 'uppercase' }}>

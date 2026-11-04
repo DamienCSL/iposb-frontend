@@ -112,6 +112,7 @@ export default function ListPageLayout({
                 onClick={act.onClick}
                 loading={act.loading}
                 disabled={act.disabled}
+                danger={act.danger}
               >
                 {act.label}
               </Button>

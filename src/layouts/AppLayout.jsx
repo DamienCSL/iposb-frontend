@@ -13,6 +13,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   CarOutlined,
+  CheckCircleOutlined,
   CustomerServiceOutlined,
   DashboardOutlined,
   DollarCircleOutlined,
@@ -53,6 +54,7 @@ const APP_PAGES = [
   { title: 'Batch Import Consignments', path: '/ops/consignments/import', keywords: ['csv', 'excel', 'bulk', 'import'] },
   { title: 'Import Error Log', path: '/ops/consignments/import-log', keywords: ['import', 'errors', 'batch', 'failures'] },
   { title: 'Consignment Tracking', path: '/ops/consignments/tracking', keywords: ['tracking', 'timeline', 'cn', 'status'] },
+  { title: 'App Order Confirm', path: '/ops/consignments/app-orders', keywords: ['app', 'confirm', 'weight', 'dimensions', 'customer app', 'double confirm'] },
   { title: 'Cancellation Log', path: '/ops/consignments/cancellations', keywords: ['cancel', 'void', 'cancellations'] },
   { title: 'Pickups Queue', path: '/ops/pickups', keywords: ['driver', 'vehicle', 'dispatch', 'assign', 'waiting', 'courier'] },
   { title: 'Overnight Scan Requests', path: '/ops/overnight-requests', keywords: ['overnight', 'ovn', 'hold', 'redelivery', 'dispatcher'] },
@@ -67,7 +69,8 @@ const APP_PAGES = [
   { title: 'Manifests (local + East–West)', path: '/ops/manifests', keywords: ['linehaul', 'gateway', 'container', 'bags', 'east', 'west'] },
   { title: 'Returns & RTS', path: '/ops/returns', keywords: ['rts', 'return', 'undelivered', 'reverse'] },
   { title: 'Network Analytics', path: '/network', keywords: ['volume', 'charts', 'kpi', 'traffic', 'network', 'summary', 'status', 'counts'] },
-  { title: 'Print Manifest', path: '/ops/reports/manifest', keywords: ['print', 'manifest'] },
+  { title: 'Print Consignment Manifest', path: '/ops/reports/manifest', keywords: ['print', 'manifest', 'consignment'] },
+  { title: 'Print Manifest (seal)', path: '/ops/reports/seal-manifest', keywords: ['print', 'manifest', 'seal', 'baby'] },
   { title: 'Print Consignment', path: '/ops/reports/cn', keywords: ['print', 'cn', 'awb'] },
   { title: 'Print Invoice', path: '/ops/reports/invoice', keywords: ['print', 'invoice'] },
   { title: 'Print DO', path: '/ops/reports/do', keywords: ['print', 'do', 'delivery'] },
@@ -534,6 +537,12 @@ export default function AppLayout() {
           visible: can('consignments'),
         },
         {
+          key: '/ops/consignments/app-orders',
+          icon: <CheckCircleOutlined />,
+          label: <Link to="/ops/consignments/app-orders" style={{ display: 'block', width: '100%' }}>App Order Confirm</Link>,
+          visible: can('consignments'),
+        },
+        {
           key: '/ops/consignments/import',
           label: <Link to="/ops/consignments/import" style={{ display: 'block', width: '100%' }}>Batch Import</Link>,
           visible: can('consignments'),
@@ -658,7 +667,11 @@ export default function AppLayout() {
           children: [
             {
               key: '/ops/reports/manifest',
-              label: <Link to="/ops/reports/manifest" style={{ display: 'block', width: '100%' }}>Print Manifest</Link>,
+              label: <Link to="/ops/reports/manifest" style={{ display: 'block', width: '100%' }}>Print Consignment Manifest</Link>,
+            },
+            {
+              key: '/ops/reports/seal-manifest',
+              label: <Link to="/ops/reports/seal-manifest" style={{ display: 'block', width: '100%' }}>Print Manifest (seal)</Link>,
               visible: true,
             },
             {

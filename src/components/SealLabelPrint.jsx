@@ -21,6 +21,16 @@ function tierTitle(tier) {
   return 'SEAL'
 }
 
+function looksLikeSealCode(raw) {
+  const key = String(raw || '').trim().toUpperCase()
+  if (!key) return false
+  if (key.startsWith('BS-') || key.startsWith('MS-') || key.startsWith('FS-') || key.startsWith('SL-')) {
+    return true
+  }
+  // Dest-prefixed: AREA-XXXXXX (hyphen + trailing alnum seq)
+  return /^[A-Z0-9][A-Z0-9\-]*-[A-Z0-9]{4,}$/.test(key)
+}
+
 /** Collect CN codes from seal + optional pack session payload. */
 export function sealContentCns(seal, pack = null) {
   const out = []
@@ -68,8 +78,8 @@ export function sealChildSealCodes(seal, pack = null) {
     for (const item of [...(pack.expected || []), ...(pack.extras || [])]) {
       const typ = String(item.memberType || item.member_type || '').toLowerCase()
       const key = String(item.memberKey || item.member_key || item.label || '').toUpperCase()
-      if (typ === 'seal' || key.startsWith('BS-') || key.startsWith('MS-') || key.startsWith('FS-')) {
-        if (typ === 'seal' || (typ !== 'cn' && (key.startsWith('BS-') || key.startsWith('MS-') || key.startsWith('FS-')))) {
+      if (typ === 'seal' || looksLikeSealCode(key)) {
+        if (typ === 'seal' || (typ !== 'cn' && looksLikeSealCode(key))) {
           push(key)
         }
       }
@@ -79,7 +89,7 @@ export function sealChildSealCodes(seal, pack = null) {
 }
 
 /**
- * Merge seal + pack into one label source so contents/barcode always have data.
+ * Merge seal + pack into one label source so barcode always has data.
  */
 export function buildSealLabelSource(seal, pack = null) {
   if (!seal && !pack?.seal) return null
@@ -97,8 +107,22 @@ export function buildSealLabelSource(seal, pack = null) {
 }
 
 /**
+ * Split seal code into dest prefix + random sequence for display.
+ * e.g. KK-METRO-A-7K2M9Q → { prefix: 'KK-METRO-A', seq: '7K2M9Q' }
+ */
+export function splitSealCode(sealNo) {
+  const code = String(sealNo || '').trim().toUpperCase()
+  const i = code.lastIndexOf('-')
+  if (i <= 0 || i >= code.length - 1) {
+    return { prefix: code, seq: '' }
+  }
+  return { prefix: code.slice(0, i), seq: code.slice(i + 1) }
+}
+
+/**
  * Normalize seal → label fields.
- * Barcode value is always sealNo (BS-… / MS-… / FS-…) — what delivery nodes scan.
+ * Barcode value is always sealNo ({DEST}-{seq} or legacy BS-/MS-/FS-).
+ * Dest is already encoded in the seal code — no separate "handover to" band.
  */
 export function normalizeSealLabel(seal, lookups = {}, pack = null) {
   const source = buildSealLabelSource(seal, pack) || seal || {}
@@ -109,24 +133,7 @@ export function normalizeSealLabel(seal, lookups = {}, pack = null) {
   const destHub = pick(source, 'destHubCode', 'dest_hub_code').toUpperCase()
   const originDp = pick(source, 'originDeliveryPoint', 'origin_delivery_point').toUpperCase()
   const originHub = pick(source, 'originHubCode', 'origin_hub_code').toUpperCase()
-
-  let handOverCode = ''
-  let handOverKind = 'NODE'
-  if (tier === 'baby') {
-    handOverCode = destArea || destDp
-    handOverKind = destArea ? 'AREA' : 'DELIVERY POINT'
-  } else if (tier === 'mother') {
-    handOverCode = destDp || destArea
-    handOverKind = 'DELIVERY POINT'
-  } else if (tier === 'father') {
-    handOverCode = destHub
-    handOverKind = 'HUB'
-  } else {
-    handOverCode = destDp || destArea || destHub
-  }
-
-  const nameMap = lookups.names || {}
-  const handOverName = handOverCode ? (nameMap[handOverCode] || '') : ''
+  const parts = splitSealCode(sealNo)
   const contents = Array.isArray(source.leafConsignments)
     ? source.leafConsignments
     : sealContentCns(source, pack)
@@ -136,12 +143,11 @@ export function normalizeSealLabel(seal, lookups = {}, pack = null) {
 
   return {
     sealNo,
+    codePrefix: parts.prefix,
+    codeSeq: parts.seq,
     tier,
     tierTitle: tierTitle(tier),
     lifecycle: pick(source, 'lifecycle') || '',
-    handOverKind,
-    handOverCode: handOverCode || '—',
-    handOverName,
     destArea: destArea || '',
     destDp: destDp || '',
     destHub: destHub || '',
@@ -154,7 +160,7 @@ export function normalizeSealLabel(seal, lookups = {}, pack = null) {
 }
 
 /** Synchronous barcode SVG markup for print HTML (no React needed). */
-export function barcodeSvgHtml(value, height = 54) {
+export function barcodeSvgHtml(value, height = 56) {
   const code = String(value || '').trim().toUpperCase()
   if (!code || typeof document === 'undefined') return ''
   try {
@@ -164,7 +170,7 @@ export function barcodeSvgHtml(value, height = 54) {
       displayValue: false,
       margin: 0,
       height,
-      width: 2,
+      width: 1.8,
       background: '#ffffff',
       lineColor: INK,
     })
@@ -179,7 +185,7 @@ export function barcodeSvgHtml(value, height = 54) {
   }
 }
 
-function BarcodeSvg({ value, height = 52 }) {
+function BarcodeSvg({ value, height = 56 }) {
   const ref = useRef(null)
   useEffect(() => {
     if (!ref.current || !value) return
@@ -189,7 +195,7 @@ function BarcodeSvg({ value, height = 52 }) {
         displayValue: false,
         margin: 0,
         height,
-        width: 2,
+        width: 1.8,
         background: 'transparent',
         lineColor: INK,
       })
@@ -201,26 +207,106 @@ function BarcodeSvg({ value, height = 52 }) {
     <svg
       ref={ref}
       preserveAspectRatio="none"
-      style={{ width: '100%', maxWidth: 340, height, display: 'block', margin: '0 auto' }}
+      style={{ width: '100%', maxWidth: 320, height, display: 'block', margin: '0 auto' }}
     />
   )
 }
 
-/** On-screen seal label — barcode, hand-over node, CN contents. */
-export function SealLabelNote({ seal, lookups, pack }) {
-  const label = useMemo(() => normalizeSealLabel(seal, lookups, pack), [seal, lookups, pack])
+/** One face: logo + tier, large barcode, dest-prefix seal code (no CN list / no handover band). */
+function SealLabelFace({ label, barcodeEl }) {
   const line = `1.5px solid ${INK}`
   const mono = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
-  const inverted = {
-    background: INK,
-    color: '#fff',
-    WebkitPrintColorAdjust: 'exact',
-    printColorAdjust: 'exact',
-  }
 
-  const maxShow = 40
-  const shown = label.contents.slice(0, maxShow)
-  const more = Math.max(0, label.contents.length - shown.length)
+  return (
+    <div
+      style={{
+        boxSizing: 'border-box',
+        width: '100%',
+        height: '100%',
+        border: `2px solid ${INK}`,
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#fff',
+        color: INK,
+        fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr', borderBottom: line }}>
+        <div style={{ padding: '8px 10px', borderRight: line, display: 'flex', alignItems: 'center' }}>
+          <img src={LOGO_SRC} alt="IPOSB" style={{ maxHeight: 30, maxWidth: '100%', objectFit: 'contain' }} />
+        </div>
+        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.6 }}>{label.tierTitle}</div>
+          {label.cnCount > 0 ? (
+            <div style={{ fontSize: 9, color: GREY, marginTop: 2 }}>{label.cnCount} CN in bag</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          flex: '1 1 auto',
+          padding: '14px 12px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          gap: 8,
+        }}
+      >
+        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 1.2, color: GREY }}>
+          SCAN SEAL
+        </div>
+        <div style={{ width: '100%' }}>{barcodeEl}</div>
+        <div
+          style={{
+            fontFamily: mono,
+            fontWeight: 900,
+            fontSize: 18,
+            letterSpacing: 1,
+            wordBreak: 'break-all',
+            lineHeight: 1.2,
+            marginTop: 2,
+          }}
+        >
+          {label.sealNo}
+        </div>
+        {label.codePrefix && label.codeSeq ? (
+          <div style={{ fontSize: 10, color: GREY, fontWeight: 600, letterSpacing: 0.3 }}>
+            <span style={{ color: INK, fontWeight: 800 }}>{label.codePrefix}</span>
+            <span style={{ margin: '0 4px', opacity: 0.5 }}>+</span>
+            <span>{label.codeSeq}</span>
+          </div>
+        ) : null}
+      </div>
+
+      {label.origin ? (
+        <div
+          style={{
+            borderTop: line,
+            padding: '6px 10px',
+            fontSize: 9,
+            color: GREY,
+            textAlign: 'center',
+            fontWeight: 600,
+          }}
+        >
+          From {label.origin}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * Foldable mirrored seal tag preview.
+ * Fold along the dashed line; bottom face is printed upside-down so both sides
+ * of the bag tag show an upright barcode after folding.
+ */
+export function SealLabelNote({ seal, lookups, pack }) {
+  const label = useMemo(() => normalizeSealLabel(seal, lookups, pack), [seal, lookups, pack])
 
   if (!label.sealNo) {
     return (
@@ -236,88 +322,34 @@ export function SealLabelNote({ seal, lookups, pack }) {
       style={{
         boxSizing: 'border-box',
         width: '100%',
-        maxWidth: 380,
-        border: `2px solid ${INK}`,
+        maxWidth: 340,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fff',
-        color: INK,
-        fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
-        overflow: 'hidden',
+        background: '#f8fafc',
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', borderBottom: line }}>
-        <div style={{ padding: '8px 10px', borderRight: line, display: 'flex', alignItems: 'center' }}>
-          <img src={LOGO_SRC} alt="IPOSB" style={{ maxHeight: 36, maxWidth: '100%', objectFit: 'contain' }} />
-        </div>
-        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 0.6 }}>{label.tierTitle}</div>
-          <div style={{ fontSize: 10, color: GREY }}>{label.cnCount} CN · {label.memberCount} members</div>
-        </div>
+      <div style={{ fontSize: 10, color: GREY, textAlign: 'center', marginBottom: 6, fontWeight: 600 }}>
+        Foldable bag tag · fold on dashed line · both sides scannable
       </div>
-
-      <div style={{ padding: '10px 14px 6px', borderBottom: line, textAlign: 'center' }}>
-        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.8, color: GREY, marginBottom: 4 }}>
-          SCAN SEAL
-        </div>
-        <BarcodeSvg value={label.sealNo} height={54} />
-        <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 20, letterSpacing: 1.5, marginTop: 6 }}>
-          {label.sealNo}
-        </div>
+      <SealLabelFace label={label} barcodeEl={<BarcodeSvg value={label.sealNo} height={52} />} />
+      <div
+        style={{
+          borderTop: `2px dashed ${GREY}`,
+          borderBottom: `2px dashed ${GREY}`,
+          padding: '4px 0',
+          textAlign: 'center',
+          fontSize: 9,
+          fontWeight: 800,
+          letterSpacing: 1.2,
+          color: GREY,
+          textTransform: 'uppercase',
+          background: '#fff',
+        }}
+      >
+        ✂ Fold here · stick onto bag tag
       </div>
-
-      <div style={{ ...inverted, padding: '10px 12px', borderBottom: line, textAlign: 'center' }}>
-        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, opacity: 0.8 }}>
-          HAND OVER TO · {label.handOverKind}
-        </div>
-        <div style={{ fontFamily: mono, fontWeight: 900, fontSize: 28, lineHeight: 1.1, marginTop: 2, wordBreak: 'break-all' }}>
-          {label.handOverCode}
-        </div>
-        {label.handOverName ? (
-          <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>{label.handOverName}</div>
-        ) : null}
-      </div>
-
-      <div style={{ padding: '8px 12px 12px', flex: '1 1 auto' }}>
-        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: GREY, textTransform: 'uppercase' }}>
-          Contents · Consignment notes ({label.contents.length})
-        </div>
-        {shown.length === 0 && label.childSeals.length === 0 ? (
-          <div style={{ fontSize: 12, color: GREY, marginTop: 6 }}>No consignments packed yet.</div>
-        ) : (
-          <div
-            style={{
-              marginTop: 6,
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '2px 10px',
-              fontFamily: mono,
-              fontSize: 11,
-              fontWeight: 700,
-              lineHeight: 1.35,
-            }}
-          >
-            {shown.map((cn) => (
-              <div key={cn} style={{ wordBreak: 'break-all' }}>{cn}</div>
-            ))}
-          </div>
-        )}
-        {more > 0 ? (
-          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 6 }}>+{more} more CN</div>
-        ) : null}
-        {label.childSeals.length > 0 ? (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: GREY, textTransform: 'uppercase' }}>
-              Nested seals ({label.childSeals.length})
-            </div>
-            <div style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-              {label.childSeals.join(' · ')}
-            </div>
-          </div>
-        ) : null}
-        {label.origin ? (
-          <div style={{ fontSize: 10, color: GREY, marginTop: 10 }}>From {label.origin}</div>
-        ) : null}
+      <div style={{ transform: 'rotate(180deg)' }}>
+        <SealLabelFace label={label} barcodeEl={<BarcodeSvg value={label.sealNo} height={52} />} />
       </div>
     </div>
   )
@@ -331,80 +363,93 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;')
 }
 
-/** Self-contained print HTML (barcode baked in) — no React in the popup. */
-export function buildSealLabelPrintHtml(seal, lookups = {}, pack = null) {
-  const label = normalizeSealLabel(seal, lookups, pack)
-  if (!label.sealNo) return ''
-  const barcode = barcodeSvgHtml(label.sealNo, 54)
-  const shown = label.contents.slice(0, 40)
-  const more = Math.max(0, label.contents.length - shown.length)
-  const cnCells = shown.map((cn) => `<div style="word-break:break-all">${escapeHtml(cn)}</div>`).join('')
+function faceHtml(label, barcode, { rotated = false } = {}) {
   const logoAbs = typeof window !== 'undefined'
     ? `${window.location.origin}${LOGO_SRC}`
     : LOGO_SRC
+  const splitHint = label.codePrefix && label.codeSeq
+    ? `<div class="split"><span class="pfx">${escapeHtml(label.codePrefix)}</span><span class="plus">+</span><span>${escapeHtml(label.codeSeq)}</span></div>`
+    : ''
+  const cnHint = label.cnCount > 0
+    ? `<div style="font-size:9px;color:#4B5563;margin-top:2px">${label.cnCount} CN in bag</div>`
+    : ''
+  const origin = label.origin
+    ? `<div class="origin">From ${escapeHtml(label.origin)}</div>`
+    : ''
+
+  return `<div class="face${rotated ? ' face-back' : ''}">
+  <div class="row">
+    <div class="cell br"><img src="${escapeHtml(logoAbs)}" alt="IPOSB" style="max-height:30px;max-width:100%;object-fit:contain" /></div>
+    <div class="cell">
+      <div style="font-size:12px;font-weight:900;letter-spacing:.6px">${escapeHtml(label.tierTitle)}</div>
+      ${cnHint}
+    </div>
+  </div>
+  <div class="scan">
+    <div class="cap">SCAN SEAL</div>
+    ${barcode || `<div class="mono code">${escapeHtml(label.sealNo)}</div>`}
+    <div class="mono code">${escapeHtml(label.sealNo)}</div>
+    ${splitHint}
+  </div>
+  ${origin}
+</div>`
+}
+
+/** Self-contained foldable print HTML — two mirrored faces, fold on dashed line. */
+export function buildSealLabelPrintHtml(seal, lookups = {}, pack = null) {
+  const label = normalizeSealLabel(seal, lookups, pack)
+  if (!label.sealNo) return ''
+  const barcode = barcodeSvgHtml(label.sealNo, 52)
 
   return `<!doctype html><html><head>
 <meta charset="utf-8" />
 <title>${escapeHtml(label.sealNo)}</title>
 <style>
-  @page { margin: 8mm; size: auto; }
+  @page { margin: 6mm; size: auto; }
   html, body { margin: 0; padding: 0; background: #fff; }
-  body { font-family: Inter, Segoe UI, Arial, sans-serif; color: #000; display: flex; justify-content: center; padding: 12px; }
-  .label { width: 100%; max-width: 380px; border: 2px solid #000; }
-  .row { display: grid; grid-template-columns: 1.2fr 1fr; border-bottom: 1.5px solid #000; }
+  body { font-family: Inter, Segoe UI, Arial, sans-serif; color: #000; display: flex; justify-content: center; padding: 8px; }
+  .tag { width: 100%; max-width: 320px; }
+  .hint { text-align: center; font-size: 9px; color: #4B5563; font-weight: 600; margin-bottom: 6px; }
+  .face { border: 2px solid #000; background: #fff; box-sizing: border-box; display: flex; flex-direction: column; min-height: 200px; }
+  .face-back { transform: rotate(180deg); }
+  .fold {
+    border-top: 2px dashed #6B7280; border-bottom: 2px dashed #6B7280;
+    padding: 5px 0; text-align: center; font-size: 9px; font-weight: 800;
+    letter-spacing: 1px; color: #6B7280; text-transform: uppercase; background: #fff;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1.15fr; border-bottom: 1.5px solid #000; }
   .cell { padding: 8px 10px; }
   .br { border-right: 1.5px solid #000; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .scan { padding: 10px 14px 6px; border-bottom: 1.5px solid #000; text-align: center; }
-  .hand { background: #000; color: #fff; padding: 10px 12px; border-bottom: 1.5px solid #000; text-align: center;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .contents { padding: 8px 12px 12px; }
-  .grid { margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 11px; font-weight: 700; }
-  .cap { font-size: 9px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #4B5563; }
-  @media print { body { padding: 0; } }
+  .scan {
+    flex: 1 1 auto; padding: 14px 12px 12px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  }
+  .code { font-weight: 900; font-size: 18px; letter-spacing: 1px; word-break: break-all; line-height: 1.2; margin-top: 2px; }
+  .split { font-size: 10px; color: #4B5563; font-weight: 600; letter-spacing: .3px; }
+  .split .pfx { color: #000; font-weight: 800; }
+  .split .plus { margin: 0 4px; opacity: .5; }
+  .origin { border-top: 1.5px solid #000; padding: 6px 10px; font-size: 9px; color: #4B5563; text-align: center; font-weight: 600; }
+  .cap { font-size: 8px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #4B5563; }
+  @media print { body { padding: 0; } .hint { display: none; } }
 </style>
 </head><body>
-<div class="label">
-  <div class="row">
-    <div class="cell br"><img src="${escapeHtml(logoAbs)}" alt="IPOSB" style="max-height:36px;max-width:100%;object-fit:contain" /></div>
-    <div class="cell">
-      <div style="font-size:13px;font-weight:900;letter-spacing:.6px">${escapeHtml(label.tierTitle)}</div>
-      <div style="font-size:10px;color:#4B5563">${label.cnCount} CN · ${label.memberCount} members</div>
-    </div>
-  </div>
-  <div class="scan">
-    <div class="cap" style="margin-bottom:4px">SCAN SEAL</div>
-    ${barcode || `<div class="mono" style="font-size:14px;font-weight:900">${escapeHtml(label.sealNo)}</div>`}
-    <div class="mono" style="font-weight:900;font-size:20px;letter-spacing:1.5px;margin-top:6px">${escapeHtml(label.sealNo)}</div>
-  </div>
-  <div class="hand">
-    <div style="font-size:9px;font-weight:800;letter-spacing:1px;opacity:.85">HAND OVER TO · ${escapeHtml(label.handOverKind)}</div>
-    <div class="mono" style="font-weight:900;font-size:28px;line-height:1.1;margin-top:2px;word-break:break-all">${escapeHtml(label.handOverCode)}</div>
-    ${label.handOverName ? `<div style="font-size:12px;font-weight:600;margin-top:2px">${escapeHtml(label.handOverName)}</div>` : ''}
-  </div>
-  <div class="contents">
-    <div class="cap">Contents · Consignment notes (${label.contents.length})</div>
-    ${shown.length === 0 && label.childSeals.length === 0
-      ? '<div style="font-size:12px;color:#4B5563;margin-top:6px">No consignments packed yet.</div>'
-      : `<div class="grid mono">${cnCells}</div>`}
-    ${more > 0 ? `<div style="font-size:11px;font-weight:700;margin-top:6px">+${more} more CN</div>` : ''}
-    ${label.childSeals.length
-      ? `<div style="margin-top:10px"><div class="cap">Nested seals (${label.childSeals.length})</div>
-         <div class="mono" style="font-size:11px;font-weight:700;margin-top:4px">${escapeHtml(label.childSeals.join(' · '))}</div></div>`
-      : ''}
-  </div>
+<div class="tag">
+  <div class="hint">Foldable bag tag · fold on dashed line · both sides scannable</div>
+  ${faceHtml(label, barcode, { rotated: false })}
+  <div class="fold">✂ Fold here · stick onto bag tag</div>
+  ${faceHtml(label, barcode, { rotated: true })}
 </div>
 <script>window.onload=function(){setTimeout(function(){window.focus();window.print()},200)}</script>
 </body></html>`
 }
 
-/** Open a print window with barcode + contents baked into HTML. */
+/** Open a print window with barcode baked into HTML. */
 export function printSealLabel(seal, lookups, pack = null) {
   const html = buildSealLabelPrintHtml(seal, lookups, pack)
   if (!html) return
-  const w = window.open('', '_blank', 'width=480,height=720')
+  const w = window.open('', '_blank', 'width=480,height=900')
   if (!w) {
-    // Popup blocked — fallback: print current document fragment
     const iframe = document.createElement('iframe')
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
     document.body.appendChild(iframe)

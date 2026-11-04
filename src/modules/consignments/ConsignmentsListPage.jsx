@@ -35,6 +35,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   apiError,
   cancelConsignment,
+  cancelConsignmentsBatch,
   downloadCsv,
   downloadExportJob,
   exportConsignments,
@@ -89,6 +90,7 @@ export default function ConsignmentsListPage() {
 
   // Export State
   const [exporting, setExporting] = useState(false)
+  const [batchCancelling, setBatchCancelling] = useState(false)
 
   useEffect(() => {
     if (location.pathname.endsWith('/import')) {
@@ -141,6 +143,15 @@ export default function ConsignmentsListPage() {
     loadData(1, pagination.pageSize)
   }, [debouncedSearch, status, bagStatus, dateRange])
 
+  function notifyCancelFailure(cn, errorText) {
+    notification.error({
+      message: `Cannot cancel ${cn}`,
+      description: errorText || 'This order cannot be cancelled.',
+      placement: 'topRight',
+      duration: 8,
+    })
+  }
+
   // Cancel consignment — must send confirmNotAddressChange (API returns 422 without it)
   async function handleCancel(cn) {
     try {
@@ -148,11 +159,69 @@ export default function ConsignmentsListPage() {
       message.success(`Consignment ${cn} has been cancelled`)
       loadData()
     } catch (err) {
-      message.error(apiError(err))
+      notifyCancelFailure(cn, apiError(err))
     }
   }
 
+  async function handleBatchCancel() {
+    const codes = selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+    if (codes.length === 0) {
+      message.warning('Select at least one consignment to cancel.')
+      return
+    }
+    setBatchCancelling(true)
+    try {
+      const res = await cancelConsignmentsBatch({
+        cnNos: codes,
+        confirmNotAddressChange: true,
+      })
+      const succeeded = Array.isArray(res?.succeeded) ? res.succeeded : []
+      const failed = Array.isArray(res?.failed) ? res.failed : []
 
+      if (succeeded.length > 0) {
+        message.success(
+          res?.message || `Cancelled ${succeeded.length} consignment(s).`,
+        )
+      } else if (failed.length === 0) {
+        message.warning(res?.message || 'No consignments cancelled.')
+      }
+
+      failed.forEach((item) => {
+        notifyCancelFailure(
+          item?.cnNo || item?.cn_no || 'CN',
+          item?.error || 'This order cannot be cancelled.',
+        )
+      })
+
+      if (failed.length > 0 && succeeded.length > 0) {
+        notification.warning({
+          message: 'Batch cancel partially completed',
+          description: `${succeeded.length} cancelled, ${failed.length} failed. See error notifications for details.`,
+          placement: 'topRight',
+          duration: 8,
+        })
+      } else if (failed.length > 0 && succeeded.length === 0) {
+        notification.error({
+          message: 'Batch cancel failed',
+          description: `None of the ${failed.length} selected order(s) could be cancelled.`,
+          placement: 'topRight',
+          duration: 8,
+        })
+      }
+
+      setSelectedKeys([])
+      loadData()
+    } catch (err) {
+      notification.error({
+        message: 'Batch cancel failed',
+        description: apiError(err),
+        placement: 'topRight',
+        duration: 8,
+      })
+    } finally {
+      setBatchCancelling(false)
+    }
+  }
 
   function trackSelected() {
     if (selectedKeys.length === 0) {
@@ -244,24 +313,45 @@ export default function ConsignmentsListPage() {
 
     try {
       const res = await importConsignments(uploadFile)
+      const createdN = res?.created_count ?? res?.created ?? res?.imported_count ?? 0
+      const updatedN = res?.updated_count ?? res?.updated ?? 0
+      const skippedN = res?.skipped_count ?? res?.skipped ?? 0
+      const errorN = res?.error_count ?? res?.errorCount ?? (Array.isArray(res?.errors) ? res.errors.length : 0)
       setImportSummary({
-        created: res?.created_count || res?.imported_count || 0,
-        updated: res?.updated_count || 0,
-        skipped: res?.skipped_count || 0,
-        errors: res?.error_count || res?.errors?.length || 0,
+        created: createdN,
+        updated: updatedN,
+        skipped: skippedN,
+        errors: errorN,
       })
 
-      notification.success({
-        message: 'Import complete',
-        description: `Finished processing ${res?.created_count || res?.imported_count || 0} new consignments.`,
-        placement: 'topRight',
-        duration: 6,
-      })
-      setImportStatusText('Import finished successfully.')
+      const status = res?.status || (errorN > 0 ? 'partial' : 'ok')
+      if (status === 'failed') {
+        notification.error({
+          message: 'Import failed',
+          description: res?.summary || 'No consignments were created. Check the import error log.',
+          placement: 'topRight',
+          duration: 8,
+        })
+      } else if (errorN > 0) {
+        notification.warning({
+          message: 'Import completed with issues',
+          description: res?.summary || `Created ${createdN}, skipped ${skippedN}, issues ${errorN}.`,
+          placement: 'topRight',
+          duration: 8,
+        })
+      } else {
+        notification.success({
+          message: 'Import complete',
+          description: res?.summary || `Created ${createdN} consignments.`,
+          placement: 'topRight',
+          duration: 6,
+        })
+      }
+      setImportStatusText(res?.summary || 'Import finished.')
       loadData(1)
 
       const batchId = res?.batch_id || res?.batchId || res?.id
-      if (batchId || (res?.error_count || res?.errors?.length)) {
+      if (batchId || errorN > 0) {
         const qs = batchId ? `?id=${encodeURIComponent(batchId)}` : ''
         notification.info({
           message: 'Review import log',
@@ -498,6 +588,36 @@ export default function ConsignmentsListPage() {
       disabled: selectedKeys.length === 0,
       onClick: printSelected,
     },
+    ...(canEdit
+      ? [
+          {
+            key: 'batch-cancel',
+            label:
+              selectedKeys.length > 0
+                ? `Cancel selected (${selectedKeys.length})`
+                : 'Cancel selected',
+            icon: <CloseCircleOutlined />,
+            danger: true,
+            disabled: selectedKeys.length === 0 || batchCancelling,
+            loading: batchCancelling,
+            onClick: () => {
+              if (selectedKeys.length === 0) {
+                message.warning('Select at least one consignment to cancel.')
+                return
+              }
+              Modal.confirm({
+                title: `Cancel ${selectedKeys.length} consignment(s)?`,
+                content:
+                  'This cancels the selected order(s) (not an address change). Orders that cannot be cancelled (billed, already CAN, or in transit) will be skipped and listed in error notifications.',
+                okText: 'Yes, cancel selected',
+                okButtonProps: { danger: true },
+                cancelText: 'No',
+                onOk: handleBatchCancel,
+              })
+            },
+          },
+        ]
+      : []),
     {
       key: 'reload',
       label: 'Refresh',
@@ -591,15 +711,24 @@ export default function ConsignmentsListPage() {
               { label: 'All Statuses', value: '' },
               { label: 'BDE — Order Confirmed', value: 'BDE' },
               { label: 'ACC — Awaiting Pickup', value: 'ACC' },
-              { label: 'PKU — Picked Up', value: 'PKU' },
-              { label: 'ARR — At Origin Hub', value: 'ARR' },
-              { label: 'SRT — Sorting', value: 'SRT' },
+              { label: 'PKU — Shipment Picked Up', value: 'PKU' },
+              { label: 'ODP — Arrived at Origin Delivery Point', value: 'ODP' },
+              { label: 'SRT — Sorting in Progress (seal/bag)', value: 'SRT' },
+              { label: 'DTH — Departure to Hub', value: 'DTH' },
+              { label: 'ARR — Arrived at Origin Hub', value: 'ARR' },
+              { label: 'GWD — Departed Hub', value: 'GWD' },
               { label: 'INB — In Transit', value: 'INB' },
+              { label: 'MNF — In Transit (Manifest)', value: 'MNF' },
+              { label: 'HUB — Arrived at Destination Hub', value: 'HUB' },
+              { label: 'SHB — Arrived at Delivery Station', value: 'SHB' },
               { label: 'OFD — Out for Delivery', value: 'OFD' },
+              { label: 'UND — Unsuccessful Delivery Attempt', value: 'UND' },
+              { label: 'OVN — Awaiting Redelivery', value: 'OVN' },
+              { label: 'SCF — Awaiting Collection at Station', value: 'SCF' },
               { label: 'POD — Delivered', value: 'POD' },
               { label: 'CAN — Cancelled', value: 'CAN' },
             ],
-            width: 170,
+            width: 220,
           },
           {
             key: 'bag_status',
@@ -656,20 +785,101 @@ export default function ConsignmentsListPage() {
       >
         <div style={{ padding: '8px 0' }}>
           <Text style={{ fontSize: 13, color: '#5B6B7C', display: 'block', marginBottom: 12 }}>
-            Upload a spreadsheet (.xlsx, .csv) containing booking consignments. The system will parse
-            addresses, parcel dimensions, and generate tracking barcodes automatically.
+            Upload CSV/XLSX to create consignments (auto CN). Blank Customer Account auto-creates (or reuses) a walk-in
+            account from Sender Name + Phone. Same account + same receiver on multiple rows = one multi-piece CN.
+            Dims L/W/H + weight required. Payment Type: Cash / Credit / Online Transfer / FPS / COD / PPD
+            (only COD is cash-on-delivery; others book as PPD without gateway).
           </Text>
 
           <Space wrap style={{ marginBottom: 16 }}>
             <Button
               size="small"
               icon={<DownloadOutlined />}
-              href={`data:text/csv,${encodeURIComponent(
-                [
-                  'Consignment Number,Customer Account,Service Type,Package Type,Origin Branch,Destination Branch,Origin Zone,Destination Zone,Pieces,Weight (kg),Pickup Date,Consigner,Consignee,Recipient,Remarks',
-                ].join('\n'),
-              )}`}
-              download="consignment_import_template.csv"
+              onClick={() => {
+                const csvCell = (v) => {
+                  const s = String(v ?? '')
+                  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+                  return s
+                }
+                const csvRow = (cols) => cols.map(csvCell).join(',')
+                const header = [
+                  'Sender Name',
+                  'Sender Phone',
+                  'Sender Address',
+                  'Sender Postcode',
+                  'Receiver Name',
+                  'Receiver Phone',
+                  'Receiver Address',
+                  'Receiver Postcode',
+                  'Service / Shipment Type',
+                  'Parcel Type',
+                  'Total Weight (kg)',
+                  'Length (cm)',
+                  'Width (cm)',
+                  'Height (cm)',
+                  'Parcel Value (RM)',
+                  'Category of Items',
+                  'Payment Type',
+                  'Customer Account',
+                  'Partner Code',
+                  'Partner Tracking No.',
+                ]
+                const sampleA = [
+                  'ACME Trading Sdn Bhd',
+                  '012-3456789',
+                  'Lot 12, Jalan Industri, KK',
+                  '88000',
+                  'Damien Chua',
+                  '016-9876543',
+                  'No.5, Jalan Utama, SDK',
+                  '90000',
+                  'Standard',
+                  'Parcel',
+                  '2.0',
+                  '30',
+                  '20',
+                  '15',
+                  '150.00',
+                  'Electronic & Gadgets',
+                  'PPD',
+                  'C0001',
+                  '',
+                  '',
+                ]
+                // Same account + same receiver → multi-piece CN (piece 2)
+                const sampleB = [
+                  'ACME Trading Sdn Bhd',
+                  '012-3456789',
+                  'Lot 12, Jalan Industri, KK',
+                  '88000',
+                  'Damien Chua',
+                  '016-9876543',
+                  'No.5, Jalan Utama, SDK',
+                  '90000',
+                  'Standard',
+                  'Parcel',
+                  '1.5',
+                  '25',
+                  '18',
+                  '12',
+                  '150.00',
+                  'Electronic & Gadgets',
+                  'PPD',
+                  'C0001',
+                  '',
+                  '',
+                ]
+                const blob = new Blob(
+                  [[csvRow(header), csvRow(sampleA), csvRow(sampleB)].join('\n')],
+                  { type: 'text/csv;charset=utf-8' },
+                )
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'consignment_import_template.csv'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
             >
               Download import template
             </Button>

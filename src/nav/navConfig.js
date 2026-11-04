@@ -51,7 +51,8 @@ export const NAV_SECTIONS = [
         title: 'Hub reports',
         anyCaps: ['reports', 'summaries'],
         items: [
-          { to: '/reports/manifest', label: 'Print Manifest', icon: 'bi-printer', cap: 'reports', live: true },
+          { to: '/reports/manifest', label: 'Print Consignment Manifest', icon: 'bi-printer', cap: 'reports', live: true },
+          { to: '/reports/seal-manifest', label: 'Print Manifest (seal)', icon: 'bi-upc-scan', cap: 'reports', live: true },
           { to: '/network?group=manifest', label: 'Network by Manifest', icon: 'bi-file-earmark-text', cap: 'summaries', live: true },
           { to: '/network?group=branch', label: 'Network by Branch', icon: 'bi-building', cap: 'summaries', live: true },
         ],

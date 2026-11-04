@@ -20,6 +20,7 @@ import {
 } from 'antd'
 import {
   CarOutlined,
+  CheckCircleOutlined,
   ClearOutlined,
   DollarCircleOutlined,
   EnvironmentOutlined,
@@ -31,6 +32,7 @@ import {
 } from '@ant-design/icons'
 import { apiError, getTracking } from '../api/client'
 import CancelConsignmentModal from '../components/CancelConsignmentModal'
+import ConfirmAppOrderModal from '../components/ConfirmAppOrderModal'
 import DataTable from '../components/DataTable'
 import StatusTag from '../components/StatusTag'
 import { money } from '../ui/bits'
@@ -222,6 +224,7 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(false)
   const [cancelCn, setCancelCn] = useState(null)
   const [cancelMsg, setCancelMsg] = useState('')
+  const [confirmAppCn, setConfirmAppCn] = useState(null)
 
   useEffect(() => {
     const fromQuery = parseCnCodes(params.get('cn') || '')
@@ -820,7 +823,26 @@ export default function TrackingPage() {
                           <div style={{ fontSize: 12, color: '#64748B' }}>{agentRole}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                        {data.appOrder?.needsConfirm ? (
+                          <Button
+                            size="small"
+                            type="primary"
+                            icon={<CheckCircleOutlined />}
+                            style={{ background: BRAND_GREEN, borderColor: BRAND_GREEN }}
+                            onClick={() =>
+                              setConfirmAppCn({
+                                cnNo: data.iposbCnNo || data.cnNo || active,
+                                dimensions: data.appOrder?.dimensions || {
+                                  weightKg: cnRow.cn_wt ?? cnRow.weight,
+                                  pieces: cnRow.cn_pcs ?? cnRow.pieces,
+                                },
+                              })
+                            }
+                          >
+                            Confirm weight & dims
+                          </Button>
+                        ) : null}
                         <Button size="small" onClick={() => navigate('/ops/pickups')}>
                           Assign Courier
                         </Button>
@@ -836,6 +858,41 @@ export default function TrackingPage() {
                     </Card>
                   </Col>
                 </Row>
+
+                {data.appOrder?.needsConfirm ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Customer-app order needs weight / dimension confirm"
+                    description="Confirm actual weight and dimensions after pickup. Courier can scan PKU first; hub/station onward scans are blocked until confirmed."
+                    action={
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        style={{ background: BRAND_GREEN, borderColor: BRAND_GREEN }}
+                        onClick={() =>
+                          setConfirmAppCn({
+                            cnNo: data.iposbCnNo || data.cnNo || active,
+                            dimensions: data.appOrder?.dimensions || {
+                              weightKg: cnRow.cn_wt ?? cnRow.weight,
+                              pieces: cnRow.cn_pcs ?? cnRow.pieces,
+                            },
+                          })
+                        }
+                      >
+                        Confirm now
+                      </Button>
+                    }
+                  />
+                ) : data.appOrder?.isCustomerApp && data.appOrder?.dpConfirmedAt ? (
+                  <Alert
+                    type="success"
+                    showIcon
+                    message={`App order confirmed${data.appOrder.dpConfirmedBy ? ` by ${data.appOrder.dpConfirmedBy}` : ''}`}
+                    description={`Confirmed at ${data.appOrder.dpConfirmedAt}`}
+                  />
+                ) : null}
 
                 {route || assignment ? (
                   <Row gutter={[12, 12]}>
@@ -1389,6 +1446,18 @@ export default function TrackingPage() {
           }}
         />
       ) : null}
+
+      <ConfirmAppOrderModal
+        open={Boolean(confirmAppCn)}
+        cnNo={confirmAppCn?.cnNo || ''}
+        initial={confirmAppCn || {}}
+        onClose={() => setConfirmAppCn(null)}
+        onConfirmed={() => {
+          const code = confirmAppCn?.cnNo || active
+          setConfirmAppCn(null)
+          if (code) loadPanel(code)
+        }}
+      />
     </div>
   )
 }

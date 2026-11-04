@@ -170,6 +170,7 @@ export function capabilitiesFor(role) {
       billing: true,
       cod: true,
       commissions: true,
+      runsheets: true,
       customerReports: true,
       reports: true,
     },

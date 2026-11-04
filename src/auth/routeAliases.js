@@ -14,6 +14,7 @@ const ROUTE_ALIASES = {
   '/drop-points': '/ops/admin/drop-points',
   '/customer/summary': '/ops/reports/customer-summary',
   '/reports/manifest': '/ops/reports/manifest',
+  '/reports/seal-manifest': '/ops/reports/seal-manifest',
   '/admin/users': '/ops/admin/users',
   '/admin/branches': '/ops/admin/branches',
   '/admin/hubs': '/ops/admin/hubs',
