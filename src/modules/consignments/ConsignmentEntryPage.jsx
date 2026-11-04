@@ -120,6 +120,17 @@ function serviceOfferFromRow(existing) {
 }
 
 function paymentOfferFromRow(existing) {
+  const remarks = String(existing?.remarks || '')
+  const m = remarks.match(/Payment:\s*([^|]+)/i)
+  if (m) {
+    const raw = m[1].trim().toUpperCase()
+    if (raw.includes('COD') || raw.includes('CASH ON DELIVERY')) return 'COD'
+    if (raw.includes('CREDIT') || raw === 'ACCOUNT') return 'CREDIT'
+    if (raw.includes('ONLINE') || raw.includes('TRANSFER')) return 'ONLINE'
+    if (raw.includes('FPS') || raw.includes('SENANG')) return 'FPS'
+    if (raw === 'CASH' || raw.startsWith('CASH')) return 'CASH'
+    if (raw === 'PPD' || raw === 'PREPAID') return 'CASH'
+  }
   return String(existing?.ppd_cct || existing?.pay_mode || '').toUpperCase() === 'COD' ? 'COD' : 'CASH'
 }
 
@@ -974,9 +985,8 @@ export default function ConsignmentEntryPage() {
       if (categoryLabel) remarkBits.push(`Category: ${categoryLabel}`)
       if (_se) remarkBits.push(`Sender email: ${_se}`)
       if (_re) remarkBits.push(`Receiver email: ${_re}`)
-      if (payOffer.value !== 'COD' && payOffer.value !== 'CASH') {
-        remarkBits.push(`Payment: ${payOffer.label}`)
-      }
+      // Always stamp payment offer so list/detail can show Cash / Credit / COD / etc.
+      remarkBits.push(`Payment: ${payOffer.label}`)
       const payload = {
         ...formRest,
         cn_no: serverAssignsCn ? 'AUTO' : String(form.cn_no).trim().toUpperCase(),

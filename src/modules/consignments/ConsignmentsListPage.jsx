@@ -480,11 +480,22 @@ export default function ConsignmentsListPage() {
       title: 'Pay Mode',
       key: 'pay_mode',
       render: (_, r) => {
-        const isCod = r.pay_typ === 'COD' || Number(r.cod_amt || r.codAmount || 0) > 0
-        return isCod ? (
-          <Tag color="orange" style={{ fontWeight: 600 }}>COD RM {r.cod_amt || r.codAmount || r.tot_cn_amt}</Tag>
-        ) : (
-          <Tag color="blue" style={{ fontWeight: 600 }}>PPD</Tag>
+        const pay = String(r.pay_mode || r.ppd_cct || r.pay_typ || '').toUpperCase()
+        const isCod = r.is_cod === true || r.is_cod === 1 || r.is_cod === '1' || pay === 'COD'
+        const label = String(r.pay_mode_label || r.payment_offer || '').trim()
+        const amt = r.cod_amt ?? r.cod_expected_amt ?? r.cash_amt ?? r.tot_cn_amt
+        if (isCod) {
+          return (
+            <Tag color="orange" style={{ fontWeight: 600 }}>
+              COD{amt != null && Number(amt) > 0 ? ` RM ${Number(amt).toFixed(2)}` : ''}
+            </Tag>
+          )
+        }
+        const display = label && !['PPD', 'PREPAID'].includes(label.toUpperCase())
+          ? label
+          : 'PPD'
+        return (
+          <Tag color="blue" style={{ fontWeight: 600 }}>{display}</Tag>
         )
       },
     },

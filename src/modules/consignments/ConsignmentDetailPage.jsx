@@ -488,8 +488,12 @@ export default function ConsignmentDetailPage() {
           <div>
             <div style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Pay Mode</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#0F1B2D' }}>
-              <Tag color={data.ppd_cct === 'COD' || Number(data.cod_amt) > 0 ? 'orange' : 'blue'} style={{ margin: 0 }}>
-                {data.ppd_cct || (Number(data.cod_amt) > 0 ? 'COD' : 'PPD')}
+              <Tag color={data.ppd_cct === 'COD' || data.pay_mode === 'COD' || Number(data.cod_amt) > 0 ? 'orange' : 'blue'} style={{ margin: 0 }}>
+                {data.pay_mode_label
+                  || data.payment_offer
+                  || data.ppd_cct
+                  || data.pay_mode
+                  || (Number(data.cod_amt) > 0 ? 'COD' : 'PPD')}
               </Tag>
             </div>
           </div>
@@ -689,7 +693,14 @@ export default function ConsignmentDetailPage() {
                 <Col span={12}>
                   <Statistic
                     title="Payment Mode"
-                    value={data.ppd_cct || data.pay_typ || (Number(data.cod_amt) > 0 ? 'COD' : 'PPD')}
+                    value={
+                      data.pay_mode_label
+                      || data.payment_offer
+                      || data.ppd_cct
+                      || data.pay_mode
+                      || data.pay_typ
+                      || (Number(data.cod_amt) > 0 ? 'COD' : 'PPD')
+                    }
                     valueStyle={{ fontSize: 18, fontWeight: 700 }}
                   />
                 </Col>

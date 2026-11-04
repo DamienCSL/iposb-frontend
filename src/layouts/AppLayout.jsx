@@ -42,7 +42,13 @@ import {
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { consignmentsNewPath, isDroppointManager, isHubManager, isStorekeeper } from '../auth/rbac'
-import { listConsignments } from '../api/client'
+import {
+  getPickupsWaiting,
+  listAtsClaims,
+  listConsignments,
+  listOvernightRequests,
+  listPendingAppOrders,
+} from '../api/client'
 
 const { Header, Sider, Content } = Layout
 
@@ -293,6 +299,10 @@ export default function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+  const [pendingConfirmCount, setPendingConfirmCount] = useState(0)
+  const [pendingPickupCount, setPendingPickupCount] = useState(0)
+  const [pendingOvernightCount, setPendingOvernightCount] = useState(0)
+  const [pendingAtsCount, setPendingAtsCount] = useState(0)
 
   // DP managers only get drop-counter booking in search; others keep full New Shipment.
   const searchablePages = isDpManager
@@ -303,6 +313,76 @@ export default function AppLayout() {
   const [searchText, setSearchText] = useState('')
   const [searchOptions, setSearchOptions] = useState([])
   const searchTimerRef = useRef(null)
+
+  const canSeeConfirmQueue = Boolean(isAdmin || can('consignments'))
+  const canSeeDispatchPending = Boolean(
+    isAdmin || can('pickups') || can('dispatch') || can('consignments'),
+  )
+  const dispatchPendingTotal = pendingPickupCount + pendingOvernightCount + pendingAtsCount
+
+  // Red-dot: orders awaiting weight/dim confirm (app + address-pickup import).
+  useEffect(() => {
+    if (!canSeeConfirmQueue) {
+      setPendingConfirmCount(0)
+      return undefined
+    }
+    let cancelled = false
+    async function refreshPendingConfirm() {
+      try {
+        const res = await listPendingAppOrders({ page: 1, per_page: 5, paidOnly: true })
+        const total = Number(res?.pagination?.total ?? res?.total ?? 0) || 0
+        if (!cancelled) setPendingConfirmCount(total)
+      } catch {
+        if (!cancelled) setPendingConfirmCount(0)
+      }
+    }
+    refreshPendingConfirm()
+    const timer = setInterval(refreshPendingConfirm, 60000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [canSeeConfirmQueue, location.pathname])
+
+  // Red-dot: pickups waiting assign, overnight PENDING, ATS open/active.
+  useEffect(() => {
+    if (!canSeeDispatchPending) {
+      setPendingPickupCount(0)
+      setPendingOvernightCount(0)
+      setPendingAtsCount(0)
+      return undefined
+    }
+    let cancelled = false
+    async function refreshDispatchPending() {
+      const [pickupRes, overnightRes, atsRes] = await Promise.all([
+        getPickupsWaiting({ page: 1, per_page: 5 }).catch(() => null),
+        listOvernightRequests({ status: 'PENDING', page: 1, per_page: 5 }).catch(() => null),
+        listAtsClaims({ status: 'ACTIVE', page: 1, per_page: 5 }).catch(() => null),
+      ])
+      if (cancelled) return
+      const pickupRows = pickupRes?.data || pickupRes?.consignments || pickupRes?.rows || []
+      setPendingPickupCount(
+        Number(pickupRes?.pagination?.total ?? pickupRes?.total ?? pickupRows.length) || 0,
+      )
+      setPendingOvernightCount(
+        Number(overnightRes?.pendingCount ?? overnightRes?.total ?? overnightRes?.rows?.length) || 0,
+      )
+      const atsSummary = atsRes?.summary || {}
+      setPendingAtsCount(
+        Number(
+          atsSummary.open != null || atsSummary.submitted != null
+            ? (atsSummary.open || 0) + (atsSummary.submitted || 0)
+            : atsRes?.total ?? atsRes?.rows?.length,
+        ) || 0,
+      )
+    }
+    refreshDispatchPending()
+    const timer = setInterval(refreshDispatchPending, 60000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [canSeeDispatchPending, location.pathname])
 
   // Keyboard shortcut: Ctrl+K or Cmd+K focuses search
   useEffect(() => {
@@ -506,8 +586,21 @@ export default function AppLayout() {
     },
     {
       key: 'main-consignments',
-      icon: <InboxOutlined />,
-      label: 'Consignments',
+      icon: pendingConfirmCount > 0 ? (
+        <Badge dot offset={[-2, 2]} color="#EF4444">
+          <InboxOutlined />
+        </Badge>
+      ) : (
+        <InboxOutlined />
+      ),
+      label: pendingConfirmCount > 0 ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          Consignments
+          <Badge count={pendingConfirmCount} size="small" color="#EF4444" overflowCount={99} />
+        </span>
+      ) : (
+        'Consignments'
+      ),
       visible: can('consignments') || isAdmin,
       children: [
         {
@@ -538,8 +631,23 @@ export default function AppLayout() {
         },
         {
           key: '/ops/consignments/app-orders',
-          icon: <CheckCircleOutlined />,
-          label: <Link to="/ops/consignments/app-orders" style={{ display: 'block', width: '100%' }}>App Order Confirm</Link>,
+          icon: pendingConfirmCount > 0 ? (
+            <Badge dot offset={[-2, 2]} color="#EF4444">
+              <CheckCircleOutlined />
+            </Badge>
+          ) : (
+            <CheckCircleOutlined />
+          ),
+          label: (
+            <Link to="/ops/consignments/app-orders" style={{ display: 'block', width: '100%' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                App Order Confirm
+                {pendingConfirmCount > 0 ? (
+                  <Badge count={pendingConfirmCount} size="small" color="#EF4444" overflowCount={99} />
+                ) : null}
+              </span>
+            </Link>
+          ),
           visible: can('consignments'),
         },
         {
@@ -569,19 +677,61 @@ export default function AppLayout() {
     },
     {
       key: 'main-dispatch',
-      icon: <CarOutlined />,
-      label: 'Dispatch & Pickup',
+      icon: dispatchPendingTotal > 0 ? (
+        <Badge dot offset={[-2, 2]} color="#EF4444">
+          <CarOutlined />
+        </Badge>
+      ) : (
+        <CarOutlined />
+      ),
+      label: dispatchPendingTotal > 0 ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          Dispatch & Pickup
+          <Badge count={dispatchPendingTotal} size="small" color="#EF4444" overflowCount={99} />
+        </span>
+      ) : (
+        'Dispatch & Pickup'
+      ),
       visible: can('pickups') || can('dispatch') || can('runsheets') || isAdmin,
       children: [
         {
           key: '/ops/pickups',
-          label: <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>Pickups Queue</Link>,
+          icon: pendingPickupCount > 0 ? (
+            <Badge dot offset={[-2, 2]} color="#EF4444">
+              <CarOutlined />
+            </Badge>
+          ) : undefined,
+          label: (
+            <Link to="/ops/pickups" style={{ display: 'block', width: '100%' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                Pickups Queue
+                {pendingPickupCount > 0 ? (
+                  <Badge count={pendingPickupCount} size="small" color="#EF4444" overflowCount={99} />
+                ) : null}
+              </span>
+            </Link>
+          ),
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
         {
           key: '/ops/overnight-requests',
-          icon: <MoonOutlined />,
-          label: <Link to="/ops/overnight-requests" style={{ display: 'block', width: '100%' }}>Overnight Requests</Link>,
+          icon: pendingOvernightCount > 0 ? (
+            <Badge dot offset={[-2, 2]} color="#EF4444">
+              <MoonOutlined />
+            </Badge>
+          ) : (
+            <MoonOutlined />
+          ),
+          label: (
+            <Link to="/ops/overnight-requests" style={{ display: 'block', width: '100%' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                Overnight Requests
+                {pendingOvernightCount > 0 ? (
+                  <Badge count={pendingOvernightCount} size="small" color="#EF4444" overflowCount={99} />
+                ) : null}
+              </span>
+            </Link>
+          ),
           visible: can('pickups') || can('dispatch') || isAdmin,
         },
         {
@@ -598,8 +748,23 @@ export default function AppLayout() {
         },
         {
           key: '/ops/ats-claims',
-          icon: <WarningOutlined />,
-          label: <Link to="/ops/ats-claims" style={{ display: 'block', width: '100%' }}>ATS / Problematic</Link>,
+          icon: pendingAtsCount > 0 ? (
+            <Badge dot offset={[-2, 2]} color="#EF4444">
+              <WarningOutlined />
+            </Badge>
+          ) : (
+            <WarningOutlined />
+          ),
+          label: (
+            <Link to="/ops/ats-claims" style={{ display: 'block', width: '100%' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                ATS / Problematic
+                {pendingAtsCount > 0 ? (
+                  <Badge count={pendingAtsCount} size="small" color="#EF4444" overflowCount={99} />
+                ) : null}
+              </span>
+            </Link>
+          ),
           visible: can('consignments') || can('dispatch') || can('pickups') || isAdmin,
         },
       ],
