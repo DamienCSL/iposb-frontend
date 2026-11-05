@@ -7,9 +7,11 @@ import {
   Col,
   Collapse,
   Descriptions,
+  Form,
   Input,
   Modal,
   Row,
+  Select,
   Space,
   Spin,
   Statistic,
@@ -26,11 +28,12 @@ import {
   EnvironmentOutlined,
   PictureOutlined,
   PlusOutlined,
+  RollbackOutlined,
   StopOutlined,
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { apiError, getTracking } from '../api/client'
+import { apiError, getTracking, initiateReturn } from '../api/client'
 import CancelConsignmentModal from '../components/CancelConsignmentModal'
 import ConfirmAppOrderModal from '../components/ConfirmAppOrderModal'
 import DataTable from '../components/DataTable'
@@ -225,6 +228,9 @@ export default function TrackingPage() {
   const [cancelCn, setCancelCn] = useState(null)
   const [cancelMsg, setCancelMsg] = useState('')
   const [confirmAppCn, setConfirmAppCn] = useState(null)
+  const [returnOpen, setReturnOpen] = useState(false)
+  const [returnSubmitting, setReturnSubmitting] = useState(false)
+  const [returnForm] = Form.useForm()
 
   useEffect(() => {
     const fromQuery = parseCnCodes(params.get('cn') || '')
@@ -328,16 +334,55 @@ export default function TrackingPage() {
     if (!panels[code]) loadPanel(code)
   }
 
+  function openScheduleReturn() {
+    const code = data?.iposbCnNo || data?.cnNo || active
+    returnForm.setFieldsValue({
+      cn: code,
+      reason: 'FAILED_DELIVERY',
+      note: returnEligibility?.undCount
+        ? `Failed delivery ${returnEligibility.undCount}× — schedule RTS from tracking`
+        : 'Schedule RTS from tracking',
+      force: true,
+    })
+    setReturnOpen(true)
+  }
+
+  async function submitScheduleReturn(values) {
+    const code = values.cn || data?.iposbCnNo || data?.cnNo || active
+    setReturnSubmitting(true)
+    try {
+      const res = await initiateReturn(code, {
+        reason: values.reason || 'FAILED_DELIVERY',
+        note: values.note || '',
+        force: true,
+      })
+      message.success(
+        res?.return_no
+          ? `Return scheduled (${res.return_no})`
+          : `Return scheduled for ${code}`,
+      )
+      setReturnOpen(false)
+      await loadPanel(active || code)
+    } catch (err) {
+      message.error(apiError(err))
+    } finally {
+      setReturnSubmitting(false)
+    }
+  }
+
   const panel = panels[active]
   const data = panel?.data
   const cnRow = data?.cn || {}
   const cancellation = data?.cancellation
+  const nodeException = data?.nodeException || null
+  const returnEligibility = data?.returnEligibility || null
   const route = data?.route || null
   const assignment = data?.assignment || null
   const sealChain = data?.sealChain || null
   const routeSteps = Array.isArray(route?.steps) ? route.steps : []
   const transportLegs = Array.isArray(data?.transportLegs) ? data.transportLegs : []
-  const events = Array.isArray(data?.timeline) ? [...data.timeline].reverse() : []
+  // API timeline is newest-first (ORDER BY upd_dt_tm DESC) — keep latest on top.
+  const events = Array.isArray(data?.timeline) ? data.timeline : []
   const failedAttempts = Array.isArray(data?.scanAttempts) ? data.scanAttempts : []
   const bagNo = cnRow.batch_no || cnRow.pod_batch || cnRow.bag_no || null
   const manifestNo = cnRow.mfg_no || null
@@ -379,7 +424,7 @@ export default function TrackingPage() {
       title: 'No.',
       key: 'no',
       width: 56,
-      render: (_, __, i) => <Text type="secondary">{events.length - i}</Text>,
+      render: (_, __, i) => <Text type="secondary">{i + 1}</Text>,
     },
     {
       title: 'Scanning Time',
@@ -854,6 +899,24 @@ export default function TrackingPage() {
                         >
                           Open CS Ticket
                         </Button>
+                        {returnEligibility?.eligible ? (
+                          <Button
+                            size="small"
+                            type="primary"
+                            danger
+                            icon={<RollbackOutlined />}
+                            onClick={openScheduleReturn}
+                          >
+                            Schedule return
+                          </Button>
+                        ) : returnEligibility?.openReturn?.returnNo ? (
+                          <Button
+                            size="small"
+                            onClick={() => navigate('/ops/returns')}
+                          >
+                            View RTS ({returnEligibility.openReturn.returnNo})
+                          </Button>
+                        ) : null}
                       </div>
                     </Card>
                   </Col>
@@ -891,6 +954,71 @@ export default function TrackingPage() {
                     showIcon
                     message={`App order confirmed${data.appOrder.dpConfirmedBy ? ` by ${data.appOrder.dpConfirmedBy}` : ''}`}
                     description={`Confirmed at ${data.appOrder.dpConfirmedAt}`}
+                  />
+                ) : null}
+
+                {nodeException?.label ? (
+                  <Alert
+                    type={
+                      nodeException.tone === 'error'
+                        ? 'error'
+                        : nodeException.tone === 'success'
+                          ? 'success'
+                          : nodeException.tone === 'processing'
+                            ? 'info'
+                            : 'warning'
+                    }
+                    showIcon
+                    message={nodeException.label}
+                    description={[
+                      nodeException.fromDp ? `Held at ${nodeException.fromDp}` : null,
+                      nodeException.expectedDp ? `Expected ${nodeException.expectedDp}` : null,
+                      nodeException.sealNo ? `Seal ${nodeException.sealNo}` : null,
+                      nodeException.note || null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  />
+                ) : null}
+
+                {returnEligibility?.eligible ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={returnEligibility.label || 'Eligible for return schedule'}
+                    description={[
+                      returnEligibility.undCount
+                        ? `${returnEligibility.undCount} failed delivery attempt(s) (UND)`
+                        : null,
+                      returnEligibility.status ? `Current status ${returnEligibility.status}` : null,
+                      returnEligibility.windowHint || null,
+                      'Use Schedule return to put this CN on the RTS queue at /ops/returns.',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    action={
+                      <Button
+                        size="small"
+                        type="primary"
+                        danger
+                        icon={<RollbackOutlined />}
+                        onClick={openScheduleReturn}
+                      >
+                        Schedule return
+                      </Button>
+                    }
+                  />
+                ) : returnEligibility?.openReturn?.returnNo ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={returnEligibility.label || 'On return schedule'}
+                    description={`Return ${returnEligibility.openReturn.returnNo} · ${returnEligibility.openReturn.status || ''}`}
+                    action={
+                      <Button size="small" onClick={() => navigate('/ops/returns')}>
+                        Open Returns
+                      </Button>
+                    }
                   />
                 ) : null}
 
@@ -1147,14 +1275,12 @@ export default function TrackingPage() {
                             </div>
                           </Descriptions.Item>
 
-                          <Descriptions.Item label="Last-mile dispatcher">
+                          <Descriptions.Item label="Last-mile station">
                             <div>
-                              {assignment?.deliveryDispatcherName ||
+                              {assignment?.dispatcherDeliveryPoint ||
+                                assignment?.deliveryDispatcherName ||
                                 assignment?.deliveryDispatcherCode ||
                                 '—'}
-                              {assignment?.deliveryDispatcherCode && assignment?.deliveryDispatcherName ? (
-                                <Text type="secondary"> ({assignment.deliveryDispatcherCode})</Text>
-                              ) : null}
                               {assignment?.dispatcherAreaCode ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
@@ -1162,10 +1288,13 @@ export default function TrackingPage() {
                                   </Text>
                                 </div>
                               ) : null}
-                              {assignment?.dispatcherDeliveryPoint ? (
+                              {assignment?.deliveryDispatcherName && assignment?.dispatcherDeliveryPoint ? (
                                 <div>
                                   <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Station DP {assignment.dispatcherDeliveryPoint}
+                                    {assignment.deliveryDispatcherName}
+                                    {assignment.deliveryDispatcherCode
+                                      ? ` (${assignment.deliveryDispatcherCode})`
+                                      : ''}
                                   </Text>
                                 </div>
                               ) : null}
@@ -1458,6 +1587,42 @@ export default function TrackingPage() {
           if (code) loadPanel(code)
         }}
       />
+
+      <Modal
+        title="Schedule return (RTS)"
+        open={returnOpen}
+        onCancel={() => setReturnOpen(false)}
+        okText="Schedule return"
+        confirmLoading={returnSubmitting}
+        onOk={() => returnForm.submit()}
+        destroyOnClose
+      >
+        <Form form={returnForm} layout="vertical" onFinish={submitScheduleReturn}>
+          <Form.Item name="cn" label="Consignment" rules={[{ required: true }]}>
+            <Input disabled />
+          </Form.Item>
+          <Form.Item name="reason" label="Reason" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'FAILED_DELIVERY', label: 'Failed delivery — attempts exhausted' },
+                { value: 'REFUSED', label: 'Receiver refused' },
+                { value: 'WRONG_ADDRESS', label: 'Wrong address' },
+                { value: 'UNCLAIMED', label: 'Unclaimed' },
+                { value: 'DAMAGED', label: 'Damaged' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="note" label="Note">
+            <TextArea rows={3} placeholder="Optional note for RTS schedule" />
+          </Form.Item>
+          <Form.Item name="force" hidden initialValue>
+            <Input />
+          </Form.Item>
+          {returnEligibility?.windowHint ? (
+            <Alert type="info" showIcon message={returnEligibility.windowHint} style={{ marginBottom: 8 }} />
+          ) : null}
+        </Form>
+      </Modal>
     </div>
   )
 }

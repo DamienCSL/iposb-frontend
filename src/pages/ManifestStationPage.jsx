@@ -9,7 +9,13 @@ import {
   removeManifestMember,
   revertManifest,
   saveManifest,
+  voidManifest,
+  voidManifestBatch,
 } from '../api/client'
+
+function isOpenManifestStatus(status) {
+  return ['OPEN', 'APR', ''].includes(String(status || 'OPEN').toUpperCase())
+}
 import ManifestLinehaulPanel from '../components/ManifestLinehaulPanel'
 
 function tierLabel(tier) {
@@ -36,6 +42,7 @@ export default function ManifestStationPage() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [ok, setOk] = useState('')
+  const [selectedMfgs, setSelectedMfgs] = useState([])
 
   const manifest = detail?.manifest || null
   const members = manifest?.members || []
@@ -46,15 +53,43 @@ export default function ManifestStationPage() {
       : linehaulEstimate?.amount != null
         ? Number(linehaulEstimate.amount)
         : 0
-  const isOpen = manifest?.isOpen !== false && ['OPEN', 'APR', ''].includes(String(manifest?.mfgStatus || 'OPEN').toUpperCase())
+  const isOpen = manifest?.isOpen !== false && isOpenManifestStatus(manifest?.mfgStatus)
+
+  const voidableList = useMemo(
+    () => list.filter((item) => isOpenManifestStatus(item.mfgStatus)),
+    [list],
+  )
+  const allVoidableSelected =
+    voidableList.length > 0 && voidableList.every((item) => selectedMfgs.includes(item.mfgNo))
 
   const refreshList = useCallback(async () => {
     const data = await listManifests({
       status: filterStatus || undefined,
       limit: 40,
     })
-    setList(data?.items || [])
+    const items = data?.items || []
+    setList(items)
+    setSelectedMfgs((prev) =>
+      prev.filter((mfg) => items.some((item) => item.mfgNo === mfg && isOpenManifestStatus(item.mfgStatus))),
+    )
   }, [filterStatus])
+
+  function toggleSelectMfg(mfgNo, checked) {
+    const code = String(mfgNo || '').trim().toUpperCase()
+    if (!code) return
+    setSelectedMfgs((prev) => {
+      if (checked) return prev.includes(code) ? prev : [...prev, code]
+      return prev.filter((m) => m !== code)
+    })
+  }
+
+  function toggleSelectAllVoidable(checked) {
+    if (!checked) {
+      setSelectedMfgs([])
+      return
+    }
+    setSelectedMfgs(voidableList.map((item) => item.mfgNo).filter(Boolean))
+  }
 
   async function loadManifest(mfgNo) {
     const code = String(mfgNo || '').trim().toUpperCase()
@@ -262,6 +297,71 @@ export default function ManifestStationPage() {
     }
   }
 
+  async function onVoid() {
+    if (!activeMfg || !isOpen) return
+    if (
+      !window.confirm(
+        `Void manifesto ${activeMfg}?\n\nIt will be removed from the active list. Members are cleared. This cannot be undone from the UI.`,
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setMessage('')
+    try {
+      const data = await voidManifest(activeMfg)
+      setOk(data?.message || `Voided ${activeMfg}`)
+      setActiveMfg('')
+      setDetail(null)
+      setSelectedMfgs((prev) => prev.filter((m) => m !== activeMfg))
+      await refreshList()
+    } catch (err) {
+      setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onVoidSelected() {
+    const ids = selectedMfgs.filter(Boolean)
+    if (ids.length === 0) {
+      setMessage('Select at least one open manifesto to void.')
+      return
+    }
+    if (
+      !window.confirm(
+        `Void ${ids.length} selected manifesto(s)?\n\nThey will leave the active list. Members are cleared. This cannot be undone from the UI.`,
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setMessage('')
+    try {
+      const data = await voidManifestBatch(ids)
+      const failed = Array.isArray(data?.failed) ? data.failed : []
+      if (failed.length > 0) {
+        setMessage(
+          `${data?.message || 'Some voids failed'}: ${failed
+            .map((f) => `${f.mfgNo} (${f.error})`)
+            .join('; ')}`,
+        )
+      }
+      setOk(data?.message || `Voided ${data?.voidedCount ?? ids.length} manifesto(s)`)
+      const voided = new Set(data?.voided || ids)
+      if (activeMfg && voided.has(activeMfg)) {
+        setActiveMfg('')
+        setDetail(null)
+      }
+      setSelectedMfgs([])
+      await refreshList()
+    } catch (err) {
+      setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
@@ -346,7 +446,7 @@ export default function ManifestStationPage() {
           </div>
 
           <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
+            <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
               <strong>Recent</strong>
               <select
                 className="form-select form-select-sm w-auto"
@@ -356,29 +456,75 @@ export default function ManifestStationPage() {
                 <option value="OPEN">Open</option>
                 <option value="CLOSED">Closed</option>
                 <option value="ARRIVED">Arrived</option>
-                <option value="">All</option>
+                <option value="VOID">Voided</option>
+                <option value="">All (excl. voided)</option>
               </select>
             </div>
+            {voidableList.length > 0 ? (
+              <div className="card-body py-2 border-bottom d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <label className="small mb-0 d-flex align-items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="form-check-input m-0"
+                    checked={allVoidableSelected}
+                    onChange={(e) => toggleSelectAllVoidable(e.target.checked)}
+                    disabled={busy}
+                  />
+                  Select open ({voidableList.length})
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger"
+                  disabled={busy || selectedMfgs.length === 0}
+                  onClick={onVoidSelected}
+                >
+                  Void selected ({selectedMfgs.length})
+                </button>
+              </div>
+            ) : null}
             <div className="list-group list-group-flush" style={{ maxHeight: 320, overflow: 'auto' }}>
               {list.length === 0 ? (
                 <div className="list-group-item text-muted small">No manifests.</div>
               ) : (
-                list.map((item) => (
-                  <button
-                    type="button"
-                    key={item.mfgNo}
-                    className={`list-group-item list-group-item-action ${activeMfg === item.mfgNo ? 'active' : ''}`}
-                    onClick={() => loadManifest(item.mfgNo)}
-                  >
-                    <div className="d-flex justify-content-between">
-                      <strong>{item.mfgNo}</strong>
-                      <span className="badge text-bg-light border">{item.mfgStatus}</span>
+                list.map((item) => {
+                  const openItem = isOpenManifestStatus(item.mfgStatus)
+                  const checked = selectedMfgs.includes(item.mfgNo)
+                  return (
+                    <div
+                      key={item.mfgNo}
+                      className={`list-group-item ${activeMfg === item.mfgNo ? 'active' : ''}`}
+                    >
+                      <div className="d-flex gap-2 align-items-start">
+                        <input
+                          type="checkbox"
+                          className="form-check-input mt-1"
+                          checked={checked}
+                          disabled={!openItem || busy}
+                          title={openItem ? 'Select to void' : 'Only open manifestos can be voided'}
+                          onChange={(e) => toggleSelectMfg(item.mfgNo, e.target.checked)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                          type="button"
+                          className={`btn btn-link text-start text-decoration-none flex-grow-1 p-0 ${
+                            activeMfg === item.mfgNo ? 'text-white' : ''
+                          }`}
+                          onClick={() => loadManifest(item.mfgNo)}
+                        >
+                          <div className="d-flex justify-content-between">
+                            <strong className={activeMfg === item.mfgNo ? 'text-white' : ''}>{item.mfgNo}</strong>
+                            <span className={`badge border ${activeMfg === item.mfgNo ? 'text-bg-dark' : 'text-bg-light'}`}>
+                              {item.mfgStatus}
+                            </span>
+                          </div>
+                          <div className={`small ${activeMfg === item.mfgNo ? 'text-white-50' : 'opacity-75'}`}>
+                            {item.locId || '—'} → {item.destLoc || '—'} · {item.mfgDt || ''}
+                          </div>
+                        </button>
+                      </div>
                     </div>
-                    <div className="small opacity-75">
-                      {item.locId || '—'} → {item.destLoc || '—'} · {item.mfgDt || ''}
-                    </div>
-                  </button>
-                ))
+                  )
+                })
               )}
             </div>
           </div>
@@ -506,14 +652,19 @@ export default function ManifestStationPage() {
                   </div>
 
                   {isOpen ? (
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      disabled={busy || members.length === 0}
-                      onClick={onClose}
-                    >
-                      Close / Depart
-                    </button>
+                    <div className="d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        disabled={busy || members.length === 0}
+                        onClick={onClose}
+                      >
+                        Close / Depart
+                      </button>
+                      <button type="button" className="btn btn-outline-danger" disabled={busy} onClick={onVoid}>
+                        Void manifesto
+                      </button>
+                    </div>
                   ) : (
                     <button type="button" className="btn btn-outline-warning" disabled={busy} onClick={onRevert}>
                       Revert last manifesto action

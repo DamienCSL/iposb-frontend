@@ -199,8 +199,12 @@ export default function DispatchJobsPage() {
                   <div>{planInfo?.path?.destinationArea || cn.destination_area_code || '—'}</div>
                 </div>
                 <div className="col-md-3">
-                  <div className="text-muted">Last-mile Dispatcher</div>
-                  <div>{planInfo?.path?.deliveryDispatcherName || '—'}</div>
+                  <div className="text-muted">Last-mile station</div>
+                  <div>
+                    {planInfo?.path?.dispatcherDeliveryPoint
+                      || planInfo?.path?.deliveryDispatcherName
+                      || '—'}
+                  </div>
                 </div>
                 <div className="col-md-3">
                   <div className="text-muted">Pickup target</div>

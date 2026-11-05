@@ -122,7 +122,11 @@ export default function NodeFlowPage() {
   }, [loadFlow])
 
   const items = payload?.items || []
-  const pendingCount = items.filter((r) => !confirmed.has(String(r.cnNo || '').toUpperCase())).length
+  const unitKey = (r) =>
+    String(r?.sealNo || r?.mfgNo || r?.cnNo || '')
+      .trim()
+      .toUpperCase()
+  const pendingCount = items.filter((r) => !confirmed.has(unitKey(r))).length
 
   async function onScanSubmit(e) {
     e?.preventDefault?.()
@@ -146,7 +150,9 @@ export default function NodeFlowPage() {
       setLastResult(res)
       const next = new Set(confirmed)
       for (const d of res?.done || []) {
-        const key = String(d.cnNo || '').toUpperCase()
+        const key = String(d.sealNo || d.mfgNo || d.cnNo || '')
+          .trim()
+          .toUpperCase()
         if (key) next.add(key)
       }
       setConfirmed(next)
@@ -169,30 +175,50 @@ export default function NodeFlowPage() {
     {
       title: 'Unit',
       key: 'unit',
-      width: 110,
-      render: (_, r) =>
-        r.unitType === 'seal' || r.sealNo ? (
-          <Tag color="purple">Sealed</Tag>
-        ) : (
-          <Tag>Loose</Tag>
-        ),
+      width: 120,
+      render: (_, r) => {
+        const t = r.unitType || (r.sealNo ? 'seal' : r.mfgNo ? 'manifest' : 'loose')
+        if (t === 'seal') return <Tag color="purple">Seal</Tag>
+        if (t === 'manifest') return <Tag color="geekblue">Manifest</Tag>
+        if (t === 'cn') return <Tag color="cyan">CN (opened)</Tag>
+        return <Tag>Loose</Tag>
+      },
     },
     {
-      title: 'CN / Seal',
+      title: 'Barcode',
       key: 'cn',
-      render: (_, r) => (
-        <div>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A' }}>
-            {r.cnNo || '—'}
-          </div>
-          {r.sealNo ? (
-            <div style={{ fontSize: 11, color: '#64748B' }}>
-              Scan seal <strong>{r.sealNo}</strong>
-              {r.sealTier ? ` (${r.sealTier})` : ''}
+      render: (_, r) => {
+        const primary =
+          r.unitType === 'seal'
+            ? r.sealNo || r.cnNo
+            : r.unitType === 'manifest'
+              ? r.mfgNo || r.cnNo
+              : r.cnNo
+        return (
+          <div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1B8A5A' }}>
+              {primary || '—'}
             </div>
-          ) : null}
-        </div>
-      ),
+            {r.unitType === 'seal' ? (
+              <div style={{ fontSize: 11, color: '#64748B' }}>
+                {r.cnCount ? `${r.cnCount} CN inside` : 'Sealed bag'}
+                {r.sealTier ? ` · ${r.sealTier}` : ''}
+                {r.sealLifecycle ? ` · ${r.sealLifecycle}` : ''}
+              </div>
+            ) : null}
+            {r.unitType === 'manifest' ? (
+              <div style={{ fontSize: 11, color: '#64748B' }}>
+                {r.cnCount ? `${r.cnCount} loose CN on manifesto` : 'Manifesto'}
+              </div>
+            ) : null}
+            {r.unitType === 'cn' && r.sealNo ? (
+              <div style={{ fontSize: 11, color: '#64748B' }}>
+                From opened seal <strong>{r.sealNo}</strong>
+              </div>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       title: 'Status',
@@ -213,7 +239,12 @@ export default function NodeFlowPage() {
       title: 'Consignee',
       dataIndex: 'consignee',
       key: 'consignee',
-      render: (v) => v || '—',
+      render: (v, r) =>
+        r.unitType === 'seal' || r.unitType === 'manifest' ? (
+          <Text type="secondary">—</Text>
+        ) : (
+          v || '—'
+        ),
     },
     {
       title: 'Expected',
@@ -227,8 +258,7 @@ export default function NodeFlowPage() {
       width: 100,
       align: 'center',
       render: (_, r) => {
-        const key = String(r.cnNo || '').toUpperCase()
-        const ok = confirmed.has(key) || (r.sealNo && confirmed.has(String(r.sealNo).toUpperCase()))
+        const ok = confirmed.has(unitKey(r))
         return ok ? (
           <Tag icon={<CheckCircleOutlined />} color="success">
             Scanned
@@ -343,22 +373,32 @@ export default function NodeFlowPage() {
       </Card>
 
       <Row gutter={[12, 12]}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={4}>
           <Card size="small">
-            <Statistic title="Expected" value={items.length} />
+            <Statistic title="Expected units" value={items.length} />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={4}>
           <Card size="small">
-            <Statistic title="Loose parcels" value={payload?.counts?.loose ?? 0} />
+            <Statistic title="Seals" value={payload?.counts?.sealed ?? 0} valueStyle={{ color: '#7C3AED' }} />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={4}>
           <Card size="small">
-            <Statistic title="In seals" value={payload?.counts?.sealed ?? 0} valueStyle={{ color: '#7C3AED' }} />
+            <Statistic title="Manifests" value={payload?.counts?.manifest ?? 0} valueStyle={{ color: '#1668DC' }} />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={4}>
+          <Card size="small">
+            <Statistic title="Loose" value={payload?.counts?.loose ?? 0} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={8} md={4}>
+          <Card size="small">
+            <Statistic title="CN (opened)" value={payload?.counts?.cn ?? 0} valueStyle={{ color: '#0E7490' }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={8} md={4}>
           <Card size="small">
             <Statistic title="Still to scan" value={pendingCount} valueStyle={{ color: '#D97706' }} />
           </Card>
@@ -378,7 +418,8 @@ export default function NodeFlowPage() {
           {payload?.scanHint
             ? `Status written: ${payload.scanHint}. `
             : null}
-          Prefer scanning the <strong>seal</strong> when the list shows a sealed bag — one scan confirms the whole bag where supported.
+          List shows <strong>seals</strong>, <strong>manifests</strong>, and <strong>loose parcels</strong>.
+          Consignment notes appear only after a seal is <strong>opened</strong>.
         </Paragraph>
 
         {needsCourier ? (
@@ -401,7 +442,7 @@ export default function NodeFlowPage() {
               size="large"
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
-              placeholder="Scan CN or seal barcode…"
+              placeholder="Scan seal / MFG / loose CN…"
               disabled={scanning}
               autoFocus
             />
@@ -434,7 +475,7 @@ export default function NodeFlowPage() {
         columns={columns}
         dataSource={items}
         loading={loading}
-        rowKey={(r) => r.cnNo || r.sealNo || Math.random()}
+        rowKey={(r) => `${r.unitType || 'u'}:${r.sealNo || r.mfgNo || r.cnNo || ''}`}
         pagination={{ pageSize: 25 }}
         locale={{
           emptyText: loading

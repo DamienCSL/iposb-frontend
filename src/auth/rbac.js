@@ -9,9 +9,12 @@ export const DROPPOINT_MANAGER = 'Droppoint Manager'
  * Roles assignable in FMS User Management (t_user).
  * Seller / Receiver are consignment parties — not login roles.
  * Shipper billing accounts use Customer Registration (t_customer).
- * Mobile app logins use t_mobile_user (customer / driver / dispatcher).
+ * Mobile app logins use t_mobile_user (customer / courier-driver / storekeeper).
  * Legacy "Agent" accounts map to Droppoint Manager.
+ * "Storekeeper" is shown as Delivery Point Admin (station manager).
  */
+export const DELIVERY_POINT_ADMIN = 'Delivery Point Admin'
+
 export const STAFF_ASSIGNABLE_ROLES = [
   SUPER_ADMIN,
   ADMIN,
@@ -21,10 +24,20 @@ export const STAFF_ASSIGNABLE_ROLES = [
   'Invoice',
   'CSL',
   'Cargo Team',
-  'Storekeeper',
+  'Storekeeper', // stored role; UI label = Delivery Point Admin
 ]
 
-export const STAFF_ROLE_OPTIONS = STAFF_ASSIGNABLE_ROLES.map((r) => [r, r])
+export const STAFF_ROLE_OPTIONS = STAFF_ASSIGNABLE_ROLES.map((r) => [
+  r,
+  r === 'Storekeeper' ? DELIVERY_POINT_ADMIN : r,
+])
+
+/** Human label for a staff role (DB may still say Storekeeper). */
+export function roleDisplayName(role) {
+  const r = normalizeRole(role)
+  if (r === 'Storekeeper') return DELIVERY_POINT_ADMIN
+  return r
+}
 
 export const DEMO_USERS = [
   { username: 'admin', password: 'admin123', name: 'Demo Super Admin', role: SUPER_ADMIN, branchCode: 'BKI' },
@@ -68,7 +81,14 @@ export function normalizeRole(role) {
   if (key === 'agent' || key === 'agent 2') return DROPPOINT_MANAGER
   if (key === 'finance') return 'Invoice'
   if (key === 'cargo' || key === 'cargo team') return 'Cargo Team'
-  if (key === 'storekeeper' || key === 'store keeper') return 'Storekeeper'
+  if (
+    key === 'storekeeper'
+    || key === 'store keeper'
+    || key === 'delivery point admin'
+    || key === 'dp admin'
+  ) {
+    return 'Storekeeper'
+  }
   return raw || 'Others'
 }
 
@@ -211,9 +231,14 @@ export function isHubManager(role) {
   return normalizeRole(role) === HUB_MANAGER
 }
 
-/** Delivery-point (station) manager. */
+/** Delivery-point (station) manager — UI: Delivery Point Admin. */
 export function isStorekeeper(role) {
   return normalizeRole(role) === 'Storekeeper'
+}
+
+/** Alias for isStorekeeper — preferred name in new UI copy. */
+export function isDeliveryPointAdmin(role) {
+  return isStorekeeper(role)
 }
 
 /** Airport / seaport cargo staff. */

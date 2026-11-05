@@ -117,7 +117,11 @@ export default function ConsignmentsListPage() {
         per_page: pageSize,
       }
       if (debouncedSearch) q.search = debouncedSearch
-      if (status) q.status = status
+      if (status === 'ALL') {
+        q.include_cancelled = 1
+      } else if (status) {
+        q.status = status
+      }
       if (bagStatus) q.bag_status = bagStatus
       if (dateRange[0]) q.date_from = dateRange[0].format('YYYY-MM-DD')
       if (dateRange[1]) q.date_to = dateRange[1].format('YYYY-MM-DD')
@@ -239,17 +243,73 @@ export default function ConsignmentsListPage() {
     )
   }
 
-  function printSelected() {
-    if (selectedKeys.length === 0) {
-      message.warning('Select at least one consignment to print.')
+  function selectedCnCodes() {
+    return selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+  }
+
+  function selectedConsignmentRows() {
+    const keySet = new Set(selectedCnCodes())
+    return rows.filter((r) => keySet.has(String(r.cn_no || r.id || '').trim().toUpperCase()))
+  }
+
+  function uniqueCodes(values) {
+    const out = []
+    const seen = new Set()
+    for (const raw of values) {
+      const code = String(raw || '').trim().toUpperCase()
+      if (!code || seen.has(code)) continue
+      seen.add(code)
+      out.push(code)
+    }
+    return out
+  }
+
+  function openPrintPages(kind, ids, emptyMsg) {
+    if (!ids.length) {
+      message.warning(emptyMsg)
       return
     }
-    const codes = selectedKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+    if (ids.length === 1) {
+      navigate(`/ops/reports/${kind}?id=${encodeURIComponent(ids[0])}`)
+      return
+    }
+    ids.forEach((id) => {
+      window.open(`/ops/reports/${kind}?id=${encodeURIComponent(id)}`, '_blank', 'noopener,noreferrer')
+    })
+    message.info(`Opened ${ids.length} print pages`)
+  }
+
+  function printSelected(format) {
+    const codes = selectedCnCodes()
     if (codes.length === 0) {
       message.warning('Select at least one consignment to print.')
       return
     }
-    navigate(`/ops/reports/cn?id=${encodeURIComponent(codes.join(','))}`)
+    const formatQs =
+      format && ['thermal', 'a5', 'a4-4'].includes(format)
+        ? `&format=${encodeURIComponent(format)}`
+        : ''
+    navigate(`/ops/reports/cn?id=${encodeURIComponent(codes.join(','))}${formatQs}`)
+  }
+
+  function printSelectedManifest() {
+    const ids = uniqueCodes(selectedConsignmentRows().map((r) => r.mfg_no || r.mfgNo))
+    openPrintPages(
+      'manifest',
+      ids,
+      'None of the selected consignments are on a consignment manifesto yet.',
+    )
+  }
+
+  function printSelectedSealManifest() {
+    const ids = uniqueCodes(
+      selectedConsignmentRows().map((r) => r.batch_no || r.bag_no || r.seal_no || r.sealNo),
+    )
+    openPrintPages(
+      'seal-manifest',
+      ids,
+      'None of the selected consignments are in a seal / bag yet.',
+    )
   }
 
   // Handle Export
@@ -594,10 +654,46 @@ export default function ConsignmentsListPage() {
     },
     {
       key: 'print',
-      label: selectedKeys.length > 0 ? `Print notes (${selectedKeys.length})` : 'Print notes',
+      label: selectedKeys.length > 0 ? `Print (${selectedKeys.length})` : 'Print',
       icon: <PrinterOutlined />,
       disabled: selectedKeys.length === 0,
-      onClick: printSelected,
+      onClick: () => printSelected(),
+      menu: {
+        items: [
+          {
+            key: 'cn',
+            label: 'CN note(s)',
+            icon: <PrinterOutlined />,
+            onClick: () => printSelected(),
+          },
+          {
+            key: 'cn-thermal',
+            label: 'CN note · Thermal',
+            onClick: () => printSelected('thermal'),
+          },
+          {
+            key: 'cn-a5',
+            label: 'CN note · A5',
+            onClick: () => printSelected('a5'),
+          },
+          {
+            key: 'cn-a4',
+            label: 'CN note · A4 (4 per page)',
+            onClick: () => printSelected('a4-4'),
+          },
+          { type: 'divider' },
+          {
+            key: 'manifest',
+            label: 'Consignment manifesto',
+            onClick: printSelectedManifest,
+          },
+          {
+            key: 'seal-manifest',
+            label: 'Seal manifesto',
+            onClick: printSelectedSealManifest,
+          },
+        ],
+      },
     },
     ...(canEdit
       ? [
@@ -719,7 +815,8 @@ export default function ConsignmentsListPage() {
             value: status,
             onChange: (val) => setStatus(val),
             options: [
-              { label: 'All Statuses', value: '' },
+              { label: 'Active (hide cancelled)', value: '' },
+              { label: 'All including cancelled', value: 'ALL' },
               { label: 'BDE — Order Confirmed', value: 'BDE' },
               { label: 'ACC — Awaiting Pickup', value: 'ACC' },
               { label: 'PKU — Shipment Picked Up', value: 'PKU' },

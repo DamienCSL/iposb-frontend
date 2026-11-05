@@ -89,8 +89,8 @@ export const NAV_SECTIONS = [
         title: 'DP people',
         cap: 'staff',
         items: [
-          { to: '/admin/dispatchers', label: 'Dispatcher Management', icon: 'bi-headset', live: true },
-          { to: '/admin/drivers', label: 'Driver Management', icon: 'bi-truck', live: true },
+          { to: '/admin/drivers', label: 'Couriers & Linehaul', icon: 'bi-truck', live: true },
+          { to: '/admin/storekeepers', label: 'Delivery Point Admins', icon: 'bi-person-badge', live: true },
         ],
       },
       {

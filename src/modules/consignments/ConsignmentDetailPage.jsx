@@ -443,14 +443,72 @@ export default function ConsignmentDetailPage() {
             </Button>
           )}
 
-          <Button
-            icon={<PrinterOutlined />}
+          <Dropdown.Button
+            icon={<DownOutlined />}
+            menu={{
+              items: [
+                {
+                  key: 'cn',
+                  label: 'CN note',
+                  icon: <PrinterOutlined />,
+                  onClick: () =>
+                    navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`),
+                },
+                {
+                  key: 'cn-thermal',
+                  label: 'CN note · Thermal',
+                  onClick: () =>
+                    navigate(
+                      `/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=thermal`,
+                    ),
+                },
+                {
+                  key: 'cn-a5',
+                  label: 'CN note · A5',
+                  onClick: () =>
+                    navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=a5`),
+                },
+                {
+                  key: 'cn-a4',
+                  label: 'CN note · A4 (4 per page)',
+                  onClick: () =>
+                    navigate(
+                      `/ops/reports/cn?id=${encodeURIComponent(activeCn)}&format=a4-4`,
+                    ),
+                },
+                { type: 'divider' },
+                {
+                  key: 'manifest',
+                  label: manifestNo
+                    ? `Consignment manifesto (${manifestNo})`
+                    : 'Consignment manifesto',
+                  disabled: !manifestNo,
+                  onClick: () =>
+                    navigate(
+                      `/ops/reports/manifest?id=${encodeURIComponent(manifestNo)}`,
+                    ),
+                },
+                {
+                  key: 'seal-manifest',
+                  label: bagNo ? `Seal manifesto (${bagNo})` : 'Seal manifesto',
+                  disabled: !bagNo,
+                  onClick: () =>
+                    navigate(
+                      `/ops/reports/seal-manifest?id=${encodeURIComponent(bagNo)}`,
+                    ),
+                },
+              ],
+            }}
             onClick={() =>
               navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`)
             }
+            buttonsRender={([left, right]) => [
+              React.cloneElement(left, { icon: <PrinterOutlined /> }),
+              right,
+            ]}
           >
-            Print Note
-          </Button>
+            Print
+          </Dropdown.Button>
 
           <Dropdown menu={actionMenuItems} placement="bottomRight">
             <Button>
@@ -850,15 +908,47 @@ export default function ConsignmentDetailPage() {
                   >
                     Public Tracking
                   </Button>
-                  <Button
+                  <Dropdown.Button
                     size="small"
-                    icon={<PrinterOutlined />}
+                    icon={<DownOutlined />}
+                    menu={{
+                      items: [
+                        {
+                          key: 'cn',
+                          label: 'CN note',
+                          onClick: () =>
+                            navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`),
+                        },
+                        {
+                          key: 'manifest',
+                          label: 'Consignment manifesto',
+                          disabled: !manifestNo,
+                          onClick: () =>
+                            navigate(
+                              `/ops/reports/manifest?id=${encodeURIComponent(manifestNo)}`,
+                            ),
+                        },
+                        {
+                          key: 'seal-manifest',
+                          label: 'Seal manifesto',
+                          disabled: !bagNo,
+                          onClick: () =>
+                            navigate(
+                              `/ops/reports/seal-manifest?id=${encodeURIComponent(bagNo)}`,
+                            ),
+                        },
+                      ],
+                    }}
                     onClick={() =>
                       navigate(`/ops/reports/cn?id=${encodeURIComponent(activeCn)}`)
                     }
+                    buttonsRender={([left, right]) => [
+                      React.cloneElement(left, { icon: <PrinterOutlined /> }),
+                      right,
+                    ]}
                   >
-                    Print Note
-                  </Button>
+                    Print
+                  </Dropdown.Button>
                 </div>
               </Card>
 

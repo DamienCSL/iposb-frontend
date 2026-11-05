@@ -42,6 +42,7 @@ import {
 import { apiError, getRbacModules, getRbacRoles, updateRbacRole } from '../api/client'
 import { remapDefaultRoute } from '../auth/routeAliases'
 import { useAuth } from '../auth/AuthContext'
+import { roleDisplayName } from '../auth/rbac'
 import { Link } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
@@ -57,7 +58,7 @@ const ROLE_HINTS = {
   'Droppoint Manager':
     'Local counter: book CNs, baby-seal, generate outbound manifest, first-mile courier — home drop point only.',
   Storekeeper:
-    'Delivery Point manager: baby-seal CNs (Mother optional), local manifests, last-mile dispatch & COD.',
+    'Delivery Point Admin: baby-seal CNs (Mother optional), local manifests, last-mile courier assign & COD.',
   Operation: 'Network ops desk: consignments, pickups, seals, manifests, dispatch, summaries, and CS tickets.',
   Invoice: 'Finance: consignments lookup, invoices/DO/credit notes, COD, commissions, and print reports.',
   CSL: 'Customer service: tickets, consignment tracking, summaries, and customer reports.',
@@ -85,11 +86,11 @@ const MODULE_META = {
   },
   dispatch: {
     icon: CarOutlined,
-    hint: 'Courier / dispatcher assign, 3PL, overnight holds — local last-mile',
+    hint: 'Courier assign, 3PL, overnight holds — local last-mile',
   },
   runsheets: {
     icon: TeamOutlined,
-    hint: 'Daily delivery runsheets: record helpers who ride with the lead driver and share delivery earnings',
+    hint: 'Daily delivery runsheets: record helpers who ride with the lead courier and share delivery earnings',
   },
   summaries: {
     icon: BarChartOutlined,
@@ -137,7 +138,7 @@ const MODULE_META = {
   },
   staff: {
     icon: IdcardOutlined,
-    hint: 'Approve app sign-ups; manage drivers and dispatchers',
+    hint: 'Approve app sign-ups; manage couriers, linehaul, and delivery point admins',
   },
   routing: {
     icon: BranchesOutlined,
@@ -361,11 +362,12 @@ export default function RoleAccessPage() {
             style={{ width: '100%', maxWidth: 420 }}
             options={roles.map((r) => {
               const isLocked = LOCKED_ROLES.has(r.role) || r.locked
+              const label = roleDisplayName(r.role)
               return {
                 value: r.role,
-                label: r.role,
+                label,
                 disabled: false,
-                searchLabel: r.role,
+                searchLabel: `${label} ${r.role}`,
                 isLocked,
                 moduleCount: (r.modules || []).length,
               }

@@ -39,6 +39,7 @@ import {
   getManifest,
   listManifests,
   listMaster,
+  voidManifest,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import DataTable from '../../components/DataTable'
@@ -305,14 +306,42 @@ export default function ManifestsPage() {
         }
         extra={
           activeMfg ? (
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={() =>
-                navigate(`/ops/reports/manifest?id=${encodeURIComponent(activeMfg)}`)
-              }
-            >
-              Print Consignment Manifest
-            </Button>
+            <Space>
+              <Button
+                icon={<PrinterOutlined />}
+                onClick={() =>
+                  navigate(`/ops/reports/manifest?id=${encodeURIComponent(activeMfg)}`)
+                }
+              >
+                Print Consignment Manifest
+              </Button>
+              {canOperate
+                && ['OPEN', 'APR', ''].includes(
+                  String(detailData?.mfgStatus || detailData?.mfg_status || detailData?.status || '').toUpperCase(),
+                ) ? (
+                <Popconfirm
+                  title={`Void manifesto ${activeMfg}?`}
+                  description="Removes it from the active list. Members are cleared."
+                  okText="Void"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={async () => {
+                    try {
+                      await voidManifest(activeMfg)
+                      message.success(`Manifest ${activeMfg} voided`)
+                      setActiveMfg(null)
+                      setDetailData(null)
+                      loadManifests()
+                    } catch (err) {
+                      message.error(apiError(err))
+                    }
+                  }}
+                >
+                  <Button danger icon={<DeleteOutlined />}>
+                    Void
+                  </Button>
+                </Popconfirm>
+              ) : null}
+            </Space>
           ) : null
         }
         open={Boolean(activeMfg)}

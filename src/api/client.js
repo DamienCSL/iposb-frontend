@@ -1029,6 +1029,11 @@ export async function closeSeal(sealNo) {
   return data
 }
 
+export async function voidSeal(sealNo, body = {}) {
+  const { data } = await api.post(`/ops/seals/${encodeURIComponent(sealNo)}/void`, body)
+  return data
+}
+
 export async function createLocalManifestFromSeal(sealNo, body = {}) {
   const { data } = await api.post(
     `/ops/seals/${encodeURIComponent(sealNo)}/local-manifest`,
@@ -1079,6 +1084,19 @@ export async function removeManifestMember(mfgNo, memberKey) {
 
 export async function closeManifest(mfgNo, extra = {}) {
   const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/close`, extra)
+  return data
+}
+
+export async function voidManifest(mfgNo, body = {}) {
+  const { data } = await api.post(`/ops/manifests/${encodeURIComponent(mfgNo)}/void`, body)
+  return data
+}
+
+export async function voidManifestBatch(mfgNos, body = {}) {
+  const { data } = await api.post('/ops/manifests/void-batch', {
+    mfgNos,
+    ...body,
+  })
   return data
 }
 

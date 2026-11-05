@@ -357,8 +357,10 @@ export default function DispatchPage() {
                 <Descriptions.Item label="Dest Area">
                   {planInfo?.path?.destinationArea || cn.destination_area_code || '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Last-mile dispatcher">
-                  {planInfo?.path?.deliveryDispatcherName || '—'}
+                <Descriptions.Item label="Last-mile station">
+                  {planInfo?.path?.dispatcherDeliveryPoint
+                    || planInfo?.path?.deliveryDispatcherName
+                    || '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Coverage">
                   {planInfo?.path?.coverageType || '—'}

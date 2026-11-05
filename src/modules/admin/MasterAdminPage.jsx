@@ -57,7 +57,7 @@ import {
   saveMaster,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import { STAFF_ASSIGNABLE_ROLES, normalizeRole } from '../../auth/rbac'
+import { STAFF_ASSIGNABLE_ROLES, normalizeRole, roleDisplayName } from '../../auth/rbac'
 import GeoLocationPicker from '../../components/GeoLocationPicker'
 import CodeLookupField from '../../components/CodeLookupField'
 import ListPageLayout from '../../components/ListPageLayout'
@@ -168,12 +168,11 @@ export const MASTER_CATEGORIES = [
   },
   {
     key: 'fleet',
-    title: 'Fleet & Dispatch',
+    title: 'Fleet & Transport',
     icon: <CarOutlined />,
-    description: 'First/last-mile couriers, station dispatchers, and external third-party partner carriers.',
+    description: 'Couriers (pickup / last mile), linehaul & sublinehaul transport, and 3PL partners.',
     resources: [
-      { key: 'drivers', label: 'Drivers & Couriers', icon: <CarOutlined /> },
-      { key: 'dispatchers', label: 'Dispatchers', icon: <ApartmentOutlined /> },
+      { key: 'drivers', label: 'Couriers & Linehaul', icon: <CarOutlined /> },
       { key: '3pl', label: '3PL Partners', icon: <ClusterOutlined /> },
     ],
   },
@@ -196,7 +195,7 @@ export const MASTER_CATEGORIES = [
     resources: [
       { key: 'customers', label: 'Corporate Customers', icon: <TeamOutlined /> },
       { key: 'users', label: 'Staff Users', icon: <SafetyCertificateOutlined /> },
-      { key: 'storekeepers', label: 'Storekeepers', icon: <SafetyCertificateOutlined /> },
+      { key: 'storekeepers', label: 'Delivery Point Admins', icon: <SafetyCertificateOutlined /> },
     ],
   },
 ]
@@ -358,12 +357,12 @@ export const MASTER_SCHEMAS = {
     pk: 'id',
   },
   drivers: {
-    title: 'Driver Management',
-    singular: 'Driver',
+    title: 'Couriers & Linehaul',
+    singular: 'Courier / Linehaul',
     category: 'fleet',
     icon: <CarOutlined />,
     columns: [
-      { title: 'Driver ID', dataIndex: 'driver_id', key: 'driver_id', render: (v) => <Tag>{v}</Tag> },
+      { title: 'ID', dataIndex: 'driver_id', key: 'driver_id', render: (v) => <Tag>{v}</Tag> },
       { title: 'Full Name', dataIndex: 'full_name', key: 'full_name', render: (v) => <strong>{v}</strong> },
       { title: 'Phone', dataIndex: 'phone', key: 'phone' },
       {
@@ -394,7 +393,17 @@ export const MASTER_SCHEMAS = {
         key: 'driver_type',
         render: (v) => {
           const t = String(v || 'courier').toLowerCase()
-          return <Tag color={t === 'linehaul' ? 'purple' : t === 'both' ? 'geekblue' : 'default'}>{t}</Tag>
+          const color =
+            t === 'linehaul' ? 'purple' : t === 'sublinehaul' ? 'magenta' : t === 'both' ? 'geekblue' : 'green'
+          const label =
+            t === 'linehaul'
+              ? 'Linehaul'
+              : t === 'sublinehaul'
+                ? 'Sublinehaul'
+                : t === 'both'
+                  ? 'Courier + Linehaul'
+                  : 'Courier'
+          return <Tag color={color}>{label}</Tag>
         },
       },
       {
@@ -414,17 +423,18 @@ export const MASTER_SCHEMAS = {
         lookup: 'areas',
         mode: 'multiple',
         placeholder: 'Select one or more network areas…',
-        help: 'Courier can cover multiple network areas. First selected is used as the primary area.',
+        help: 'Couriers cover network areas for pickup / last mile. Linehaul usually uses hub location.',
       },
       {
         name: 'driver_type',
-        label: 'Driver Type',
+        label: 'Role type',
         type: 'select',
         options: [
-          { label: 'Courier (pickup / delivery)', value: 'courier' },
-          { label: 'Linehaul (hub to hub)', value: 'linehaul' },
-          { label: 'Both', value: 'both' },
+          { label: 'Courier — first-mile pickup & last-mile delivery', value: 'courier' },
+          { label: 'Linehaul — long-distance hub transport', value: 'linehaul' },
+          { label: 'Sublinehaul — feeder / short linehaul under linehaul', value: 'sublinehaul' },
         ],
+        help: 'Couriers are auto-assigned for pickup/delivery. Linehaul / sublinehaul are assigned by admin only.',
       },
       {
         name: 'home_drop_point_id',
@@ -432,9 +442,9 @@ export const MASTER_SCHEMAS = {
         lookup: 'drop-points',
         valueAsId: true,
         placeholder: 'Search drop point code or name…',
-        help: 'Search and pick the driver’s home counter / drop point.',
+        help: 'Optional home counter for couriers.',
       },
-      { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'driver@example.com' },
+      { name: 'mobile_email', label: 'Mobile Login Email', required: true, placeholder: 'courier@example.com' },
       { name: 'mobile_password', label: 'Mobile Login Password', type: 'password', required: true },
       { name: 'base_lat', label: 'Base latitude', type: 'number', geo: true },
       { name: 'base_lng', label: 'Base longitude', type: 'number', geo: true },
@@ -568,7 +578,7 @@ export const MASTER_SCHEMAS = {
       { title: 'Hub', dataIndex: 'hub_code', key: 'hub_code' },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       {
-        title: 'Storekeeper',
+        title: 'DP Admin',
         key: 'storekeeper',
         render: (_, r) => {
           const name = r.storekeeper_name || r.storekeeperName
@@ -612,19 +622,19 @@ export const MASTER_SCHEMAS = {
       { name: 'address_line1', label: 'Address', type: 'textarea', placeholder: 'Used for map search / auto-geocode' },
       {
         name: 'storekeeper_username',
-        label: 'Storekeeper Office Username',
+        label: 'DP Admin Office Username',
         placeholder: 'e.g. sk.kks01',
-        help: 'Ops web login for the Storekeeper. Leave blank to skip office account setup.',
+        help: 'Ops web login for the Delivery Point Admin. Leave blank to skip office account setup.',
       },
       {
         name: 'storekeeper_name',
-        label: 'Storekeeper Full Name',
-        placeholder: 'e.g. Ahmad Storekeeper',
-        help: 'Defaults to “{DEP name} Storekeeper” when blank.',
+        label: 'DP Admin Full Name',
+        placeholder: 'e.g. Ahmad DP Admin',
+        help: 'Defaults to “{DEP name} Delivery Point Admin” when blank.',
       },
       {
         name: 'storekeeper_password',
-        label: 'Storekeeper Office Password',
+        label: 'DP Admin Office Password',
         type: 'password',
         placeholder: 'At least 6 characters',
         help: 'Required for a new office login. When editing, leave blank to keep the current password.',
@@ -632,8 +642,8 @@ export const MASTER_SCHEMAS = {
       {
         name: 'mobile_email',
         label: 'Mobile App Login Email',
-        placeholder: 'storekeeper@example.com',
-        help: 'Signs in to the IPOSB Delivery Point (station) app as Storekeeper. Leave blank for no app access.',
+        placeholder: 'dp.admin@example.com',
+        help: 'Signs in to the IPOSB Delivery Point (station) app as Delivery Point Admin. Leave blank for no app access.',
       },
       {
         name: 'mobile_password',
@@ -648,8 +658,8 @@ export const MASTER_SCHEMAS = {
     pk: 'id',
   },
   storekeepers: {
-    title: 'Storekeeper Accounts',
-    singular: 'Storekeeper',
+    title: 'Delivery Point Admins',
+    singular: 'Delivery Point Admin',
     category: 'accounts',
     icon: <SafetyCertificateOutlined />,
     columns: [
@@ -697,7 +707,7 @@ export const MASTER_SCHEMAS = {
         label: 'Home Delivery Point',
         required: true,
         lookup: 'delivery-points',
-        placeholder: 'DEP this Storekeeper manages',
+        placeholder: 'DEP this Delivery Point Admin manages',
         help: 'Required — binds this account to one delivery point.',
       },
       { name: 'branch_code', label: 'Branch Code', lookup: 'branches' },
@@ -846,7 +856,7 @@ export const MASTER_SCHEMAS = {
     columns: [
       { title: 'Username', dataIndex: 'username', key: 'username', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
       { title: 'Full Name', dataIndex: 'name', key: 'name' },
-      { title: 'Role', dataIndex: 'app_role', key: 'app_role', render: (v) => <Tag color="blue">{v}</Tag> },
+      { title: 'Role', dataIndex: 'app_role', key: 'app_role', render: (v) => <Tag color="blue">{roleDisplayName(v)}</Tag> },
       { title: 'Branch', dataIndex: 'branch_code', key: 'branch_code' },
       { title: 'Home Hub', dataIndex: 'home_hub_code', key: 'home_hub_code', render: (v) => v || '—' },
       {
@@ -881,7 +891,7 @@ export const MASTER_SCHEMAS = {
           { label: 'Invoice (Billing)', value: 'Invoice' },
           { label: 'CSL (Customer Service)', value: 'CSL' },
           { label: 'Cargo Team (airport / port)', value: 'Cargo Team' },
-          { label: 'Storekeeper (delivery point manager)', value: 'Storekeeper' },
+          { label: 'Delivery Point Admin (station manager)', value: 'Storekeeper' },
           { label: 'Others (limited)', value: 'Others' },
         ],
       },
@@ -893,9 +903,9 @@ export const MASTER_SCHEMAS = {
       },
       {
         name: 'home_delivery_point_code',
-        label: 'Home Delivery Point (Storekeeper)',
+        label: 'Home Delivery Point (DP Admin)',
         lookup: 'delivery-points',
-        placeholder: 'Delivery point this Storekeeper manages',
+        placeholder: 'Delivery point this DP Admin manages',
       },
       {
         name: 'home_drop_point_id',
@@ -1004,7 +1014,7 @@ export default function MasterAdminPage() {
         key: role,
         label: (
           <span>
-            {role}{' '}
+            {roleDisplayName(role)}{' '}
             <Badge
               count={userRoleCounts[role] || 0}
               showZero

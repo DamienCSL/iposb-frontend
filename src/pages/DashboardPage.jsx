@@ -47,15 +47,15 @@ export default function DashboardPage() {
       title: 'Staff Verification',
       desc: stats.pending_staff
         ? `${stats.pending_staff} pending app sign-up(s)`
-        : 'Approve driver / dispatcher app sign-ups',
+        : 'Approve courier / station app sign-ups',
       icon: 'bi-shield-check',
       color: 'warning',
       show: can(caps, 'staff'),
     },
-    { to: '/admin/dispatchers', title: 'Dispatcher Management', desc: 'Assigned to a last-mile area', icon: 'bi-headset', color: 'danger', show: can(caps, 'staff') },
-    { to: '/admin/drivers', title: 'Driver Management', desc: 'Mobile drivers (app login + routes)', icon: 'bi-truck', color: 'danger', show: can(caps, 'staff') },
+    { to: '/admin/drivers', title: 'Couriers & Linehaul', desc: 'Couriers (pickup/delivery) and linehaul / sublinehaul transport', icon: 'bi-truck', color: 'danger', show: can(caps, 'staff') },
+    { to: '/admin/storekeepers', title: 'Delivery Point Admins', desc: 'Station managers for each delivery point', icon: 'bi-person-badge', color: 'danger', show: can(caps, 'staff') },
     { to: '/admin/routes', title: 'Route Table', desc: 'Origin→dest delivery-point / hub rules', icon: 'bi-signpost-2', color: 'danger', show: can(caps, 'routing') },
-    { to: '/admin/areas', title: 'Network Areas', desc: 'Last-mile territories for dispatch', icon: 'bi-pin-map', color: 'danger', show: can(caps, 'routing') },
+    { to: '/admin/areas', title: 'Network Areas', desc: 'Last-mile territories for couriers', icon: 'bi-pin-map', color: 'danger', show: can(caps, 'routing') },
   ].filter((a) => a.show)
 
   return (

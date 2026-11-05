@@ -90,7 +90,7 @@ const SPECS = {
           ['Droppoint Manager', 'Droppoint Manager'],
           ['CSL', 'CSL'],
           ['Cargo Team', 'Cargo Team'],
-          ['Storekeeper', 'Storekeeper'],
+          ['Storekeeper', 'Delivery Point Admin'],
         ],
       },
       { name: 'user_password', label: 'Password', type: 'password' },
@@ -239,7 +239,7 @@ const SPECS = {
     pk: 'id',
   },
   drivers: {
-    title: 'Driver Management',
+    title: 'Couriers & Linehaul',
     columns: [['driver_id', 'ID'], ['full_name', 'Name'], ['loc_id', 'Loc'], ['preferred_zones', 'Network areas'], ['mobile_email', 'Mobile login'], ['base_lat', 'Lat'], ['base_lng', 'Lng'], ['is_available', 'Available']],
     fields: [
       { name: 'firebase_uid', label: 'Firebase UID', generate: 'firebase_uid' },
@@ -250,12 +250,12 @@ const SPECS = {
       { name: 'home_drop_point_id', label: 'Home drop point', lookup: 'drop-points' },
       {
         name: 'driver_type',
-        label: 'Driver type',
+        label: 'Role type',
         type: 'select',
         options: [
-          ['courier', 'Courier (pickup / delivery)'],
-          ['linehaul', 'Linehaul (hub to hub)'],
-          ['both', 'Both'],
+          ['courier', 'Courier — pickup / last mile'],
+          ['linehaul', 'Linehaul — long-distance transport'],
+          ['sublinehaul', 'Sublinehaul — feeder transport'],
         ],
       },
       { name: 'mobile_email', label: 'Mobile app login email' },

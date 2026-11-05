@@ -108,8 +108,7 @@ const APP_PAGES = [
   { title: 'Master Data: Branches', path: '/ops/admin/branches', keywords: ['branches', 'branch', 'office'] },
   { title: 'Master Data: Hubs & Transit', path: '/ops/admin/hubs', keywords: ['hubs', 'gateway', 'transit'] },
   { title: 'Master Data: Drop Points', path: '/ops/admin/drop-points', keywords: ['drop', 'counter', 'locker'] },
-  { title: 'Master Data: Drivers & Couriers', path: '/ops/admin/drivers', keywords: ['drivers', 'couriers', 'riders'] },
-  { title: 'Master Data: Dispatchers', path: '/ops/admin/dispatchers', keywords: ['dispatchers', 'controllers'] },
+  { title: 'Master Data: Couriers & Linehaul', path: '/ops/admin/drivers', keywords: ['drivers', 'couriers', 'riders', 'linehaul', 'sublinehaul'] },
   { title: 'Master Data: 3PL Partners', path: '/ops/admin/3pl', keywords: ['3pl', 'logistics', 'dhl', 'jnt'] },
   { title: 'Master Data: Coverage Areas', path: '/ops/admin/coverage', keywords: ['coverage', 'areas', 'territory'] },
   { title: 'Master Data: Routing Rules', path: '/ops/admin/routes', keywords: ['routes', 'rules', 'origin', 'dest'] },
@@ -117,7 +116,7 @@ const APP_PAGES = [
   { title: 'Master Data: Network Areas', path: '/ops/admin/areas', keywords: ['areas', 'network', 'last-mile'] },
   { title: 'Master Data: Customers', path: '/ops/admin/customers', keywords: ['customers', 'corporate', 'clients'] },
   { title: 'Master Data: Staff Users', path: '/ops/admin/users', keywords: ['users', 'accounts', 'passwords', 'roles'] },
-  { title: 'Master Data: Storekeepers', path: '/ops/admin/storekeepers', keywords: ['storekeeper', 'store keepers', 'delivery point manager', 'dep'] },
+  { title: 'Master Data: Delivery Point Admins', path: '/ops/admin/storekeepers', keywords: ['storekeeper', 'store keepers', 'delivery point admin', 'delivery point manager', 'dep'] },
   { title: 'System Activity & Audit Logs', path: '/ops/logs', keywords: ['logs', 'audit', 'activity', 'history', 'events', 'trail'] },
 ]
 
@@ -1083,12 +1082,7 @@ export default function AppLayout() {
             },
             {
               key: '/ops/admin/drivers',
-              label: <Link to="/ops/admin/drivers" style={{ display: 'block', width: '100%' }}>Drivers & Couriers</Link>,
-              visible: can('admin') || can('staff') || isAdmin,
-            },
-            {
-              key: '/ops/admin/dispatchers',
-              label: <Link to="/ops/admin/dispatchers" style={{ display: 'block', width: '100%' }}>Dispatchers</Link>,
+              label: <Link to="/ops/admin/drivers" style={{ display: 'block', width: '100%' }}>Couriers & Linehaul</Link>,
               visible: can('admin') || can('staff') || isAdmin,
             },
             {
@@ -1131,7 +1125,7 @@ export default function AppLayout() {
             },
             {
               key: '/ops/admin/storekeepers',
-              label: <Link to="/ops/admin/storekeepers" style={{ display: 'block', width: '100%' }}>Storekeepers</Link>,
+              label: <Link to="/ops/admin/storekeepers" style={{ display: 'block', width: '100%' }}>Delivery Point Admins</Link>,
               visible: isAdmin || can('admin'),
             },
           ],

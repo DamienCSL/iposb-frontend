@@ -104,19 +104,38 @@ export default function ListPageLayout({
           </div>
 
           <Space wrap>
-            {actions.map((act) => (
-              <Button
-                key={act.key}
-                type={act.type || 'default'}
-                icon={act.icon}
-                onClick={act.onClick}
-                loading={act.loading}
-                disabled={act.disabled}
-                danger={act.danger}
-              >
-                {act.label}
-              </Button>
-            ))}
+            {actions.map((act) =>
+              act.menu ? (
+                <Dropdown.Button
+                  key={act.key}
+                  type={act.type || 'default'}
+                  icon={<DownOutlined />}
+                  menu={act.menu}
+                  onClick={act.onClick}
+                  loading={act.loading}
+                  disabled={act.disabled}
+                  danger={act.danger}
+                  buttonsRender={([left, right]) => [
+                    React.cloneElement(left, { icon: act.icon }),
+                    right,
+                  ]}
+                >
+                  {act.label}
+                </Dropdown.Button>
+              ) : (
+                <Button
+                  key={act.key}
+                  type={act.type || 'default'}
+                  icon={act.icon}
+                  onClick={act.onClick}
+                  loading={act.loading}
+                  disabled={act.disabled}
+                  danger={act.danger}
+                >
+                  {act.label}
+                </Button>
+              ),
+            )}
 
             {onNewClick && (
               <Button

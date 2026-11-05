@@ -15,6 +15,7 @@ import {
   removeSealMember,
   scanSeal,
   sealArriveCn,
+  voidSeal,
 } from '../api/client'
 import { printSealLabel, SealLabelNote } from '../components/SealLabelPrint'
 import { useAuth } from '../auth/AuthContext'
@@ -126,6 +127,7 @@ export default function SealStationPage() {
   const [message, setMessage] = useState('')
   const [ok, setOk] = useState('')
   const [filterTier, setFilterTier] = useState('')
+  const [filterLifecycle, setFilterLifecycle] = useState('')
   const [labelPreviewOpen, setLabelPreviewOpen] = useState(false)
 
   useEffect(() => {
@@ -143,10 +145,11 @@ export default function SealStationPage() {
   const refreshList = useCallback(async () => {
     const data = await listSeals({
       tier: filterTier || undefined,
+      lifecycle: filterLifecycle || undefined,
       limit: 40,
     })
     setList(data?.items || [])
-  }, [filterTier])
+  }, [filterTier, filterLifecycle])
 
   const refreshSop = useCallback(async (sealNo) => {
     try {
@@ -301,6 +304,36 @@ export default function SealStationPage() {
       setOk(`Sealed ${activeSealNo} — generate a local manifesto or hand off to Manifest Station`)
       await refreshList()
       await refreshSop(activeSealNo)
+    } catch (err) {
+      setMessage(apiError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onVoid() {
+    if (!activeSealNo) return
+    const life = String(seal?.lifecycle || '').toLowerCase()
+    if (!['open', 'sealed'].includes(life)) {
+      setMessage('Only open or sealed (not in transit) bags can be voided.')
+      return
+    }
+    if (
+      !window.confirm(
+        `Void / discard seal ${activeSealNo}?\n\nIt will leave the active list. Members are cleared. This cannot be undone from the UI.`,
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setMessage('')
+    try {
+      const data = await voidSeal(activeSealNo)
+      setOk(data?.message || `Voided ${activeSealNo}`)
+      setActiveSealNo('')
+      setSeal(null)
+      setPack(null)
+      await refreshList()
     } catch (err) {
       setMessage(apiError(err))
     } finally {
@@ -636,19 +669,32 @@ export default function SealStationPage() {
           ) : null}
 
           <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
+            <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
               <strong>Recent seals</strong>
-              <select
-                className="form-select form-select-sm"
-                style={{ width: '8rem' }}
-                value={filterTier}
-                onChange={(e) => setFilterTier(e.target.value)}
-              >
-                <option value="">All tiers</option>
-                <option value="baby">Baby</option>
-                <option value="mother">Mother</option>
-                <option value="father">Father</option>
-              </select>
+              <div className="d-flex gap-1">
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: '7rem' }}
+                  value={filterTier}
+                  onChange={(e) => setFilterTier(e.target.value)}
+                >
+                  <option value="">All tiers</option>
+                  <option value="baby">Baby</option>
+                  <option value="mother">Mother</option>
+                  <option value="father">Father</option>
+                </select>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: '8rem' }}
+                  value={filterLifecycle}
+                  onChange={(e) => setFilterLifecycle(e.target.value)}
+                >
+                  <option value="">Active</option>
+                  <option value="open">Open</option>
+                  <option value="sealed">Sealed</option>
+                  <option value="voided">Voided</option>
+                </select>
+              </div>
             </div>
             <div className="table-responsive" style={{ maxHeight: 320 }}>
               <table className="table table-sm mb-0">
@@ -766,6 +812,11 @@ export default function SealStationPage() {
                       {canClose ? (
                         <button type="button" className="btn btn-warning btn-sm" disabled={busy} onClick={onClose}>
                           Close seal
+                        </button>
+                      ) : null}
+                      {['open', 'sealed'].includes(String(lifecycle).toLowerCase()) ? (
+                        <button type="button" className="btn btn-outline-danger btn-sm" disabled={busy} onClick={onVoid}>
+                          Void / discard
                         </button>
                       ) : null}
                       {canLocalManifest ? (
